@@ -420,7 +420,7 @@ async function syncFromFirebase() {
     const byId = new Map();
 
     if (cloudConfigs && typeof cloudConfigs === 'object') {
-      Object.values(cloudConfigs).forEach((c) => {
+      Object.entries(cloudConfigs).forEach(([key, c]) => {
         if (c && Array.isArray(c.ops) && getValidSamplers(c).length > 0) {
           const normalized = {
             ops: ALL_OPS.filter(op => c.ops.includes(op)),
@@ -433,12 +433,22 @@ async function syncFromFirebase() {
           };
           normalized.id = getConfigId(normalized);
           byId.set(normalized.id, normalized);
+
+          // Migrate any legacy non-canonical config key in Firebase
+          if (key !== normalized.id) {
+            fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(key)}.json`, { method: 'DELETE' }).catch(() => {});
+            fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(normalized.id)}.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(normalized)
+            }).catch(() => {});
+          }
         }
       });
     }
 
-    // Ensure the default config always exists in Firebase for all users
-    if (!byId.has(defaultCfg.id)) {
+    // Ensure the default config always exists in Firebase under its canonical key
+    if (!cloudConfigs || !cloudConfigs[defaultCfg.id]) {
       byId.set(defaultCfg.id, defaultCfg);
       fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(defaultCfg.id)}.json`, {
         method: 'PUT',
