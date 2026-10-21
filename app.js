@@ -236,11 +236,11 @@ function createDefaultConfig(id = 'cfg_default') {
     id,
     ops: ['+', '-'],
     min1: 0,
-    max1: 9,
+    max1: 10,
     min2: 0,
-    max2: 9,
+    max2: 10,
     min3: 0,
-    max3: 18
+    max3: 20
   };
 }
 
@@ -385,9 +385,20 @@ function initConfigs() {
     }
   }
 
-  // Filter out any invalid legacy configs that might have no valid equations
   if (Array.isArray(configs)) {
-    configs = configs.filter(c => c && Array.isArray(c.ops) && getValidSamplers(c).length > 0);
+    configs = configs
+      .filter(c => c && Array.isArray(c.ops) && getValidSamplers(c).length > 0)
+      .map((c) => {
+        if (
+          c.id === 'cfg_default' &&
+          c.min1 === 0 && c.max1 === 9 &&
+          c.min2 === 0 && c.max2 === 9 &&
+          c.min3 === 0 && c.max3 === 18
+        ) {
+          return { ...c, max1: 10, max2: 10, max3: 20 };
+        }
+        return c;
+      });
   } else {
     configs = [];
   }
