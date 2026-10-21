@@ -199,29 +199,23 @@ async function saveUsername(newName) {
 
 // --- Leaderboard Storage (Firebase / Supabase / Local Fallback) ---
 
-function getSeededLocalLeaderboard() {
+function getLocalLeaderboard() {
   const raw = localStorage.getItem(STORAGE_KEYS.localLeaderboard);
   if (raw) {
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter(e => e && !String(e.userId).startsWith('seed_'));
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(cleaned));
+        }
+        return cleaned;
+      }
     } catch (_) {
-      // Fall through to seed
+      // Fall through to empty array
     }
   }
-  const seed = [
-    { userId: 'seed_1', username: 'PrimeFalcon812', score: 42, updatedAt: 1700000001 },
-    { userId: 'seed_2', username: 'SwiftOwl304', score: 38, updatedAt: 1700000002 },
-    { userId: 'seed_3', username: 'CleverFox911', score: 35, updatedAt: 1700000003 },
-    { userId: 'seed_4', username: 'SharpLynx128', score: 31, updatedAt: 1700000004 },
-    { userId: 'seed_5', username: 'QuickHawk550', score: 28, updatedAt: 1700000005 },
-    { userId: 'seed_6', username: 'BoldWolf219', score: 24, updatedAt: 1700000006 },
-    { userId: 'seed_7', username: 'KeenOtter773', score: 20, updatedAt: 1700000007 },
-    { userId: 'seed_8', username: 'BrightPanda402', score: 16, updatedAt: 1700000008 },
-    { userId: 'seed_9', username: 'LuckyTiger635', score: 12, updatedAt: 1700000009 },
-    { userId: 'seed_10', username: 'CalmBear190', score: 8, updatedAt: 1700000010 }
-  ];
-  localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(seed));
-  return seed;
+  return [];
 }
 
 async function fetchAllScores() {
@@ -251,7 +245,7 @@ async function fetchAllScores() {
   }
 
   // 3. LocalStorage fallback
-  return getSeededLocalLeaderboard();
+  return getLocalLeaderboard();
 }
 
 async function submitScoreToLeaderboard(score) {
@@ -266,7 +260,7 @@ async function submitScoreToLeaderboard(score) {
   };
 
   // Always mirror to local storage as backup
-  const localList = getSeededLocalLeaderboard();
+  const localList = getLocalLeaderboard();
   const idx = localList.findIndex(e => e.userId === userId);
   if (idx >= 0) {
     localList[idx] = {
@@ -307,7 +301,7 @@ async function submitScoreToLeaderboard(score) {
 }
 
 async function updateLeaderboardUsername(targetUserId, newUsername) {
-  const localList = getSeededLocalLeaderboard();
+  const localList = getLocalLeaderboard();
   const idx = localList.findIndex(e => e.userId === targetUserId);
   if (idx >= 0) {
     localList[idx].username = newUsername;
@@ -342,7 +336,7 @@ async function updateLeaderboardUsername(targetUserId, newUsername) {
 }
 
 async function deleteLeaderboardUser(targetUserId) {
-  const localList = getSeededLocalLeaderboard().filter(e => e.userId !== targetUserId);
+  const localList = getLocalLeaderboard().filter(e => e.userId !== targetUserId);
   localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(localList));
 
   if (CLOUD_CONFIG.firebaseDbUrl) {
