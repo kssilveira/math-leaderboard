@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="1-minute mobile math game with a global leaderboard. Practice single-digit addition and subtraction.">
+  <title>1-Minute Math</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1 class="logo">1-Min Math</h1>
+      <div class="user-box">
+        <label for="username-input" class="sr-only">Username</label>
+        <input
+          id="username-input"
+          class="username-input"
+          type="text"
+          maxlength="20"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Edit username"
+          title="Tap to edit username"
+        >
+        <span class="edit-hint" aria-hidden="true">✎</span>
+      </div>
+    </header>
+
+    <!-- HOME / LEADERBOARD VIEW -->
+    <section id="home-view" class="view active">
+      <div id="last-result" class="result-banner hidden">
+        <div class="result-score-label">Last Score</div>
+        <div id="last-score-value" class="result-score-value">0</div>
+        <div id="last-score-detail" class="result-score-detail">0 right · 0 wrong</div>
+      </div>
+
+      <button id="play-btn" class="primary-btn" type="button">
+        Play 1-Minute Game
+      </button>
+
+      <section class="leaderboard-card" aria-labelledby="leaderboard-heading">
+        <div class="leaderboard-header">
+          <h2 id="leaderboard-heading">Global Leaderboard</h2>
+          <span id="storage-badge" class="badge">Top 10</span>
+        </div>
+
+        <div id="my-rank-bar" class="my-rank-bar">
+          <span>Your Rank: <strong id="my-rank-value">—</strong></span>
+          <span>Best: <strong id="my-best-value">—</strong></span>
+        </div>
+
+        <ol id="leaderboard-list" class="leaderboard-list">
+          <li class="empty-row">Loading leaderboard...</li>
+        </ol>
+      </section>
+    </section>
+
+    <!-- GAME VIEW -->
+    <section id="game-view" class="view" aria-live="polite">
+      <div class="game-hud">
+        <div class="hud-stat">
+          <span class="hud-label">Time</span>
+          <span id="timer-display" class="hud-value">60s</span>
+        </div>
+        <div class="hud-stat hud-score">
+          <span class="hud-label">Score</span>
+          <span id="score-display" class="hud-value">0</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">Right / Wrong</span>
+          <span id="tally-display" class="hud-subvalue">
+            <span id="right-display" class="text-right">0</span> / <span id="wrong-display" class="text-wrong">0</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="equation-card" id="equation-card">
+        <span id="slot-0" class="eq-item">0</span>
+        <span id="slot-op" class="eq-op">+</span>
+        <span id="slot-1" class="eq-item">0</span>
+        <span class="eq-op">=</span>
+        <span id="slot-2" class="eq-item">0</span>
+      </div>
+
+      <div class="keypad" id="keypad" role="group" aria-label="Number pad">
+        <button type="button" class="key-btn" data-digit="1">1</button>
+        <button type="button" class="key-btn" data-digit="2">2</button>
+        <button type="button" class="key-btn" data-digit="3">3</button>
+        <button type="button" class="key-btn" data-digit="4">4</button>
+        <button type="button" class="key-btn" data-digit="5">5</button>
+        <button type="button" class="key-btn" data-digit="6">6</button>
+        <button type="button" class="key-btn" data-digit="7">7</button>
+        <button type="button" class="key-btn" data-digit="8">8</button>
+        <button type="button" class="key-btn" data-digit="9">9</button>
+        <button type="button" class="key-btn key-zero" data-digit="0">0</button>
+      </div>
+
+      <button id="quit-btn" class="ghost-btn" type="button">End Game</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
