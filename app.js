@@ -580,7 +580,7 @@ addUserBtn.addEventListener('click', addUser);
 deleteUserBtn.addEventListener('click', deleteCurrentUser);
 
 playBtn.addEventListener('click', startGame);
-quitBtn.addEventListener('click', () => finishGame(false));
+quitBtn.addEventListener('click', () => finishGame(true));
 
 // Fast touch/click response on the 3-digits-per-row keypad
 keypad.addEventListener('pointerdown', (e) => {
