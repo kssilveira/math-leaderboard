@@ -231,9 +231,14 @@ async function saveUsername(newName) {
 
 // --- Immutable Game Configurations ---
 
-function createDefaultConfig(id = 'cfg_default') {
-  return {
-    id,
+function getConfigId(cfg) {
+  const opNames = { '+': 'add', '-': 'sub', '×': 'mul', '÷': 'div' };
+  const opsKey = ALL_OPS.filter(op => cfg.ops.includes(op)).map(op => opNames[op]).join('-');
+  return `cfg_${opsKey}_${cfg.min1}_${cfg.max1}_${cfg.min2}_${cfg.max2}_${cfg.min3}_${cfg.max3}`;
+}
+
+function createDefaultConfig() {
+  const base = {
     ops: ['+', '-'],
     min1: 0,
     max1: 10,
@@ -242,6 +247,7 @@ function createDefaultConfig(id = 'cfg_default') {
     min3: 0,
     max3: 20
   };
+  return { id: getConfigId(base), ...base };
 }
 
 function formatConfigLabel(cfg) {
@@ -325,9 +331,8 @@ async function createNewConfigFromDraft() {
   updateDraftRangeInputs();
   if (getValidSamplers(draftConfig).length === 0) return;
 
-  const newCfg = {
-    id: generateId('cfg_'),
-    ops: [...draftConfig.ops],
+  const base = {
+    ops: ALL_OPS.filter(op => draftConfig.ops.includes(op)),
     min1: draftConfig.min1,
     max1: draftConfig.max1,
     min2: draftConfig.min2,
@@ -335,8 +340,14 @@ async function createNewConfigFromDraft() {
     min3: draftConfig.min3,
     max3: draftConfig.max3
   };
+  const newCfg = {
+    id: getConfigId(base),
+    ...base
+  };
 
-  configs.push(newCfg);
+  if (!configs.some(c => c.id === newCfg.id)) {
+    configs.push(newCfg);
+  }
   activeConfigId = newCfg.id;
   saveConfigsToStorage();
   closeNewConfigPanel();
@@ -386,15 +397,17 @@ function updateDraftRangeInputs() {
 }
 
 async function initConfigs() {
+  let localConfigs = [];
   const rawConfigs = localStorage.getItem(STORAGE_KEYS.configs);
   if (rawConfigs) {
     try {
-      configs = JSON.parse(rawConfigs);
+      localConfigs = JSON.parse(rawConfigs);
     } catch (_) {
-      configs = [];
+      localConfigs = [];
     }
   }
 
+  let cloudConfigs = null;
   if (CLOUD_CONFIG.firebaseDbUrl) {
     try {
       const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
@@ -402,7 +415,7 @@ async function initConfigs() {
       if (res.ok) {
         const cloudData = await res.json();
         if (cloudData && typeof cloudData === 'object') {
-          configs = Object.values(cloudData);
+          cloudConfigs = Object.values(cloudData);
         }
       }
     } catch (_) {
@@ -410,35 +423,42 @@ async function initConfigs() {
     }
   }
 
-  if (Array.isArray(configs)) {
-    configs = configs
+  const rawList = Array.isArray(cloudConfigs) && cloudConfigs.length > 0 ? cloudConfigs : localConfigs;
+  const byId = new Map();
+
+  if (Array.isArray(rawList)) {
+    rawList
       .filter(c => c && Array.isArray(c.ops) && getValidSamplers(c).length > 0)
-      .map((c) => {
+      .forEach((c) => {
+        let normalized = { ...c };
         if (
-          c.id === 'cfg_default' &&
-          c.min1 === 0 && c.max1 === 9 &&
-          c.min2 === 0 && c.max2 === 9 &&
-          c.min3 === 0 && c.max3 === 18
+          normalized.min1 === 0 && normalized.max1 === 9 &&
+          normalized.min2 === 0 && normalized.max2 === 9 &&
+          normalized.min3 === 0 && normalized.max3 === 18
         ) {
-          return { ...c, max1: 10, max2: 10, max3: 20 };
+          normalized = { ...normalized, max1: 10, max2: 10, max3: 20 };
         }
-        return c;
+        normalized.ops = ALL_OPS.filter(op => normalized.ops.includes(op));
+        normalized.id = getConfigId(normalized);
+        byId.set(normalized.id, normalized);
       });
-  } else {
-    configs = [];
   }
 
+  configs = Array.from(byId.values());
+
   if (configs.length === 0) {
-    const def = createDefaultConfig('cfg_default');
-    configs = [def];
-    if (CLOUD_CONFIG.firebaseDbUrl) {
-      const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-      fetch(`${baseUrl}/configs/${encodeURIComponent(def.id)}.json`, {
+    configs = [createDefaultConfig()];
+  }
+
+  if (CLOUD_CONFIG.firebaseDbUrl && (!cloudConfigs || cloudConfigs.length === 0)) {
+    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+    configs.forEach((cfg) => {
+      fetch(`${baseUrl}/configs/${encodeURIComponent(cfg.id)}.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(def)
+        body: JSON.stringify(cfg)
       }).catch(() => {});
-    }
+    });
   }
 
   const savedConfigId = localStorage.getItem(STORAGE_KEYS.activeConfigId);
@@ -469,7 +489,7 @@ async function deleteCurrentConfig() {
 
   let recreatedDefault = null;
   if (configs.length === 0) {
-    recreatedDefault = createDefaultConfig(generateId('cfg_'));
+    recreatedDefault = createDefaultConfig();
     configs.push(recreatedDefault);
   }
 
