@@ -60,6 +60,13 @@ html, body {
   font-size: 1.15rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .user-box {
@@ -79,7 +86,7 @@ html, body {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
-  width: 135px;
+  width: 130px;
   text-align: right;
   padding-right: 4px;
   outline: none;
@@ -94,6 +101,84 @@ html, body {
   font-size: 0.85rem;
   color: var(--text-muted);
   pointer-events: none;
+}
+
+.icon-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.danger-btn:active,
+.danger-btn:hover {
+  color: var(--wrong);
+  border-color: var(--wrong);
+  background: var(--wrong-bg);
+}
+
+/* User Switcher */
+.user-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.user-switcher::-webkit-scrollbar {
+  display: none;
+}
+
+.user-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-pill {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.user-pill.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.add-user-btn {
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.add-user-btn:active {
+  background: var(--surface-subtle);
 }
 
 /* Views */

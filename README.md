@@ -4,7 +4,7 @@ Mobile-friendly 1-minute math game (`+` and `-` with single-digit numbers and no
 
 ## Features
 
-- **Username**: Random username generated and saved in `localStorage` (`math_username`), editable anytime in the header.
+- **Multi-User Support**: Random username generated and saved in `localStorage`, editable anytime in the header. Add, switch, and delete users so multiple people can play on the same device.
 - **1-Minute Math Game**:
   - Single-digit addition (`a + b = c`) and subtraction (`a - b = c` with `c >= 0`).
   - Randomly hides one of the 3 numbers in the equation.

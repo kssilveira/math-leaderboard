@@ -11,24 +11,40 @@
   <main class="app">
     <header class="topbar">
       <h1 class="logo">1-Min Math</h1>
-      <div class="user-box">
-        <label for="username-input" class="sr-only">Username</label>
-        <input
-          id="username-input"
-          class="username-input"
-          type="text"
-          maxlength="20"
-          autocomplete="off"
-          spellcheck="false"
-          aria-label="Edit username"
-          title="Tap to edit username"
-        >
-        <span class="edit-hint" aria-hidden="true">✎</span>
+      <div class="user-actions">
+        <div class="user-box">
+          <label for="username-input" class="sr-only">Username</label>
+          <input
+            id="username-input"
+            class="username-input"
+            type="text"
+            maxlength="20"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Edit username"
+            title="Tap to edit username"
+          >
+          <span class="edit-hint" aria-hidden="true">✎</span>
+        </div>
+        <button
+          id="delete-user-btn"
+          class="icon-btn danger-btn"
+          type="button"
+          title="Delete current user"
+          aria-label="Delete current user"
+        >✕</button>
       </div>
     </header>
 
     <!-- HOME / LEADERBOARD VIEW -->
     <section id="home-view" class="view active">
+      <div class="user-switcher" aria-label="Users on this device">
+        <div id="user-list" class="user-pills" role="tablist"></div>
+        <button id="add-user-btn" class="add-user-btn" type="button">
+          + Add User
+        </button>
+      </div>
+
       <div id="last-result" class="result-banner hidden">
         <div class="result-score-label">Last Score</div>
         <div id="last-score-value" class="result-score-value">0</div>

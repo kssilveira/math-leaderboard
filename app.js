@@ -8,6 +8,7 @@ const CLOUD_CONFIG = {
 };
 
 const STORAGE_KEYS = {
+  users: 'math_users_v1',
   userId: 'math_user_id',
   username: 'math_username',
   localLeaderboard: 'math_leaderboard_v1'
@@ -16,6 +17,7 @@ const STORAGE_KEYS = {
 const GAME_DURATION_SECONDS = 60;
 
 // State
+let users = []; // [{ userId: string, username: string }]
 let userId = '';
 let username = '';
 let timerInterval = null;
@@ -29,6 +31,9 @@ let isWrong = false;
 
 // DOM Elements
 const usernameInput = document.getElementById('username-input');
+const userListEl = document.getElementById('user-list');
+const addUserBtn = document.getElementById('add-user-btn');
+const deleteUserBtn = document.getElementById('delete-user-btn');
 const homeView = document.getElementById('home-view');
 const gameView = document.getElementById('game-view');
 const playBtn = document.getElementById('play-btn');
@@ -49,7 +54,7 @@ const slot2 = document.getElementById('slot-2');
 const slotOp = document.getElementById('slot-op');
 const keypad = document.getElementById('keypad');
 
-// --- User Identity & LocalStorage ---
+// --- Multi-User Identity & LocalStorage ---
 
 function generateRandomUsername() {
   const adjectives = ['Swift', 'Bright', 'Clever', 'Quick', 'Sharp', 'Lucky', 'Bold', 'Calm', 'Keen', 'Prime'];
@@ -67,20 +72,108 @@ function generateUserId() {
   return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
 }
 
+function saveUsersToStorage() {
+  localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+  localStorage.setItem(STORAGE_KEYS.userId, userId);
+  localStorage.setItem(STORAGE_KEYS.username, username);
+}
+
+function renderUserList() {
+  userListEl.innerHTML = '';
+  users.forEach((u) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'user-pill' + (u.userId === userId ? ' active' : '');
+    btn.textContent = u.username;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', u.userId === userId ? 'true' : 'false');
+    btn.addEventListener('click', () => switchUser(u.userId));
+    userListEl.appendChild(btn);
+  });
+}
+
 function initUser() {
-  userId = localStorage.getItem(STORAGE_KEYS.userId);
-  if (!userId) {
-    userId = generateUserId();
-    localStorage.setItem(STORAGE_KEYS.userId, userId);
+  const rawUsers = localStorage.getItem(STORAGE_KEYS.users);
+  if (rawUsers) {
+    try {
+      users = JSON.parse(rawUsers);
+    } catch (_) {
+      users = [];
+    }
   }
 
-  username = localStorage.getItem(STORAGE_KEYS.username);
-  if (!username) {
-    username = generateRandomUsername();
-    localStorage.setItem(STORAGE_KEYS.username, username);
+  // Migrate existing single user or create initial user if empty
+  if (!Array.isArray(users) || users.length === 0) {
+    const existingId = localStorage.getItem(STORAGE_KEYS.userId) || generateUserId();
+    const existingName = localStorage.getItem(STORAGE_KEYS.username) || generateRandomUsername();
+    users = [{ userId: existingId, username: existingName }];
   }
+
+  const savedActiveId = localStorage.getItem(STORAGE_KEYS.userId);
+  const activeUser = users.find(u => u.userId === savedActiveId) || users[0];
+
+  userId = activeUser.userId;
+  username = activeUser.username;
+  saveUsersToStorage();
 
   usernameInput.value = username;
+  renderUserList();
+}
+
+async function switchUser(targetUserId) {
+  if (isPlaying) return;
+  const target = users.find(u => u.userId === targetUserId);
+  if (!target || target.userId === userId) return;
+
+  userId = target.userId;
+  username = target.username;
+  saveUsersToStorage();
+
+  usernameInput.value = username;
+  lastResult.classList.add('hidden');
+  renderUserList();
+  await refreshLeaderboard();
+}
+
+async function addUser() {
+  if (isPlaying) return;
+  const newUser = {
+    userId: generateUserId(),
+    username: generateRandomUsername()
+  };
+  users.push(newUser);
+  userId = newUser.userId;
+  username = newUser.username;
+  saveUsersToStorage();
+
+  usernameInput.value = username;
+  lastResult.classList.add('hidden');
+  renderUserList();
+  await refreshLeaderboard();
+}
+
+async function deleteCurrentUser() {
+  if (isPlaying) return;
+  const deletedUserId = userId;
+  users = users.filter(u => u.userId !== deletedUserId);
+
+  if (users.length === 0) {
+    users.push({
+      userId: generateUserId(),
+      username: generateRandomUsername()
+    });
+  }
+
+  userId = users[0].userId;
+  username = users[0].username;
+  saveUsersToStorage();
+
+  usernameInput.value = username;
+  lastResult.classList.add('hidden');
+  renderUserList();
+
+  await deleteLeaderboardUser(deletedUserId);
+  await refreshLeaderboard();
 }
 
 async function saveUsername(newName) {
@@ -92,8 +185,13 @@ async function saveUsername(newName) {
   if (cleaned === username) return;
 
   username = cleaned;
-  localStorage.setItem(STORAGE_KEYS.username, username);
+  const currentObj = users.find(u => u.userId === userId);
+  if (currentObj) {
+    currentObj.username = username;
+  }
+  saveUsersToStorage();
   usernameInput.value = username;
+  renderUserList();
 
   await updateLeaderboardUsername(userId, username);
   await refreshLeaderboard();
@@ -167,7 +265,7 @@ async function submitScoreToLeaderboard(score) {
     updatedAt: Date.now()
   };
 
-  //Always mirror to local storage as backup
+  // Always mirror to local storage as backup
   const localList = getSeededLocalLeaderboard();
   const idx = localList.findIndex(e => e.userId === userId);
   if (idx >= 0) {
@@ -239,6 +337,27 @@ async function updateLeaderboardUsername(targetUserId, newUsername) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ username: newUsername })
+    });
+  }
+}
+
+async function deleteLeaderboardUser(targetUserId) {
+  const localList = getSeededLocalLeaderboard().filter(e => e.userId !== targetUserId);
+  localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(localList));
+
+  if (CLOUD_CONFIG.firebaseDbUrl) {
+    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+    await fetch(`${baseUrl}/leaderboard/${encodeURIComponent(targetUserId)}.json`, {
+      method: 'DELETE'
+    });
+  } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
+    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
+    await fetch(`${baseUrl}/rest/v1/leaderboard?userId=eq.${encodeURIComponent(targetUserId)}`, {
+      method: 'DELETE',
+      headers: {
+        apikey: CLOUD_CONFIG.supabaseAnonKey,
+        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+      }
     });
   }
 }
@@ -409,6 +528,7 @@ function startGame() {
   wrongCount = 0;
   currentQuestion = null;
 
+  deleteUserBtn.classList.add('hidden');
   homeView.classList.remove('active');
   gameView.classList.add('active');
 
@@ -432,6 +552,7 @@ async function finishGame(saveScore) {
 
   const finalScore = rightCount - wrongCount;
 
+  deleteUserBtn.classList.remove('hidden');
   gameView.classList.remove('active');
   homeView.classList.add('active');
 
@@ -454,6 +575,9 @@ usernameInput.addEventListener('keydown', (e) => {
     usernameInput.blur();
   }
 });
+
+addUserBtn.addEventListener('click', addUser);
+deleteUserBtn.addEventListener('click', deleteCurrentUser);
 
 playBtn.addEventListener('click', startGame);
 quitBtn.addEventListener('click', () => finishGame(false));
