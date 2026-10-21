@@ -1,20 +1,10 @@
-// Optional cloud configuration for GitHub Pages deployment.
-// Fill in EITHER firebaseDbUrl (Firebase Realtime Database) OR supabaseUrl + supabaseAnonKey.
-// When left empty, leaderboards use localStorage as a fallback so it works out of the box.
-const CLOUD_CONFIG = {
-  firebaseDbUrl: 'https://math-leaderboard-122f4-default-rtdb.europe-west1.firebasedatabase.app',
-  supabaseUrl: '',   // e.g. 'https://xyzcompany.supabase.co'
-  supabaseAnonKey: ''
-};
+const FIREBASE_DB_URL = 'https://math-leaderboard-122f4-default-rtdb.europe-west1.firebasedatabase.app';
 
 const STORAGE_KEYS = {
   users: 'math_users_v1',
   userId: 'math_user_id',
   username: 'math_username',
-  configs: 'math_configs_v1',
-  activeConfigId: 'math_active_config_id',
-  localLeaderboards: 'math_leaderboards_v1',
-  legacyLeaderboard: 'math_leaderboard_v1'
+  activeConfigId: 'math_active_config_id'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -25,9 +15,10 @@ let users = []; // [{ userId: string, username: string }]
 let userId = '';
 let username = '';
 
-let configs = []; // Immutable once created: [{ id, ops, min1, max1, min2, max2, min3, max3 }]
+let configs = []; // [{ id, ops, min1, max1, min2, max2, min3, max3 }]
+let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
 let activeConfigId = '';
-let draftConfig = null; // Used only while the "+ Game" creation panel is open
+let draftConfig = null;
 
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
@@ -46,7 +37,6 @@ const deleteUserBtn = document.getElementById('delete-user-btn');
 
 const configListEl = document.getElementById('config-list');
 const addConfigBtn = document.getElementById('add-config-btn');
-const deleteConfigBtn = document.getElementById('delete-config-btn');
 const newConfigPanel = document.getElementById('new-config-panel');
 const cancelConfigBtn = document.getElementById('cancel-config-btn');
 const saveConfigBtn = document.getElementById('save-config-btn');
@@ -94,7 +84,7 @@ function randomInt(low, high) {
   return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
-// --- Shared Multi-User Identity ---
+// --- Shared Multi-User Identity (LocalStorage) ---
 
 function generateRandomUsername() {
   const adjectives = ['Swift', 'Bright', 'Clever', 'Quick', 'Sharp', 'Lucky', 'Bold', 'Calm', 'Keen', 'Prime'];
@@ -164,7 +154,7 @@ async function switchUser(targetUserId) {
   usernameInput.value = username;
   lastResult.classList.add('hidden');
   renderUserList();
-  await refreshLeaderboard();
+  renderLeaderboard();
 }
 
 async function addUser() {
@@ -181,7 +171,7 @@ async function addUser() {
   usernameInput.value = username;
   lastResult.classList.add('hidden');
   renderUserList();
-  await refreshLeaderboard();
+  renderLeaderboard();
 }
 
 async function deleteCurrentUser() {
@@ -204,8 +194,7 @@ async function deleteCurrentUser() {
   lastResult.classList.add('hidden');
   renderUserList();
 
-  await deleteLeaderboardUserAcrossAllConfigs(deletedUserId);
-  await refreshLeaderboard();
+  await deleteUserFromFirebase(deletedUserId);
 }
 
 async function saveUsername(newName) {
@@ -225,11 +214,10 @@ async function saveUsername(newName) {
   usernameInput.value = username;
   renderUserList();
 
-  await updateLeaderboardUsernameAcrossAllConfigs(userId, username);
-  await refreshLeaderboard();
+  await updateUsernameInFirebase(userId, username);
 }
 
-// --- Immutable Game Configurations ---
+// --- Shared Game Configurations & Leaderboards (Firebase) ---
 
 function getConfigId(cfg) {
   const opNames = { '+': 'add', '-': 'sub', '×': 'mul', '÷': 'div' };
@@ -255,17 +243,26 @@ function formatConfigLabel(cfg) {
   return `${opsStr} (${cfg.min1}..${cfg.max1}, ${cfg.min2}..${cfg.max2}, ${cfg.min3}..${cfg.max3})`;
 }
 
+function getLeaderboardSize(configId) {
+  const board = leaderboardsMap[configId];
+  return board ? Object.keys(board).length : 0;
+}
+
+function sortConfigsByLeaderboardSize() {
+  configs.sort((a, b) => {
+    const sizeDiff = getLeaderboardSize(b.id) - getLeaderboardSize(a.id);
+    if (sizeDiff !== 0) return sizeDiff;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 function getActiveConfig() {
   return configs.find(c => c.id === activeConfigId) || configs[0];
 }
 
-function saveConfigsToStorage() {
-  localStorage.setItem(STORAGE_KEYS.configs, JSON.stringify(configs));
-  localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
-}
-
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
+  if (!activeCfg) return;
   configListEl.innerHTML = '';
 
   configs.forEach((cfg) => {
@@ -281,7 +278,6 @@ function renderConfigsUI() {
 
   leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
 
-  // Show minus key on keypad if active game allows negative numbers
   const allowsNegative = activeCfg.min1 < 0 || activeCfg.min2 < 0 || activeCfg.min3 < 0;
   minusKey.classList.toggle('hidden', !allowsNegative);
 }
@@ -307,7 +303,7 @@ function renderDraftConfigUI() {
 
 function openNewConfigPanel() {
   if (isPlaying) return;
-  const base = getActiveConfig();
+  const base = getActiveConfig() || createDefaultConfig();
   draftConfig = {
     ops: [...base.ops],
     min1: base.min1,
@@ -345,31 +341,29 @@ async function createNewConfigFromDraft() {
     ...base
   };
 
-  if (!configs.some(c => c.id === newCfg.id)) {
+  // Reuse existing config if it already exists, otherwise save to Firebase
+  const alreadyExists = configs.some(c => c.id === newCfg.id);
+  if (!alreadyExists) {
     configs.push(newCfg);
-  }
-  activeConfigId = newCfg.id;
-  saveConfigsToStorage();
-  closeNewConfigPanel();
-  lastResult.classList.add('hidden');
-  renderConfigsUI();
-
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/configs/${encodeURIComponent(newCfg.id)}.json`, {
+    await fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(newCfg.id)}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newCfg)
     });
   }
 
-  await refreshLeaderboard();
+  activeConfigId = newCfg.id;
+  localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+  closeNewConfigPanel();
+  lastResult.classList.add('hidden');
+
+  await syncFromFirebase();
 }
 
 function toggleDraftOperator(op) {
   if (!draftConfig) return;
   if (draftConfig.ops.includes(op)) {
-    if (draftConfig.ops.length <= 1) return; // Keep at least 1 operator
+    if (draftConfig.ops.length <= 1) return;
     draftConfig.ops = draftConfig.ops.filter(item => item !== op);
   } else {
     draftConfig.ops = ALL_OPS.filter(item => draftConfig.ops.includes(item) || item === op);
@@ -396,345 +390,130 @@ function updateDraftRangeInputs() {
   saveConfigBtn.disabled = !isValid;
 }
 
-async function initConfigs() {
-  let localConfigs = [];
-  const rawConfigs = localStorage.getItem(STORAGE_KEYS.configs);
-  if (rawConfigs) {
-    try {
-      localConfigs = JSON.parse(rawConfigs);
-    } catch (_) {
-      localConfigs = [];
-    }
-  }
-
-  let cloudConfigs = null;
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    try {
-      const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-      const res = await fetch(`${baseUrl}/configs.json`);
-      if (res.ok) {
-        const cloudData = await res.json();
-        if (cloudData && typeof cloudData === 'object') {
-          cloudConfigs = Object.values(cloudData);
-        }
-      }
-    } catch (_) {
-      // Fallback to localStorage configs
-    }
-  }
-
-  const rawList = Array.isArray(cloudConfigs) && cloudConfigs.length > 0 ? cloudConfigs : localConfigs;
-  const byId = new Map();
-
-  if (Array.isArray(rawList)) {
-    rawList
-      .filter(c => c && Array.isArray(c.ops) && getValidSamplers(c).length > 0)
-      .forEach((c) => {
-        let normalized = { ...c };
-        if (
-          normalized.min1 === 0 && normalized.max1 === 9 &&
-          normalized.min2 === 0 && normalized.max2 === 9 &&
-          normalized.min3 === 0 && normalized.max3 === 18
-        ) {
-          normalized = { ...normalized, max1: 10, max2: 10, max3: 20 };
-        }
-        normalized.ops = ALL_OPS.filter(op => normalized.ops.includes(op));
-        normalized.id = getConfigId(normalized);
-        byId.set(normalized.id, normalized);
-      });
-  }
-
-  configs = Array.from(byId.values());
-
-  if (configs.length === 0) {
-    configs = [createDefaultConfig()];
-  }
-
-  if (CLOUD_CONFIG.firebaseDbUrl && (!cloudConfigs || cloudConfigs.length === 0)) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    configs.forEach((cfg) => {
-      fetch(`${baseUrl}/configs/${encodeURIComponent(cfg.id)}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cfg)
-      }).catch(() => {});
-    });
-  }
-
-  const savedConfigId = localStorage.getItem(STORAGE_KEYS.activeConfigId);
-  const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
-  activeConfigId = activeCfg.id;
-
-  saveConfigsToStorage();
-  renderConfigsUI();
-}
-
 async function switchConfig(targetConfigId) {
   if (isPlaying) return;
   const target = configs.find(c => c.id === targetConfigId);
   if (!target || target.id === activeConfigId) return;
 
   activeConfigId = target.id;
-  saveConfigsToStorage();
+  localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
   closeNewConfigPanel();
   lastResult.classList.add('hidden');
   renderConfigsUI();
-  await refreshLeaderboard();
+  renderLeaderboard();
+  await syncFromFirebase();
 }
 
-async function deleteCurrentConfig() {
-  if (isPlaying) return;
-  const deletedId = activeConfigId;
-  configs = configs.filter(c => c.id !== deletedId);
+async function syncFromFirebase() {
+  try {
+    const [configsRes, leaderboardsRes] = await Promise.all([
+      fetch(`${FIREBASE_DB_URL}/configs.json`),
+      fetch(`${FIREBASE_DB_URL}/leaderboards.json`)
+    ]);
 
-  let recreatedDefault = null;
-  if (configs.length === 0) {
-    recreatedDefault = createDefaultConfig();
-    configs.push(recreatedDefault);
-  }
+    const cloudConfigs = configsRes.ok ? await configsRes.json() : null;
+    const cloudLeaderboards = leaderboardsRes.ok ? await leaderboardsRes.json() : null;
 
-  activeConfigId = configs[0].id;
-  saveConfigsToStorage();
-  closeNewConfigPanel();
-  lastResult.classList.add('hidden');
-  renderConfigsUI();
+    leaderboardsMap = cloudLeaderboards && typeof cloudLeaderboards === 'object' ? cloudLeaderboards : {};
 
-  await deleteConfigLeaderboard(deletedId);
-  if (recreatedDefault && CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/configs/${encodeURIComponent(recreatedDefault.id)}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recreatedDefault)
-    });
-  }
-  await refreshLeaderboard();
-}
+    const defaultCfg = createDefaultConfig();
+    const byId = new Map();
 
-// --- Per-Configuration Leaderboard Storage (Firebase / Supabase / Local Fallback) ---
-
-function getLocalLeaderboardsMap() {
-  const raw = localStorage.getItem(STORAGE_KEYS.localLeaderboards);
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed;
-      }
-    } catch (_) {
-      // Fall through
-    }
-  }
-
-  // Migrate legacy single leaderboard if present
-  const map = {};
-  const legacyRaw = localStorage.getItem(STORAGE_KEYS.legacyLeaderboard);
-  if (legacyRaw) {
-    try {
-      const parsed = JSON.parse(legacyRaw);
-      if (Array.isArray(parsed)) {
-        map.cfg_default = parsed.filter(e => e && !String(e.userId).startsWith('seed_'));
-      }
-    } catch (_) {
-      // Ignore
-    }
-  }
-  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
-  return map;
-}
-
-function getLocalScoresForConfig(configId) {
-  const map = getLocalLeaderboardsMap();
-  return Array.isArray(map[configId]) ? map[configId] : [];
-}
-
-function saveLocalScoresForConfig(configId, list) {
-  const map = getLocalLeaderboardsMap();
-  map[configId] = list;
-  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
-}
-
-async function fetchScoresForConfig(configId) {
-  // 1. Firebase Realtime Database REST API
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    const res = await fetch(`${baseUrl}/leaderboards/${encodeURIComponent(configId)}.json`);
-    if (res.ok) {
-      const data = await res.json();
-      if (!data) return [];
-      return Object.values(data);
-    }
-  }
-
-  // 2. Supabase PostgREST API
-  if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
-    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    const res = await fetch(
-      `${baseUrl}/rest/v1/leaderboard?configId=eq.${encodeURIComponent(configId)}&select=*&order=score.desc`,
-      {
-        headers: {
-          apikey: CLOUD_CONFIG.supabaseAnonKey,
-          Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+    if (cloudConfigs && typeof cloudConfigs === 'object') {
+      Object.values(cloudConfigs).forEach((c) => {
+        if (c && Array.isArray(c.ops) && getValidSamplers(c).length > 0) {
+          const normalized = {
+            ops: ALL_OPS.filter(op => c.ops.includes(op)),
+            min1: c.min1,
+            max1: c.max1,
+            min2: c.min2,
+            max2: c.max2,
+            min3: c.min3,
+            max3: c.max3
+          };
+          normalized.id = getConfigId(normalized);
+          byId.set(normalized.id, normalized);
         }
-      }
-    );
-    if (res.ok) {
-      return await res.json();
+      });
     }
-  }
 
-  // 3. LocalStorage fallback
-  return getLocalScoresForConfig(configId);
+    // Ensure the default config always exists in Firebase for all users
+    if (!byId.has(defaultCfg.id)) {
+      byId.set(defaultCfg.id, defaultCfg);
+      fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(defaultCfg.id)}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(defaultCfg)
+      }).catch(() => {});
+    }
+
+    configs = Array.from(byId.values());
+    sortConfigsByLeaderboardSize();
+
+    const savedConfigId = activeConfigId || localStorage.getItem(STORAGE_KEYS.activeConfigId);
+    const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
+    activeConfigId = activeCfg.id;
+    localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+
+    renderConfigsUI();
+    renderLeaderboard();
+  } catch (err) {
+    console.error('Failed to sync with Firebase:', err);
+  }
 }
 
 async function submitScoreToLeaderboard(score) {
   const configId = activeConfigId;
-  const all = await fetchScoresForConfig(configId);
-  const existing = all.find(entry => entry.userId === userId);
-  const bestScore = existing ? Math.max(existing.score, score) : score;
+  const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`;
+
+  const existingRes = await fetch(userUrl);
+  const existing = existingRes.ok ? await existingRes.json() : null;
+  const bestScore = existing && typeof existing.score === 'number' ? Math.max(existing.score, score) : score;
+
   const record = {
-    configId,
     userId,
     username,
     score: bestScore,
     updatedAt: Date.now()
   };
 
-  const localList = getLocalScoresForConfig(configId);
-  const idx = localList.findIndex(e => e.userId === userId);
-  if (idx >= 0) {
-    localList[idx] = {
-      ...localList[idx],
-      username,
-      score: Math.max(localList[idx].score, score)
-    };
-  } else {
-    localList.push(record);
-  }
-  saveLocalScoresForConfig(configId, localList);
-
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await fetch(
-      `${baseUrl}/leaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record)
-      }
-    );
-    return;
-  }
-
-  if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
-    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/rest/v1/leaderboard`, {
-      method: 'POST',
-      headers: {
-        apikey: CLOUD_CONFIG.supabaseAnonKey,
-        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify(record)
-    });
-  }
-}
-
-async function updateLeaderboardUsernameAcrossAllConfigs(targetUserId, newUsername) {
-  const map = getLocalLeaderboardsMap();
-  Object.keys(map).forEach((cfgId) => {
-    if (Array.isArray(map[cfgId])) {
-      map[cfgId].forEach((entry) => {
-        if (entry.userId === targetUserId) {
-          entry.username = newUsername;
-        }
-      });
-    }
+  await fetch(userUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record)
   });
-  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
 
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await Promise.all(
-      configs.map(async (cfg) => {
-        const url = `${baseUrl}/leaderboards/${encodeURIComponent(cfg.id)}/${encodeURIComponent(targetUserId)}.json`;
-        const res = await fetch(url);
-        if (res.ok && (await res.json())) {
-          await fetch(url, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: newUsername })
-          });
-        }
-      })
-    );
-  } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
-    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/rest/v1/leaderboard?userId=eq.${encodeURIComponent(targetUserId)}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: CLOUD_CONFIG.supabaseAnonKey,
-        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username: newUsername })
-    });
-  }
+  await syncFromFirebase();
 }
 
-async function deleteLeaderboardUserAcrossAllConfigs(targetUserId) {
-  const map = getLocalLeaderboardsMap();
-  Object.keys(map).forEach((cfgId) => {
-    if (Array.isArray(map[cfgId])) {
-      map[cfgId] = map[cfgId].filter(e => e.userId !== targetUserId);
-    }
-  });
-  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
-
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await Promise.all(
-      configs.map(cfg =>
-        fetch(
-          `${baseUrl}/leaderboards/${encodeURIComponent(cfg.id)}/${encodeURIComponent(targetUserId)}.json`,
-          { method: 'DELETE' }
-        )
-      )
-    );
-  } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
-    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/rest/v1/leaderboard?userId=eq.${encodeURIComponent(targetUserId)}`, {
-      method: 'DELETE',
-      headers: {
-        apikey: CLOUD_CONFIG.supabaseAnonKey,
-        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+async function updateUsernameInFirebase(targetUserId, newUsername) {
+  const configIds = Object.keys(leaderboardsMap);
+  await Promise.all(
+    configIds.map(async (cfgId) => {
+      if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
+        const url = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`;
+        await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: newUsername })
+        });
       }
-    });
-  }
+    })
+  );
+  await syncFromFirebase();
 }
 
-async function deleteConfigLeaderboard(configId) {
-  const map = getLocalLeaderboardsMap();
-  delete map[configId];
-  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
-
-  if (CLOUD_CONFIG.firebaseDbUrl) {
-    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await Promise.all([
-      fetch(`${baseUrl}/configs/${encodeURIComponent(configId)}.json`, { method: 'DELETE' }),
-      fetch(`${baseUrl}/leaderboards/${encodeURIComponent(configId)}.json`, { method: 'DELETE' })
-    ]);
-  } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
-    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/rest/v1/leaderboard?configId=eq.${encodeURIComponent(configId)}`, {
-      method: 'DELETE',
-      headers: {
-        apikey: CLOUD_CONFIG.supabaseAnonKey,
-        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+async function deleteUserFromFirebase(targetUserId) {
+  const configIds = Object.keys(leaderboardsMap);
+  await Promise.all(
+    configIds.map(async (cfgId) => {
+      if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
+        const url = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`;
+        await fetch(url, { method: 'DELETE' });
       }
-    });
-  }
+    })
+  );
+  await syncFromFirebase();
 }
 
 function sortLeaderboard(entries) {
@@ -744,49 +523,46 @@ function sortLeaderboard(entries) {
   });
 }
 
-async function refreshLeaderboard() {
-  try {
-    const entries = sortLeaderboard(await fetchScoresForConfig(activeConfigId));
-    const top10 = entries.slice(0, 10);
-    const myIndex = entries.findIndex(e => e.userId === userId);
+function renderLeaderboard() {
+  const boardObj = leaderboardsMap[activeConfigId] || {};
+  const entries = sortLeaderboard(Object.values(boardObj));
+  const top10 = entries.slice(0, 10);
+  const myIndex = entries.findIndex(e => e.userId === userId);
 
-    if (myIndex >= 0) {
-      myRankValue.textContent = `#${myIndex + 1} of ${entries.length}`;
-      myBestValue.textContent = entries[myIndex].score;
-    } else {
-      myRankValue.textContent = 'Unranked';
-      myBestValue.textContent = '—';
-    }
-
-    if (top10.length === 0) {
-      leaderboardList.innerHTML = '<li class="empty-row">No scores yet. Be the first!</li>';
-      return;
-    }
-
-    leaderboardList.innerHTML = '';
-    top10.forEach((entry, index) => {
-      const li = document.createElement('li');
-      const isMe = entry.userId === userId;
-      li.className = 'leaderboard-row' + (isMe ? ' is-me' : '');
-
-      const rankSpan = document.createElement('span');
-      rankSpan.className = 'rank-num';
-      rankSpan.textContent = `#${index + 1}`;
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'player-name';
-      nameSpan.textContent = entry.username + (isMe ? ' (you)' : '');
-
-      const scoreSpan = document.createElement('span');
-      scoreSpan.className = 'player-score';
-      scoreSpan.textContent = entry.score;
-
-      li.append(rankSpan, nameSpan, scoreSpan);
-      leaderboardList.appendChild(li);
-    });
-  } catch (err) {
-    console.error('Failed to load leaderboard:', err);
+  if (myIndex >= 0) {
+    myRankValue.textContent = `#${myIndex + 1} of ${entries.length}`;
+    myBestValue.textContent = entries[myIndex].score;
+  } else {
+    myRankValue.textContent = 'Unranked';
+    myBestValue.textContent = '—';
   }
+
+  if (top10.length === 0) {
+    leaderboardList.innerHTML = '<li class="empty-row">No scores yet. Be the first!</li>';
+    return;
+  }
+
+  leaderboardList.innerHTML = '';
+  top10.forEach((entry, index) => {
+    const li = document.createElement('li');
+    const isMe = entry.userId === userId;
+    li.className = 'leaderboard-row' + (isMe ? ' is-me' : '');
+
+    const rankSpan = document.createElement('span');
+    rankSpan.className = 'rank-num';
+    rankSpan.textContent = `#${index + 1}`;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'player-name';
+    nameSpan.textContent = entry.username + (isMe ? ' (you)' : '');
+
+    const scoreSpan = document.createElement('span');
+    scoreSpan.className = 'player-score';
+    scoreSpan.textContent = entry.score;
+
+    li.append(rankSpan, nameSpan, scoreSpan);
+    leaderboardList.appendChild(li);
+  });
 }
 
 // --- Constraint-Based Integer Equation Generation ---
@@ -899,13 +675,13 @@ function getValidMissingIndices(a, op, b, c) {
   }
   if (op === '×') {
     const indices = [2];
-    if (b !== 0) indices.push(0); // Avoid indeterminate ? × 0 = 0
-    if (a !== 0) indices.push(1); // Avoid indeterminate 0 × ? = 0
+    if (b !== 0) indices.push(0);
+    if (a !== 0) indices.push(1);
     return indices;
   }
   if (op === '÷') {
     const indices = [0, 2];
-    if (c !== 0) indices.push(1); // Avoid indeterminate 0 ÷ ? = 0
+    if (c !== 0) indices.push(1);
     return indices;
   }
   return [0, 1, 2];
@@ -913,6 +689,7 @@ function getValidMissingIndices(a, op, b, c) {
 
 function generateQuestion() {
   const cfg = getActiveConfig();
+  if (!cfg) return null;
   const samplers = getValidSamplers(cfg);
   if (samplers.length === 0) return null;
 
@@ -1014,8 +791,8 @@ function startGame() {
   saveUsername(usernameInput.value);
   closeNewConfigPanel();
 
-  const samplers = getValidSamplers(getActiveConfig());
-  if (samplers.length === 0) return;
+  const activeCfg = getActiveConfig();
+  if (!activeCfg || getValidSamplers(activeCfg).length === 0) return;
 
   isPlaying = true;
   timeLeft = GAME_DURATION_SECONDS;
@@ -1057,8 +834,6 @@ async function finishGame(saveScore) {
     lastResult.classList.remove('hidden');
     await submitScoreToLeaderboard(finalScore);
   }
-
-  await refreshLeaderboard();
 }
 
 // --- Event Listeners ---
@@ -1083,7 +858,6 @@ addConfigBtn.addEventListener('click', () => {
 });
 cancelConfigBtn.addEventListener('click', closeNewConfigPanel);
 saveConfigBtn.addEventListener('click', createNewConfigFromDraft);
-deleteConfigBtn.addEventListener('click', deleteCurrentConfig);
 
 opToggleBtns.forEach((btn) => {
   btn.addEventListener('click', () => toggleDraftOperator(btn.dataset.op));
@@ -1125,4 +899,4 @@ window.addEventListener('keydown', (e) => {
 
 // Initialize
 initUsers();
-initConfigs().then(() => refreshLeaderboard());
+syncFromFirebase();
