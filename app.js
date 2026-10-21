@@ -2,7 +2,7 @@
 // Fill in EITHER firebaseDbUrl (Firebase Realtime Database) OR supabaseUrl + supabaseAnonKey.
 // When left empty, leaderboards use localStorage as a fallback so it works out of the box.
 const CLOUD_CONFIG = {
-  firebaseDbUrl: '', // e.g. 'https://your-project-default-rtdb.firebaseio.com'
+  firebaseDbUrl: 'https://math-leaderboard-122f4-default-rtdb.europe-west1.firebasedatabase.app',
   supabaseUrl: '',   // e.g. 'https://xyzcompany.supabase.co'
   supabaseAnonKey: ''
 };
@@ -342,6 +342,16 @@ async function createNewConfigFromDraft() {
   closeNewConfigPanel();
   lastResult.classList.add('hidden');
   renderConfigsUI();
+
+  if (CLOUD_CONFIG.firebaseDbUrl) {
+    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+    await fetch(`${baseUrl}/configs/${encodeURIComponent(newCfg.id)}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newCfg)
+    });
+  }
+
   await refreshLeaderboard();
 }
 
@@ -375,13 +385,28 @@ function updateDraftRangeInputs() {
   saveConfigBtn.disabled = !isValid;
 }
 
-function initConfigs() {
+async function initConfigs() {
   const rawConfigs = localStorage.getItem(STORAGE_KEYS.configs);
   if (rawConfigs) {
     try {
       configs = JSON.parse(rawConfigs);
     } catch (_) {
       configs = [];
+    }
+  }
+
+  if (CLOUD_CONFIG.firebaseDbUrl) {
+    try {
+      const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/configs.json`);
+      if (res.ok) {
+        const cloudData = await res.json();
+        if (cloudData && typeof cloudData === 'object') {
+          configs = Object.values(cloudData);
+        }
+      }
+    } catch (_) {
+      // Fallback to localStorage configs
     }
   }
 
@@ -404,7 +429,16 @@ function initConfigs() {
   }
 
   if (configs.length === 0) {
-    configs = [createDefaultConfig('cfg_default')];
+    const def = createDefaultConfig('cfg_default');
+    configs = [def];
+    if (CLOUD_CONFIG.firebaseDbUrl) {
+      const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+      fetch(`${baseUrl}/configs/${encodeURIComponent(def.id)}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(def)
+      }).catch(() => {});
+    }
   }
 
   const savedConfigId = localStorage.getItem(STORAGE_KEYS.activeConfigId);
@@ -433,8 +467,10 @@ async function deleteCurrentConfig() {
   const deletedId = activeConfigId;
   configs = configs.filter(c => c.id !== deletedId);
 
+  let recreatedDefault = null;
   if (configs.length === 0) {
-    configs.push(createDefaultConfig(generateId('cfg_')));
+    recreatedDefault = createDefaultConfig(generateId('cfg_'));
+    configs.push(recreatedDefault);
   }
 
   activeConfigId = configs[0].id;
@@ -444,6 +480,14 @@ async function deleteCurrentConfig() {
   renderConfigsUI();
 
   await deleteConfigLeaderboard(deletedId);
+  if (recreatedDefault && CLOUD_CONFIG.firebaseDbUrl) {
+    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+    await fetch(`${baseUrl}/configs/${encodeURIComponent(recreatedDefault.id)}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recreatedDefault)
+    });
+  }
   await refreshLeaderboard();
 }
 
@@ -657,9 +701,10 @@ async function deleteConfigLeaderboard(configId) {
 
   if (CLOUD_CONFIG.firebaseDbUrl) {
     const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/leaderboards/${encodeURIComponent(configId)}.json`, {
-      method: 'DELETE'
-    });
+    await Promise.all([
+      fetch(`${baseUrl}/configs/${encodeURIComponent(configId)}.json`, { method: 'DELETE' }),
+      fetch(`${baseUrl}/leaderboards/${encodeURIComponent(configId)}.json`, { method: 'DELETE' })
+    ]);
   } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
     const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
     await fetch(`${baseUrl}/rest/v1/leaderboard?configId=eq.${encodeURIComponent(configId)}`, {
@@ -1060,5 +1105,4 @@ window.addEventListener('keydown', (e) => {
 
 // Initialize
 initUsers();
-initConfigs();
-refreshLeaderboard();
+initConfigs().then(() => refreshLeaderboard());
