@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="1-minute mobile math game with a global leaderboard. Practice single-digit addition and subtraction.">
+  <meta name="description" content="1-minute mobile math game with customizable game configurations and global leaderboards.">
   <title>1-Minute Math</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -38,12 +38,67 @@
 
     <!-- HOME / LEADERBOARD VIEW -->
     <section id="home-view" class="view active">
-      <div class="user-switcher" aria-label="Users on this device">
-        <div id="user-list" class="user-pills" role="tablist"></div>
-        <button id="add-user-btn" class="add-user-btn" type="button">
-          + Add User
-        </button>
+      <!-- Shared Users Switcher -->
+      <div class="switcher-row" aria-label="Users on this device">
+        <span class="switcher-label">User</span>
+        <div id="user-list" class="pill-list" role="tablist"></div>
+        <button id="add-user-btn" class="add-pill-btn" type="button">+ User</button>
       </div>
+
+      <!-- Game Configurations Card -->
+      <section class="config-card" aria-label="Game Configuration">
+        <div class="switcher-row">
+          <span class="switcher-label">Game</span>
+          <div id="config-list" class="pill-list" role="tablist"></div>
+          <button id="add-config-btn" class="add-pill-btn" type="button">+ Game</button>
+          <button
+            id="delete-config-btn"
+            class="icon-btn danger-btn"
+            type="button"
+            title="Delete current game configuration"
+            aria-label="Delete current game configuration"
+          >✕</button>
+        </div>
+
+        <div class="config-controls">
+          <div class="ops-group" role="group" aria-label="Operators">
+            <button type="button" class="op-toggle" data-op="+">+</button>
+            <button type="button" class="op-toggle" data-op="-">−</button>
+            <button type="button" class="op-toggle" data-op="×">×</button>
+            <button type="button" class="op-toggle" data-op="÷">÷</button>
+          </div>
+
+          <div class="ranges-grid">
+            <div class="range-col">
+              <span class="range-title">1st Number</span>
+              <div class="range-inputs">
+                <input id="min1-input" type="number" step="1" aria-label="1st number min" title="1st number min">
+                <span class="range-sep">to</span>
+                <input id="max1-input" type="number" step="1" aria-label="1st number max" title="1st number max">
+              </div>
+            </div>
+            <div class="range-col">
+              <span class="range-title">2nd Number</span>
+              <div class="range-inputs">
+                <input id="min2-input" type="number" step="1" aria-label="2nd number min" title="2nd number min">
+                <span class="range-sep">to</span>
+                <input id="max2-input" type="number" step="1" aria-label="2nd number max" title="2nd number max">
+              </div>
+            </div>
+            <div class="range-col">
+              <span class="range-title">3rd Number</span>
+              <div class="range-inputs">
+                <input id="min3-input" type="number" step="1" aria-label="3rd number min" title="3rd number min">
+                <span class="range-sep">to</span>
+                <input id="max3-input" type="number" step="1" aria-label="3rd number max" title="3rd number max">
+              </div>
+            </div>
+          </div>
+          <div id="config-error" class="config-error hidden">
+            No valid integer equations exist for these constraints.
+          </div>
+        </div>
+      </section>
 
       <div id="last-result" class="result-banner hidden">
         <div class="result-score-label">Last Score</div>
@@ -57,8 +112,8 @@
 
       <section class="leaderboard-card" aria-labelledby="leaderboard-heading">
         <div class="leaderboard-header">
-          <h2 id="leaderboard-heading">Global Leaderboard</h2>
-          <span id="storage-badge" class="badge">Top 10</span>
+          <h2 id="leaderboard-heading">Leaderboard</h2>
+          <span id="leaderboard-config-badge" class="badge">Top 10</span>
         </div>
 
         <div id="my-rank-bar" class="my-rank-bar">
@@ -67,7 +122,7 @@
         </div>
 
         <ol id="leaderboard-list" class="leaderboard-list">
-          <li class="empty-row">Loading leaderboard...</li>
+          <li class="empty-row">No scores yet. Be the first!</li>
         </ol>
       </section>
     </section>
@@ -109,6 +164,7 @@
         <button type="button" class="key-btn" data-digit="7">7</button>
         <button type="button" class="key-btn" data-digit="8">8</button>
         <button type="button" class="key-btn" data-digit="9">9</button>
+        <button type="button" id="minus-key" class="key-btn hidden" data-digit="-">−</button>
         <button type="button" class="key-btn key-zero" data-digit="0">0</button>
       </div>
 

@@ -1,6 +1,6 @@
 // Optional cloud configuration for GitHub Pages deployment.
 // Fill in EITHER firebaseDbUrl (Firebase Realtime Database) OR supabaseUrl + supabaseAnonKey.
-// When left empty, the leaderboard uses localStorage as a fallback so it works out of the box.
+// When left empty, leaderboards use localStorage as a fallback so it works out of the box.
 const CLOUD_CONFIG = {
   firebaseDbUrl: '', // e.g. 'https://your-project-default-rtdb.firebaseio.com'
   supabaseUrl: '',   // e.g. 'https://xyzcompany.supabase.co'
@@ -11,21 +11,29 @@ const STORAGE_KEYS = {
   users: 'math_users_v1',
   userId: 'math_user_id',
   username: 'math_username',
-  localLeaderboard: 'math_leaderboard_v1'
+  configs: 'math_configs_v1',
+  activeConfigId: 'math_active_config_id',
+  localLeaderboards: 'math_leaderboards_v1',
+  legacyLeaderboard: 'math_leaderboard_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
+const ALL_OPS = ['+', '-', '×', '÷'];
 
 // State
 let users = []; // [{ userId: string, username: string }]
 let userId = '';
 let username = '';
+
+let configs = []; // [{ id, ops, min1, max1, min2, max2, min3, max3 }]
+let activeConfigId = '';
+
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
 let isPlaying = false;
 let rightCount = 0;
 let wrongCount = 0;
-let currentQuestion = null; // { nums: [a, b, c], op: '+'|'-', missingIndex: 0|1|2, answer: number }
+let currentQuestion = null; // { nums: [a, b, c], op, missingIndex: 0|1|2, answer: number, key: string }
 let typedAnswer = '';
 let isWrong = false;
 
@@ -34,6 +42,20 @@ const usernameInput = document.getElementById('username-input');
 const userListEl = document.getElementById('user-list');
 const addUserBtn = document.getElementById('add-user-btn');
 const deleteUserBtn = document.getElementById('delete-user-btn');
+
+const configListEl = document.getElementById('config-list');
+const addConfigBtn = document.getElementById('add-config-btn');
+const deleteConfigBtn = document.getElementById('delete-config-btn');
+const opToggleBtns = Array.from(document.querySelectorAll('.op-toggle'));
+const min1Input = document.getElementById('min1-input');
+const max1Input = document.getElementById('max1-input');
+const min2Input = document.getElementById('min2-input');
+const max2Input = document.getElementById('max2-input');
+const min3Input = document.getElementById('min3-input');
+const max3Input = document.getElementById('max3-input');
+const configErrorEl = document.getElementById('config-error');
+const leaderboardConfigBadge = document.getElementById('leaderboard-config-badge');
+
 const homeView = document.getElementById('home-view');
 const gameView = document.getElementById('game-view');
 const playBtn = document.getElementById('play-btn');
@@ -53,8 +75,22 @@ const slot1 = document.getElementById('slot-1');
 const slot2 = document.getElementById('slot-2');
 const slotOp = document.getElementById('slot-op');
 const keypad = document.getElementById('keypad');
+const minusKey = document.getElementById('minus-key');
 
-// --- Multi-User Identity & LocalStorage ---
+// --- Helpers ---
+
+function generateId(prefix = 'id_') {
+  if (window.crypto && crypto.randomUUID) {
+    return prefix + crypto.randomUUID();
+  }
+  return prefix + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+}
+
+function randomInt(low, high) {
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+// --- Shared Multi-User Identity ---
 
 function generateRandomUsername() {
   const adjectives = ['Swift', 'Bright', 'Clever', 'Quick', 'Sharp', 'Lucky', 'Bold', 'Calm', 'Keen', 'Prime'];
@@ -63,13 +99,6 @@ function generateRandomUsername() {
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
   const num = Math.floor(100 + Math.random() * 900);
   return `${adj}${noun}${num}`;
-}
-
-function generateUserId() {
-  if (window.crypto && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
 }
 
 function saveUsersToStorage() {
@@ -83,7 +112,7 @@ function renderUserList() {
   users.forEach((u) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'user-pill' + (u.userId === userId ? ' active' : '');
+    btn.className = 'pill-btn' + (u.userId === userId ? ' active' : '');
     btn.textContent = u.username;
     btn.setAttribute('role', 'tab');
     btn.setAttribute('aria-selected', u.userId === userId ? 'true' : 'false');
@@ -92,7 +121,7 @@ function renderUserList() {
   });
 }
 
-function initUser() {
+function initUsers() {
   const rawUsers = localStorage.getItem(STORAGE_KEYS.users);
   if (rawUsers) {
     try {
@@ -102,9 +131,8 @@ function initUser() {
     }
   }
 
-  // Migrate existing single user or create initial user if empty
   if (!Array.isArray(users) || users.length === 0) {
-    const existingId = localStorage.getItem(STORAGE_KEYS.userId) || generateUserId();
+    const existingId = localStorage.getItem(STORAGE_KEYS.userId) || generateId('u_');
     const existingName = localStorage.getItem(STORAGE_KEYS.username) || generateRandomUsername();
     users = [{ userId: existingId, username: existingName }];
   }
@@ -138,7 +166,7 @@ async function switchUser(targetUserId) {
 async function addUser() {
   if (isPlaying) return;
   const newUser = {
-    userId: generateUserId(),
+    userId: generateId('u_'),
     username: generateRandomUsername()
   };
   users.push(newUser);
@@ -159,7 +187,7 @@ async function deleteCurrentUser() {
 
   if (users.length === 0) {
     users.push({
-      userId: generateUserId(),
+      userId: generateId('u_'),
       username: generateRandomUsername()
     });
   }
@@ -172,7 +200,7 @@ async function deleteCurrentUser() {
   lastResult.classList.add('hidden');
   renderUserList();
 
-  await deleteLeaderboardUser(deletedUserId);
+  await deleteLeaderboardUserAcrossAllConfigs(deletedUserId);
   await refreshLeaderboard();
 }
 
@@ -193,36 +221,232 @@ async function saveUsername(newName) {
   usernameInput.value = username;
   renderUserList();
 
-  await updateLeaderboardUsername(userId, username);
+  await updateLeaderboardUsernameAcrossAllConfigs(userId, username);
   await refreshLeaderboard();
 }
 
-// --- Leaderboard Storage (Firebase / Supabase / Local Fallback) ---
+// --- Game Configurations ---
 
-function getLocalLeaderboard() {
-  const raw = localStorage.getItem(STORAGE_KEYS.localLeaderboard);
+function createDefaultConfig(id = 'cfg_default') {
+  return {
+    id,
+    ops: ['+', '-'],
+    min1: 0,
+    max1: 9,
+    min2: 0,
+    max2: 9,
+    min3: 0,
+    max3: 18
+  };
+}
+
+function formatConfigLabel(cfg) {
+  const opsStr = cfg.ops.map(op => (op === '-' ? '−' : op)).join(' ');
+  return `${opsStr} (${cfg.min1}..${cfg.max1}, ${cfg.min2}..${cfg.max2}, ${cfg.min3}..${cfg.max3})`;
+}
+
+function getActiveConfig() {
+  return configs.find(c => c.id === activeConfigId) || configs[0];
+}
+
+function saveConfigsToStorage() {
+  localStorage.setItem(STORAGE_KEYS.configs, JSON.stringify(configs));
+  localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+}
+
+function renderConfigsUI() {
+  const activeCfg = getActiveConfig();
+  configListEl.innerHTML = '';
+
+  configs.forEach((cfg) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pill-btn' + (cfg.id === activeCfg.id ? ' active' : '');
+    btn.textContent = formatConfigLabel(cfg);
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', cfg.id === activeCfg.id ? 'true' : 'false');
+    btn.addEventListener('click', () => switchConfig(cfg.id));
+    configListEl.appendChild(btn);
+  });
+
+  opToggleBtns.forEach((btn) => {
+    const op = btn.dataset.op;
+    btn.classList.toggle('active', activeCfg.ops.includes(op));
+  });
+
+  min1Input.value = activeCfg.min1;
+  max1Input.value = activeCfg.max1;
+  min2Input.value = activeCfg.min2;
+  max2Input.value = activeCfg.max2;
+  min3Input.value = activeCfg.min3;
+  max3Input.value = activeCfg.max3;
+
+  leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
+
+  // Show minus key on keypad if any number constraint allows negatives
+  const allowsNegative = activeCfg.min1 < 0 || activeCfg.min2 < 0 || activeCfg.min3 < 0;
+  minusKey.classList.toggle('hidden', !allowsNegative);
+
+  // Validate if at least 1 valid integer equation exists
+  const samplers = getValidSamplers(activeCfg);
+  const isValid = samplers.length > 0;
+  configErrorEl.classList.toggle('hidden', isValid);
+  playBtn.disabled = !isValid;
+}
+
+function initConfigs() {
+  const rawConfigs = localStorage.getItem(STORAGE_KEYS.configs);
+  if (rawConfigs) {
+    try {
+      configs = JSON.parse(rawConfigs);
+    } catch (_) {
+      configs = [];
+    }
+  }
+
+  if (!Array.isArray(configs) || configs.length === 0) {
+    configs = [createDefaultConfig('cfg_default')];
+  }
+
+  const savedConfigId = localStorage.getItem(STORAGE_KEYS.activeConfigId);
+  const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
+  activeConfigId = activeCfg.id;
+
+  saveConfigsToStorage();
+  renderConfigsUI();
+}
+
+async function switchConfig(targetConfigId) {
+  if (isPlaying) return;
+  const target = configs.find(c => c.id === targetConfigId);
+  if (!target || target.id === activeConfigId) return;
+
+  activeConfigId = target.id;
+  saveConfigsToStorage();
+  lastResult.classList.add('hidden');
+  renderConfigsUI();
+  await refreshLeaderboard();
+}
+
+async function addConfig() {
+  if (isPlaying) return;
+  const current = getActiveConfig();
+  const newCfg = {
+    id: generateId('cfg_'),
+    ops: [...current.ops],
+    min1: current.min1,
+    max1: current.max1,
+    min2: current.min2,
+    max2: current.max2,
+    min3: current.min3,
+    max3: current.max3
+  };
+  configs.push(newCfg);
+  activeConfigId = newCfg.id;
+  saveConfigsToStorage();
+  lastResult.classList.add('hidden');
+  renderConfigsUI();
+  await refreshLeaderboard();
+}
+
+async function deleteCurrentConfig() {
+  if (isPlaying) return;
+  const deletedId = activeConfigId;
+  configs = configs.filter(c => c.id !== deletedId);
+
+  if (configs.length === 0) {
+    configs.push(createDefaultConfig(generateId('cfg_')));
+  }
+
+  activeConfigId = configs[0].id;
+  saveConfigsToStorage();
+  lastResult.classList.add('hidden');
+  renderConfigsUI();
+
+  await deleteConfigLeaderboard(deletedId);
+  await refreshLeaderboard();
+}
+
+function toggleOperator(op) {
+  if (isPlaying) return;
+  const cfg = getActiveConfig();
+  if (cfg.ops.includes(op)) {
+    if (cfg.ops.length <= 1) return; // Keep at least 1 operator active
+    cfg.ops = cfg.ops.filter(item => item !== op);
+  } else {
+    cfg.ops = ALL_OPS.filter(item => cfg.ops.includes(item) || item === op);
+  }
+  saveConfigsToStorage();
+  renderConfigsUI();
+}
+
+function updateRangeInputs() {
+  if (isPlaying) return;
+  const cfg = getActiveConfig();
+  const parseVal = (inputEl, fallback) => {
+    const parsed = parseInt(inputEl.value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
+  cfg.min1 = parseVal(min1Input, cfg.min1);
+  cfg.max1 = parseVal(max1Input, cfg.max1);
+  cfg.min2 = parseVal(min2Input, cfg.min2);
+  cfg.max2 = parseVal(max2Input, cfg.max2);
+  cfg.min3 = parseVal(min3Input, cfg.min3);
+  cfg.max3 = parseVal(max3Input, cfg.max3);
+
+  saveConfigsToStorage();
+  renderConfigsUI();
+}
+
+// --- Per-Configuration Leaderboard Storage (Firebase / Supabase / Local Fallback) ---
+
+function getLocalLeaderboardsMap() {
+  const raw = localStorage.getItem(STORAGE_KEYS.localLeaderboards);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter(e => e && !String(e.userId).startsWith('seed_'));
-        if (cleaned.length !== parsed.length) {
-          localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(cleaned));
-        }
-        return cleaned;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
       }
     } catch (_) {
-      // Fall through to empty array
+      // Fall through
     }
   }
-  return [];
+
+  // Migrate legacy single leaderboard if present
+  const map = {};
+  const legacyRaw = localStorage.getItem(STORAGE_KEYS.legacyLeaderboard);
+  if (legacyRaw) {
+    try {
+      const parsed = JSON.parse(legacyRaw);
+      if (Array.isArray(parsed)) {
+        map.cfg_default = parsed.filter(e => e && !String(e.userId).startsWith('seed_'));
+      }
+    } catch (_) {
+      // Ignore
+    }
+  }
+  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
+  return map;
 }
 
-async function fetchAllScores() {
+function getLocalScoresForConfig(configId) {
+  const map = getLocalLeaderboardsMap();
+  return Array.isArray(map[configId]) ? map[configId] : [];
+}
+
+function saveLocalScoresForConfig(configId, list) {
+  const map = getLocalLeaderboardsMap();
+  map[configId] = list;
+  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
+}
+
+async function fetchScoresForConfig(configId) {
   // 1. Firebase Realtime Database REST API
   if (CLOUD_CONFIG.firebaseDbUrl) {
     const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    const res = await fetch(`${baseUrl}/leaderboard.json`);
+    const res = await fetch(`${baseUrl}/leaderboards/${encodeURIComponent(configId)}.json`);
     if (res.ok) {
       const data = await res.json();
       if (!data) return [];
@@ -233,34 +457,38 @@ async function fetchAllScores() {
   // 2. Supabase PostgREST API
   if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
     const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    const res = await fetch(`${baseUrl}/rest/v1/leaderboard?select=*&order=score.desc`, {
-      headers: {
-        apikey: CLOUD_CONFIG.supabaseAnonKey,
-        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+    const res = await fetch(
+      `${baseUrl}/rest/v1/leaderboard?configId=eq.${encodeURIComponent(configId)}&select=*&order=score.desc`,
+      {
+        headers: {
+          apikey: CLOUD_CONFIG.supabaseAnonKey,
+          Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+        }
       }
-    });
+    );
     if (res.ok) {
       return await res.json();
     }
   }
 
   // 3. LocalStorage fallback
-  return getLocalLeaderboard();
+  return getLocalScoresForConfig(configId);
 }
 
 async function submitScoreToLeaderboard(score) {
-  const all = await fetchAllScores();
+  const configId = activeConfigId;
+  const all = await fetchScoresForConfig(configId);
   const existing = all.find(entry => entry.userId === userId);
   const bestScore = existing ? Math.max(existing.score, score) : score;
   const record = {
+    configId,
     userId,
     username,
     score: bestScore,
     updatedAt: Date.now()
   };
 
-  // Always mirror to local storage as backup
-  const localList = getLocalLeaderboard();
+  const localList = getLocalScoresForConfig(configId);
   const idx = localList.findIndex(e => e.userId === userId);
   if (idx >= 0) {
     localList[idx] = {
@@ -271,20 +499,21 @@ async function submitScoreToLeaderboard(score) {
   } else {
     localList.push(record);
   }
-  localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(localList));
+  saveLocalScoresForConfig(configId, localList);
 
-  // 1. Firebase Realtime Database
   if (CLOUD_CONFIG.firebaseDbUrl) {
     const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/leaderboard/${encodeURIComponent(userId)}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    });
+    await fetch(
+      `${baseUrl}/leaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record)
+      }
+    );
     return;
   }
 
-  // 2. Supabase
   if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
     const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
     await fetch(`${baseUrl}/rest/v1/leaderboard`, {
@@ -300,27 +529,34 @@ async function submitScoreToLeaderboard(score) {
   }
 }
 
-async function updateLeaderboardUsername(targetUserId, newUsername) {
-  const localList = getLocalLeaderboard();
-  const idx = localList.findIndex(e => e.userId === targetUserId);
-  if (idx >= 0) {
-    localList[idx].username = newUsername;
-    localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(localList));
-  }
+async function updateLeaderboardUsernameAcrossAllConfigs(targetUserId, newUsername) {
+  const map = getLocalLeaderboardsMap();
+  Object.keys(map).forEach((cfgId) => {
+    if (Array.isArray(map[cfgId])) {
+      map[cfgId].forEach((entry) => {
+        if (entry.userId === targetUserId) {
+          entry.username = newUsername;
+        }
+      });
+    }
+  });
+  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
 
   if (CLOUD_CONFIG.firebaseDbUrl) {
     const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    const res = await fetch(`${baseUrl}/leaderboard/${encodeURIComponent(targetUserId)}.json`);
-    if (res.ok) {
-      const existing = await res.json();
-      if (existing) {
-        await fetch(`${baseUrl}/leaderboard/${encodeURIComponent(targetUserId)}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: newUsername })
-        });
-      }
-    }
+    await Promise.all(
+      configs.map(async (cfg) => {
+        const url = `${baseUrl}/leaderboards/${encodeURIComponent(cfg.id)}/${encodeURIComponent(targetUserId)}.json`;
+        const res = await fetch(url);
+        if (res.ok && (await res.json())) {
+          await fetch(url, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: newUsername })
+          });
+        }
+      })
+    );
   } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
     const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
     await fetch(`${baseUrl}/rest/v1/leaderboard?userId=eq.${encodeURIComponent(targetUserId)}`, {
@@ -335,18 +571,50 @@ async function updateLeaderboardUsername(targetUserId, newUsername) {
   }
 }
 
-async function deleteLeaderboardUser(targetUserId) {
-  const localList = getLocalLeaderboard().filter(e => e.userId !== targetUserId);
-  localStorage.setItem(STORAGE_KEYS.localLeaderboard, JSON.stringify(localList));
+async function deleteLeaderboardUserAcrossAllConfigs(targetUserId) {
+  const map = getLocalLeaderboardsMap();
+  Object.keys(map).forEach((cfgId) => {
+    if (Array.isArray(map[cfgId])) {
+      map[cfgId] = map[cfgId].filter(e => e.userId !== targetUserId);
+    }
+  });
+  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
 
   if (CLOUD_CONFIG.firebaseDbUrl) {
     const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/leaderboard/${encodeURIComponent(targetUserId)}.json`, {
+    await Promise.all(
+      configs.map(cfg =>
+        fetch(
+          `${baseUrl}/leaderboards/${encodeURIComponent(cfg.id)}/${encodeURIComponent(targetUserId)}.json`,
+          { method: 'DELETE' }
+        )
+      )
+    );
+  } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
+    const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
+    await fetch(`${baseUrl}/rest/v1/leaderboard?userId=eq.${encodeURIComponent(targetUserId)}`, {
+      method: 'DELETE',
+      headers: {
+        apikey: CLOUD_CONFIG.supabaseAnonKey,
+        Authorization: `Bearer ${CLOUD_CONFIG.supabaseAnonKey}`
+      }
+    });
+  }
+}
+
+async function deleteConfigLeaderboard(configId) {
+  const map = getLocalLeaderboardsMap();
+  delete map[configId];
+  localStorage.setItem(STORAGE_KEYS.localLeaderboards, JSON.stringify(map));
+
+  if (CLOUD_CONFIG.firebaseDbUrl) {
+    const baseUrl = CLOUD_CONFIG.firebaseDbUrl.replace(/\/$/, '');
+    await fetch(`${baseUrl}/leaderboards/${encodeURIComponent(configId)}.json`, {
       method: 'DELETE'
     });
   } else if (CLOUD_CONFIG.supabaseUrl && CLOUD_CONFIG.supabaseAnonKey) {
     const baseUrl = CLOUD_CONFIG.supabaseUrl.replace(/\/$/, '');
-    await fetch(`${baseUrl}/rest/v1/leaderboard?userId=eq.${encodeURIComponent(targetUserId)}`, {
+    await fetch(`${baseUrl}/rest/v1/leaderboard?configId=eq.${encodeURIComponent(configId)}`, {
       method: 'DELETE',
       headers: {
         apikey: CLOUD_CONFIG.supabaseAnonKey,
@@ -365,7 +633,7 @@ function sortLeaderboard(entries) {
 
 async function refreshLeaderboard() {
   try {
-    const entries = sortLeaderboard(await fetchAllScores());
+    const entries = sortLeaderboard(await fetchScoresForConfig(activeConfigId));
     const top10 = entries.slice(0, 10);
     const myIndex = entries.findIndex(e => e.userId === userId);
 
@@ -408,26 +676,140 @@ async function refreshLeaderboard() {
   }
 }
 
-// --- Math Game Logic ---
+// --- Constraint-Based Integer Equation Generation ---
+
+function getValidSamplers(cfg) {
+  const { ops, min1, max1, min2, max2, min3, max3 } = cfg;
+  if (min1 > max1 || min2 > max2 || min3 > max3) return [];
+
+  const samplers = [];
+
+  // 1. Addition: a + b = c
+  if (ops.includes('+')) {
+    const aLow = Math.max(min1, min3 - max2);
+    const aHigh = Math.min(max1, max3 - min2);
+    if (aLow <= aHigh) {
+      samplers.push(() => {
+        const a = randomInt(aLow, aHigh);
+        const bLow = Math.max(min2, min3 - a);
+        const bHigh = Math.min(max2, max3 - a);
+        const b = randomInt(bLow, bHigh);
+        return { a, b, c: a + b, op: '+' };
+      });
+    }
+  }
+
+  // 2. Subtraction: a - b = c
+  if (ops.includes('-')) {
+    const aLow = Math.max(min1, min2 + min3);
+    const aHigh = Math.min(max1, max2 + max3);
+    if (aLow <= aHigh) {
+      samplers.push(() => {
+        const a = randomInt(aLow, aHigh);
+        const bLow = Math.max(min2, a - max3);
+        const bHigh = Math.min(max2, a - min3);
+        const b = randomInt(bLow, bHigh);
+        return { a, b, c: a - b, op: '-' };
+      });
+    }
+  }
+
+  // 3. Multiplication: a × b = c (integers)
+  if (ops.includes('×')) {
+    const validRanges = [];
+    const span = max1 - min1;
+    const step = span > 2000 ? Math.ceil(span / 2000) : 1;
+    for (let a = min1; a <= max1; a += step) {
+      let bLow, bHigh;
+      if (a === 0) {
+        if (min3 <= 0 && 0 <= max3) {
+          bLow = min2;
+          bHigh = max2;
+        } else {
+          bLow = 1;
+          bHigh = 0;
+        }
+      } else if (a > 0) {
+        bLow = Math.max(min2, Math.ceil(min3 / a));
+        bHigh = Math.min(max2, Math.floor(max3 / a));
+      } else {
+        bLow = Math.max(min2, Math.ceil(max3 / a));
+        bHigh = Math.min(max2, Math.floor(min3 / a));
+      }
+      if (bLow <= bHigh) {
+        validRanges.push([a, bLow, bHigh]);
+      }
+    }
+    if (validRanges.length > 0) {
+      samplers.push(() => {
+        const [a, bLow, bHigh] = validRanges[randomInt(0, validRanges.length - 1)];
+        const b = randomInt(bLow, bHigh);
+        return { a, b, c: a * b, op: '×' };
+      });
+    }
+  }
+
+  // 4. Division: a ÷ b = c (restricted to exact integers: b != 0 and a = b * c)
+  if (ops.includes('÷')) {
+    const validDivisors = [];
+    const span = max2 - min2;
+    const step = span > 2000 ? Math.ceil(span / 2000) : 1;
+    for (let b = min2; b <= max2; b += step) {
+      if (b === 0) continue;
+      let cLow, cHigh;
+      if (b > 0) {
+        cLow = Math.max(min3, Math.ceil(min1 / b));
+        cHigh = Math.min(max3, Math.floor(max1 / b));
+      } else {
+        cLow = Math.max(min3, Math.ceil(max1 / b));
+        cHigh = Math.min(max3, Math.floor(min1 / b));
+      }
+      if (cLow <= cHigh) {
+        validDivisors.push([b, cLow, cHigh]);
+      }
+    }
+    if (validDivisors.length > 0) {
+      samplers.push(() => {
+        const [b, cLow, cHigh] = validDivisors[randomInt(0, validDivisors.length - 1)];
+        const c = randomInt(cLow, cHigh);
+        return { a: b * c, b, c, op: '÷' };
+      });
+    }
+  }
+
+  return samplers;
+}
+
+function getValidMissingIndices(a, op, b, c) {
+  if (op === '+' || op === '-') {
+    return [0, 1, 2];
+  }
+  if (op === '×') {
+    const indices = [2];
+    if (b !== 0) indices.push(0); // Avoid indeterminate ? × 0 = 0
+    if (a !== 0) indices.push(1); // Avoid indeterminate 0 × ? = 0
+    return indices;
+  }
+  if (op === '÷') {
+    const indices = [0, 2];
+    if (c !== 0) indices.push(1); // Avoid indeterminate 0 ÷ ? = 0
+    return indices;
+  }
+  return [0, 1, 2];
+}
 
 function generateQuestion() {
-  let candidate;
-  do {
-    const isAddition = Math.random() < 0.5;
-    let a, b, c, op;
-    if (isAddition) {
-      op = '+';
-      a = Math.floor(Math.random() * 10); // 0..9
-      b = Math.floor(Math.random() * 10); // 0..9
-      c = a + b; // 0..18 (non-negative)
-    } else {
-      op = '-';
-      a = Math.floor(Math.random() * 10); // 0..9
-      b = Math.floor(Math.random() * (a + 1)); // 0..a so c = a - b >= 0
-      c = a - b; // 0..9 (non-negative)
-    }
+  const cfg = getActiveConfig();
+  const samplers = getValidSamplers(cfg);
+  if (samplers.length === 0) return null;
+
+  let candidate = null;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const sampleFn = samplers[randomInt(0, samplers.length - 1)];
+    const { a, b, c, op } = sampleFn();
     const nums = [a, b, c];
-    const missingIndex = Math.floor(Math.random() * 3); // 0, 1, or 2
+    const validIndices = getValidMissingIndices(a, op, b, c);
+    const missingIndex = validIndices[randomInt(0, validIndices.length - 1)];
     candidate = {
       nums,
       op,
@@ -435,14 +817,17 @@ function generateQuestion() {
       answer: nums[missingIndex],
       key: `${a}${op}${b}=${c}?${missingIndex}`
     };
-  } while (currentQuestion && candidate.key === currentQuestion.key);
-
+    if (!currentQuestion || candidate.key !== currentQuestion.key) {
+      break;
+    }
+  }
   return candidate;
 }
 
 function renderQuestion() {
+  if (!currentQuestion) return;
   const slots = [slot0, slot1, slot2];
-  slotOp.textContent = currentQuestion.op;
+  slotOp.textContent = currentQuestion.op === '-' ? '−' : currentQuestion.op;
 
   slots.forEach((slotEl, idx) => {
     slotEl.className = 'eq-item';
@@ -499,7 +884,7 @@ function handleDigitInput(digitStr) {
     return;
   }
 
-  // If the answer has 2 digits (10..18) and the user typed '1', wait for the 2nd digit
+  // If the expected answer starts with the typed prefix (e.g. multi-digit or leading '-'), wait for next key
   if (expectedStr.startsWith(typedAnswer)) {
     renderQuestion();
     return;
@@ -513,8 +898,11 @@ function handleDigitInput(digitStr) {
 }
 
 function startGame() {
-  // Save any pending username edit first
   saveUsername(usernameInput.value);
+  updateRangeInputs();
+
+  const samplers = getValidSamplers(getActiveConfig());
+  if (samplers.length === 0) return;
 
   isPlaying = true;
   timeLeft = GAME_DURATION_SECONDS;
@@ -573,6 +961,18 @@ usernameInput.addEventListener('keydown', (e) => {
 addUserBtn.addEventListener('click', addUser);
 deleteUserBtn.addEventListener('click', deleteCurrentUser);
 
+addConfigBtn.addEventListener('click', addConfig);
+deleteConfigBtn.addEventListener('click', deleteCurrentConfig);
+
+opToggleBtns.forEach((btn) => {
+  btn.addEventListener('click', () => toggleOperator(btn.dataset.op));
+});
+
+[min1Input, max1Input, min2Input, max2Input, min3Input, max3Input].forEach((inputEl) => {
+  inputEl.addEventListener('input', updateRangeInputs);
+  inputEl.addEventListener('change', updateRangeInputs);
+});
+
 playBtn.addEventListener('click', startGame);
 quitBtn.addEventListener('click', () => finishGame(true));
 
@@ -586,22 +986,23 @@ keypad.addEventListener('pointerdown', (e) => {
 
 // Fallback for keyboard navigation / accessibility click
 keypad.addEventListener('click', (e) => {
-  if (e.detail !== 0) return; // Ignore pointer-triggered click already handled by pointerdown
+  if (e.detail !== 0) return;
   const btn = e.target.closest('.key-btn');
   if (!btn) return;
   handleDigitInput(btn.dataset.digit);
 });
 
-// Physical keyboard support (0-9)
+// Physical keyboard support (0-9 and -)
 window.addEventListener('keydown', (e) => {
   if (!isPlaying) return;
-  if (document.activeElement === usernameInput) return;
-  if (e.key >= '0' && e.key <= '9') {
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  if ((e.key >= '0' && e.key <= '9') || e.key === '-') {
     e.preventDefault();
     handleDigitInput(e.key);
   }
 });
 
 // Initialize
-initUser();
+initUsers();
+initConfigs();
 refreshLeaderboard();

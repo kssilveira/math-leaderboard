@@ -42,10 +42,10 @@ html, body {
   max-width: 440px;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: 12px 16px 16px;
+  padding: 10px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* Header & Username */
@@ -126,8 +126,8 @@ html, body {
   background: var(--wrong-bg);
 }
 
-/* User Switcher */
-.user-switcher {
+/* Switcher Rows (Users & Game Configs) */
+.switcher-row {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -136,49 +136,173 @@ html, body {
   scrollbar-width: none;
 }
 
-.user-switcher::-webkit-scrollbar {
+.switcher-row::-webkit-scrollbar {
   display: none;
 }
 
-.user-pills {
+.switcher-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
+.pill-list {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.user-pill {
+.pill-btn {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
   border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 0.82rem;
+  padding: 5px 11px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.user-pill.active {
+.pill-btn.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
 
-.add-user-btn {
+.add-pill-btn {
   border: 1px dashed var(--border);
   background: transparent;
   color: var(--primary);
   border-radius: 999px;
-  padding: 5px 11px;
-  font-size: 0.82rem;
+  padding: 5px 10px;
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.add-user-btn:active {
+.add-pill-btn:active {
   background: var(--surface-subtle);
+}
+
+/* Game Configuration Card */
+.config-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ops-group {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.op-toggle {
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 6px 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.op-toggle.active {
+  background: hsl(215, 90%, 95%);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.ranges-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.range-col {
+  background: var(--surface-subtle);
+  border-radius: 10px;
+  padding: 6px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.range-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  justify-content: center;
+}
+
+.range-inputs input {
+  width: 44px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 4px 2px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+  outline: none;
+  user-select: text;
+  -moz-appearance: textfield;
+}
+
+.range-inputs input::-webkit-outer-spin-button,
+.range-inputs input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.range-inputs input:focus {
+  border-color: var(--primary);
+}
+
+.range-sep {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.config-error {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--wrong);
+  background: var(--wrong-bg);
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-align: center;
 }
 
 /* Views */
@@ -186,7 +310,7 @@ html, body {
   display: none;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .view.active {
@@ -202,13 +326,13 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 16px;
+  padding: 10px 14px;
   text-align: center;
   box-shadow: var(--shadow);
 }
 
 .result-score-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -216,14 +340,14 @@ html, body {
 }
 
 .result-score-value {
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: 800;
   color: var(--primary);
   line-height: 1.15;
 }
 
 .result-score-detail {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text-muted);
 }
 
@@ -234,17 +358,22 @@ html, body {
   border-radius: var(--radius);
   background: var(--primary);
   color: #fff;
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   font-weight: 700;
-  padding: 15px 20px;
+  padding: 13px 18px;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(18, 100, 225, 0.25);
-  transition: transform 0.08s ease, background 0.15s ease;
+  transition: transform 0.08s ease, background 0.15s ease, opacity 0.15s ease;
 }
 
 .primary-btn:active {
   transform: scale(0.98);
   background: var(--primary-active);
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ghost-btn {
@@ -264,26 +393,27 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 12px 14px;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .leaderboard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .leaderboard-header h2 {
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 700;
 }
 
 .badge {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--primary);
   background: hsl(215, 85%, 94%);
@@ -296,25 +426,25 @@ html, body {
   justify-content: space-between;
   align-items: center;
   background: var(--surface-subtle);
-  padding: 8px 12px;
+  padding: 7px 11px;
   border-radius: 10px;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
 }
 
 .leaderboard-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .leaderboard-row {
   display: grid;
   grid-template-columns: 36px 1fr auto;
   align-items: center;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border-radius: 8px;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .leaderboard-row.is-me {
@@ -345,9 +475,9 @@ html, body {
 
 .empty-row {
   text-align: center;
-  padding: 20px 0;
+  padding: 16px 0;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 /* Game View */
@@ -411,7 +541,7 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: clamp(2rem, 8vw, 2.6rem);
+  font-size: clamp(1.9rem, 7.5vw, 2.5rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   box-shadow: var(--shadow);
