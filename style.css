@@ -305,6 +305,18 @@ html, body {
   text-align: center;
 }
 
+.config-form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.small-btn {
+  padding: 9px 14px;
+  font-size: 0.9rem;
+  border-radius: 10px;
+}
+
 /* Views */
 .view {
   display: none;

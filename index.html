@@ -45,25 +45,26 @@
         <button id="add-user-btn" class="add-pill-btn" type="button">+ User</button>
       </div>
 
-      <!-- Game Configurations Card -->
-      <section class="config-card" aria-label="Game Configuration">
-        <div class="switcher-row">
-          <span class="switcher-label">Game</span>
-          <div id="config-list" class="pill-list" role="tablist"></div>
-          <button id="add-config-btn" class="add-pill-btn" type="button">+ Game</button>
-          <button
-            id="delete-config-btn"
-            class="icon-btn danger-btn"
-            type="button"
-            title="Delete current game configuration"
-            aria-label="Delete current game configuration"
-          >✕</button>
-        </div>
+      <!-- Game Configurations Switcher & New Game Creator -->
+      <div class="switcher-row" aria-label="Game Configurations">
+        <span class="switcher-label">Game</span>
+        <div id="config-list" class="pill-list" role="tablist"></div>
+        <button id="add-config-btn" class="add-pill-btn" type="button">+ Game</button>
+        <button
+          id="delete-config-btn"
+          class="icon-btn danger-btn"
+          type="button"
+          title="Delete current game configuration"
+          aria-label="Delete current game configuration"
+        >✕</button>
+      </div>
 
+      <!-- New Game Creation Panel (shown only when adding a new game) -->
+      <section id="new-config-panel" class="config-card hidden" aria-label="Create New Game">
         <div class="config-controls">
           <div class="ops-group" role="group" aria-label="Operators">
-            <button type="button" class="op-toggle" data-op="+">+</button>
-            <button type="button" class="op-toggle" data-op="-">−</button>
+            <button type="button" class="op-toggle active" data-op="+">+</button>
+            <button type="button" class="op-toggle active" data-op="-">−</button>
             <button type="button" class="op-toggle" data-op="×">×</button>
             <button type="button" class="op-toggle" data-op="÷">÷</button>
           </div>
@@ -72,30 +73,36 @@
             <div class="range-col">
               <span class="range-title">1st Number</span>
               <div class="range-inputs">
-                <input id="min1-input" type="number" step="1" aria-label="1st number min" title="1st number min">
+                <input id="min1-input" type="number" step="1" value="0" aria-label="1st number min">
                 <span class="range-sep">to</span>
-                <input id="max1-input" type="number" step="1" aria-label="1st number max" title="1st number max">
+                <input id="max1-input" type="number" step="1" value="9" aria-label="1st number max">
               </div>
             </div>
             <div class="range-col">
               <span class="range-title">2nd Number</span>
               <div class="range-inputs">
-                <input id="min2-input" type="number" step="1" aria-label="2nd number min" title="2nd number min">
+                <input id="min2-input" type="number" step="1" value="0" aria-label="2nd number min">
                 <span class="range-sep">to</span>
-                <input id="max2-input" type="number" step="1" aria-label="2nd number max" title="2nd number max">
+                <input id="max2-input" type="number" step="1" value="9" aria-label="2nd number max">
               </div>
             </div>
             <div class="range-col">
               <span class="range-title">3rd Number</span>
               <div class="range-inputs">
-                <input id="min3-input" type="number" step="1" aria-label="3rd number min" title="3rd number min">
+                <input id="min3-input" type="number" step="1" value="0" aria-label="3rd number min">
                 <span class="range-sep">to</span>
-                <input id="max3-input" type="number" step="1" aria-label="3rd number max" title="3rd number max">
+                <input id="max3-input" type="number" step="1" value="18" aria-label="3rd number max">
               </div>
             </div>
           </div>
+
           <div id="config-error" class="config-error hidden">
             No valid integer equations exist for these constraints.
+          </div>
+
+          <div class="config-form-actions">
+            <button id="cancel-config-btn" class="ghost-btn" type="button">Cancel</button>
+            <button id="save-config-btn" class="primary-btn small-btn" type="button">Create Game</button>
           </div>
         </div>
       </section>

@@ -6,7 +6,7 @@ Mobile-friendly 1-minute math game (`+` and `-` with single-digit numbers and no
 
 - **Multi-User Support**: Random username generated and saved in `localStorage`, editable anytime in the header. Add, switch, and delete users so multiple people can play on the same device. Users are shared across all game configurations and leaderboards.
 - **Multiple Game Configurations**:
-  - Add, switch, edit, and delete game configurations.
+  - Add, switch, and delete game configurations (configurations are immutable after creation so leaderboards remain valid).
   - Choose which operators to include out of `+`, `−`, `×`, and `÷`.
   - Set integer `min` and `max` constraints on each of the 3 numbers in the equation (with division restricted to exact integers).
   - Each game configuration has its own separate leaderboard.

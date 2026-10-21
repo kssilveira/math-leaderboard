@@ -25,8 +25,9 @@ let users = []; // [{ userId: string, username: string }]
 let userId = '';
 let username = '';
 
-let configs = []; // [{ id, ops, min1, max1, min2, max2, min3, max3 }]
+let configs = []; // Immutable once created: [{ id, ops, min1, max1, min2, max2, min3, max3 }]
 let activeConfigId = '';
+let draftConfig = null; // Used only while the "+ Game" creation panel is open
 
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
@@ -46,6 +47,9 @@ const deleteUserBtn = document.getElementById('delete-user-btn');
 const configListEl = document.getElementById('config-list');
 const addConfigBtn = document.getElementById('add-config-btn');
 const deleteConfigBtn = document.getElementById('delete-config-btn');
+const newConfigPanel = document.getElementById('new-config-panel');
+const cancelConfigBtn = document.getElementById('cancel-config-btn');
+const saveConfigBtn = document.getElementById('save-config-btn');
 const opToggleBtns = Array.from(document.querySelectorAll('.op-toggle'));
 const min1Input = document.getElementById('min1-input');
 const max1Input = document.getElementById('max1-input');
@@ -225,7 +229,7 @@ async function saveUsername(newName) {
   await refreshLeaderboard();
 }
 
-// --- Game Configurations ---
+// --- Immutable Game Configurations ---
 
 function createDefaultConfig(id = 'cfg_default') {
   return {
@@ -269,29 +273,106 @@ function renderConfigsUI() {
     configListEl.appendChild(btn);
   });
 
-  opToggleBtns.forEach((btn) => {
-    const op = btn.dataset.op;
-    btn.classList.toggle('active', activeCfg.ops.includes(op));
-  });
-
-  min1Input.value = activeCfg.min1;
-  max1Input.value = activeCfg.max1;
-  min2Input.value = activeCfg.min2;
-  max2Input.value = activeCfg.max2;
-  min3Input.value = activeCfg.min3;
-  max3Input.value = activeCfg.max3;
-
   leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
 
-  // Show minus key on keypad if any number constraint allows negatives
+  // Show minus key on keypad if active game allows negative numbers
   const allowsNegative = activeCfg.min1 < 0 || activeCfg.min2 < 0 || activeCfg.min3 < 0;
   minusKey.classList.toggle('hidden', !allowsNegative);
+}
 
-  // Validate if at least 1 valid integer equation exists
-  const samplers = getValidSamplers(activeCfg);
-  const isValid = samplers.length > 0;
+function renderDraftConfigUI() {
+  if (!draftConfig) return;
+  opToggleBtns.forEach((btn) => {
+    const op = btn.dataset.op;
+    btn.classList.toggle('active', draftConfig.ops.includes(op));
+  });
+
+  min1Input.value = draftConfig.min1;
+  max1Input.value = draftConfig.max1;
+  min2Input.value = draftConfig.min2;
+  max2Input.value = draftConfig.max2;
+  min3Input.value = draftConfig.min3;
+  max3Input.value = draftConfig.max3;
+
+  const isValid = getValidSamplers(draftConfig).length > 0;
   configErrorEl.classList.toggle('hidden', isValid);
-  playBtn.disabled = !isValid;
+  saveConfigBtn.disabled = !isValid;
+}
+
+function openNewConfigPanel() {
+  if (isPlaying) return;
+  const base = getActiveConfig();
+  draftConfig = {
+    ops: [...base.ops],
+    min1: base.min1,
+    max1: base.max1,
+    min2: base.min2,
+    max2: base.max2,
+    min3: base.min3,
+    max3: base.max3
+  };
+  renderDraftConfigUI();
+  newConfigPanel.classList.remove('hidden');
+}
+
+function closeNewConfigPanel() {
+  draftConfig = null;
+  newConfigPanel.classList.add('hidden');
+}
+
+async function createNewConfigFromDraft() {
+  if (isPlaying || !draftConfig) return;
+  updateDraftRangeInputs();
+  if (getValidSamplers(draftConfig).length === 0) return;
+
+  const newCfg = {
+    id: generateId('cfg_'),
+    ops: [...draftConfig.ops],
+    min1: draftConfig.min1,
+    max1: draftConfig.max1,
+    min2: draftConfig.min2,
+    max2: draftConfig.max2,
+    min3: draftConfig.min3,
+    max3: draftConfig.max3
+  };
+
+  configs.push(newCfg);
+  activeConfigId = newCfg.id;
+  saveConfigsToStorage();
+  closeNewConfigPanel();
+  lastResult.classList.add('hidden');
+  renderConfigsUI();
+  await refreshLeaderboard();
+}
+
+function toggleDraftOperator(op) {
+  if (!draftConfig) return;
+  if (draftConfig.ops.includes(op)) {
+    if (draftConfig.ops.length <= 1) return; // Keep at least 1 operator
+    draftConfig.ops = draftConfig.ops.filter(item => item !== op);
+  } else {
+    draftConfig.ops = ALL_OPS.filter(item => draftConfig.ops.includes(item) || item === op);
+  }
+  renderDraftConfigUI();
+}
+
+function updateDraftRangeInputs() {
+  if (!draftConfig) return;
+  const parseVal = (inputEl, fallback) => {
+    const parsed = parseInt(inputEl.value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
+  draftConfig.min1 = parseVal(min1Input, draftConfig.min1);
+  draftConfig.max1 = parseVal(max1Input, draftConfig.max1);
+  draftConfig.min2 = parseVal(min2Input, draftConfig.min2);
+  draftConfig.max2 = parseVal(max2Input, draftConfig.max2);
+  draftConfig.min3 = parseVal(min3Input, draftConfig.min3);
+  draftConfig.max3 = parseVal(max3Input, draftConfig.max3);
+
+  const isValid = getValidSamplers(draftConfig).length > 0;
+  configErrorEl.classList.toggle('hidden', isValid);
+  saveConfigBtn.disabled = !isValid;
 }
 
 function initConfigs() {
@@ -304,7 +385,14 @@ function initConfigs() {
     }
   }
 
-  if (!Array.isArray(configs) || configs.length === 0) {
+  // Filter out any invalid legacy configs that might have no valid equations
+  if (Array.isArray(configs)) {
+    configs = configs.filter(c => c && Array.isArray(c.ops) && getValidSamplers(c).length > 0);
+  } else {
+    configs = [];
+  }
+
+  if (configs.length === 0) {
     configs = [createDefaultConfig('cfg_default')];
   }
 
@@ -323,27 +411,7 @@ async function switchConfig(targetConfigId) {
 
   activeConfigId = target.id;
   saveConfigsToStorage();
-  lastResult.classList.add('hidden');
-  renderConfigsUI();
-  await refreshLeaderboard();
-}
-
-async function addConfig() {
-  if (isPlaying) return;
-  const current = getActiveConfig();
-  const newCfg = {
-    id: generateId('cfg_'),
-    ops: [...current.ops],
-    min1: current.min1,
-    max1: current.max1,
-    min2: current.min2,
-    max2: current.max2,
-    min3: current.min3,
-    max3: current.max3
-  };
-  configs.push(newCfg);
-  activeConfigId = newCfg.id;
-  saveConfigsToStorage();
+  closeNewConfigPanel();
   lastResult.classList.add('hidden');
   renderConfigsUI();
   await refreshLeaderboard();
@@ -360,43 +428,12 @@ async function deleteCurrentConfig() {
 
   activeConfigId = configs[0].id;
   saveConfigsToStorage();
+  closeNewConfigPanel();
   lastResult.classList.add('hidden');
   renderConfigsUI();
 
   await deleteConfigLeaderboard(deletedId);
   await refreshLeaderboard();
-}
-
-function toggleOperator(op) {
-  if (isPlaying) return;
-  const cfg = getActiveConfig();
-  if (cfg.ops.includes(op)) {
-    if (cfg.ops.length <= 1) return; // Keep at least 1 operator active
-    cfg.ops = cfg.ops.filter(item => item !== op);
-  } else {
-    cfg.ops = ALL_OPS.filter(item => cfg.ops.includes(item) || item === op);
-  }
-  saveConfigsToStorage();
-  renderConfigsUI();
-}
-
-function updateRangeInputs() {
-  if (isPlaying) return;
-  const cfg = getActiveConfig();
-  const parseVal = (inputEl, fallback) => {
-    const parsed = parseInt(inputEl.value, 10);
-    return Number.isNaN(parsed) ? fallback : parsed;
-  };
-
-  cfg.min1 = parseVal(min1Input, cfg.min1);
-  cfg.max1 = parseVal(max1Input, cfg.max1);
-  cfg.min2 = parseVal(min2Input, cfg.min2);
-  cfg.max2 = parseVal(max2Input, cfg.max2);
-  cfg.min3 = parseVal(min3Input, cfg.min3);
-  cfg.max3 = parseVal(max3Input, cfg.max3);
-
-  saveConfigsToStorage();
-  renderConfigsUI();
 }
 
 // --- Per-Configuration Leaderboard Storage (Firebase / Supabase / Local Fallback) ---
@@ -899,7 +936,7 @@ function handleDigitInput(digitStr) {
 
 function startGame() {
   saveUsername(usernameInput.value);
-  updateRangeInputs();
+  closeNewConfigPanel();
 
   const samplers = getValidSamplers(getActiveConfig());
   if (samplers.length === 0) return;
@@ -961,16 +998,24 @@ usernameInput.addEventListener('keydown', (e) => {
 addUserBtn.addEventListener('click', addUser);
 deleteUserBtn.addEventListener('click', deleteCurrentUser);
 
-addConfigBtn.addEventListener('click', addConfig);
+addConfigBtn.addEventListener('click', () => {
+  if (newConfigPanel.classList.contains('hidden')) {
+    openNewConfigPanel();
+  } else {
+    closeNewConfigPanel();
+  }
+});
+cancelConfigBtn.addEventListener('click', closeNewConfigPanel);
+saveConfigBtn.addEventListener('click', createNewConfigFromDraft);
 deleteConfigBtn.addEventListener('click', deleteCurrentConfig);
 
 opToggleBtns.forEach((btn) => {
-  btn.addEventListener('click', () => toggleOperator(btn.dataset.op));
+  btn.addEventListener('click', () => toggleDraftOperator(btn.dataset.op));
 });
 
 [min1Input, max1Input, min2Input, max2Input, min3Input, max3Input].forEach((inputEl) => {
-  inputEl.addEventListener('input', updateRangeInputs);
-  inputEl.addEventListener('change', updateRangeInputs);
+  inputEl.addEventListener('input', updateDraftRangeInputs);
+  inputEl.addEventListener('change', updateDraftRangeInputs);
 });
 
 playBtn.addEventListener('click', startGame);
