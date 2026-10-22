@@ -176,6 +176,8 @@ async function addUser() {
 
 async function deleteCurrentUser() {
   if (isPlaying) return;
+  if (!window.confirm(`Delete user "${username}" and their scores?`)) return;
+
   const deletedUserId = userId;
   users = users.filter(u => u.userId !== deletedUserId);
 
