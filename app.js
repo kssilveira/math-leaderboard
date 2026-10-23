@@ -568,12 +568,20 @@ function sortLeaderboard(entries) {
 function renderLeaderboard() {
   const boardObj = leaderboardsMap[activeConfigId] || {};
   const entries = sortLeaderboard(Object.values(boardObj));
-  const top10 = entries.slice(0, 10);
-  const myIndex = entries.findIndex(e => e.userId === userId);
+  let currentRank = 1;
+  const rankedEntries = entries.map((entry, index) => {
+    if (index > 0 && entry.score < entries[index - 1].score) {
+      currentRank = index + 1;
+    }
+    return { ...entry, rank: currentRank };
+  });
 
-  if (myIndex >= 0) {
-    myRankValue.textContent = `#${myIndex + 1} of ${entries.length}`;
-    myBestValue.textContent = entries[myIndex].score;
+  const top10 = rankedEntries.slice(0, 10);
+  const myEntry = rankedEntries.find(e => e.userId === userId);
+
+  if (myEntry) {
+    myRankValue.textContent = `#${myEntry.rank} of ${rankedEntries.length}`;
+    myBestValue.textContent = myEntry.score;
   } else {
     myRankValue.textContent = 'Unranked';
     myBestValue.textContent = '—';
@@ -585,14 +593,14 @@ function renderLeaderboard() {
   }
 
   leaderboardList.innerHTML = '';
-  top10.forEach((entry, index) => {
+  top10.forEach((entry) => {
     const li = document.createElement('li');
     const isMe = entry.userId === userId;
     li.className = 'leaderboard-row' + (isMe ? ' is-me' : '');
 
     const rankSpan = document.createElement('span');
     rankSpan.className = 'rank-num';
-    rankSpan.textContent = `#${index + 1}`;
+    rankSpan.textContent = `#${entry.rank}`;
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'player-name';
