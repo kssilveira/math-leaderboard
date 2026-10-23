@@ -2,6 +2,8 @@ export const config = {
   matcher: ['/', '/index.html'],
 };
 
+const CANONICAL_APP_URL = 'https://kssilveira.github.io/math-leaderboard/';
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -38,29 +40,15 @@ function decodeReplaySummary(encoded) {
 }
 
 export default async function middleware(request) {
-  if (request.headers.get('x-mw-bypass') === '1') {
-    return;
-  }
-
   const url = new URL(request.url);
   const replayParam = url.searchParams.get('replay');
-
-  const response = await fetch(new URL('/index.html', url.origin), {
-    headers: { 'x-mw-bypass': '1' },
-  });
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('text/html')) {
-    return response;
-  }
-
-  let html = await response.text();
   const origin = url.origin;
 
   let ogTitle = '1-Minute Math — Global Leaderboard';
   let ogDesc =
     '1-minute mobile math game with customizable game configurations, replays, and global leaderboards.';
   let ogImage = `${origin}/api/og`;
-  let ogUrl = url.href;
+  let targetUrl = CANONICAL_APP_URL + url.search;
 
   if (replayParam) {
     const summary = decodeReplaySummary(replayParam);
@@ -71,38 +59,33 @@ export default async function middleware(request) {
     }
   }
 
-  html = html
-    .replace(
-      /<meta property="og:title" content="[^"]*">/,
-      `<meta property="og:title" content="${escapeHtml(ogTitle)}">`
-    )
-    .replace(
-      /<meta property="og:description" content="[^"]*">/,
-      `<meta property="og:description" content="${escapeHtml(ogDesc)}">`
-    )
-    .replace(
-      /<meta property="og:url" content="[^"]*">/,
-      `<meta property="og:url" content="${escapeHtml(ogUrl)}">`
-    )
-    .replace(
-      /<meta property="og:image" content="[^"]*">/,
-      `<meta property="og:image" content="${escapeHtml(ogImage)}">`
-    )
-    .replace(
-      /<meta name="twitter:title" content="[^"]*">/,
-      `<meta name="twitter:title" content="${escapeHtml(ogTitle)}">`
-    )
-    .replace(
-      /<meta name="twitter:description" content="[^"]*">/,
-      `<meta name="twitter:description" content="${escapeHtml(ogDesc)}">`
-    )
-    .replace(
-      /<meta name="twitter:image" content="[^"]*">/,
-      `<meta name="twitter:image" content="${escapeHtml(ogImage)}">`
-    );
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${escapeHtml(ogTitle)}">
+  <meta property="og:description" content="${escapeHtml(ogDesc)}">
+  <meta property="og:url" content="${escapeHtml(url.href)}">
+  <meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+  <meta name="twitter:description" content="${escapeHtml(ogDesc)}">
+  <meta name="twitter:image" content="${escapeHtml(ogImage)}">
+  <title>${escapeHtml(ogTitle)}</title>
+  <script>window.location.replace(${JSON.stringify(targetUrl)});</script>
+</head>
+<body>
+  <p>Redirecting to <a href="${escapeHtml(targetUrl)}">1-Minute Math</a>...</p>
+</body>
+</html>`;
 
   return new Response(html, {
-    status: response.status,
+    status: 200,
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'public, max-age=0, must-revalidate',
