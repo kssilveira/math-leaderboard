@@ -660,15 +660,14 @@ function renderHistoryChart(sessions) {
   const pointsData = chronological.map((s) => ({
     score: s.score || 0,
     right: s.right || 0,
-    wrong: s.wrong || 0,
     myBest: myBestScore
   }));
 
   let minVal = 0;
   let maxVal = 5;
   pointsData.forEach((p) => {
-    minVal = Math.min(minVal, p.score, p.right, p.wrong, p.myBest);
-    maxVal = Math.max(maxVal, p.score, p.right, p.wrong, p.myBest);
+    minVal = Math.min(minVal, p.score, p.right, p.myBest);
+    maxVal = Math.max(maxVal, p.score, p.right, p.myBest);
   });
   minVal = Math.floor(minVal);
   maxVal = Math.ceil(maxVal);
@@ -702,7 +701,6 @@ function renderHistoryChart(sessions) {
   svg += `<line x1="${padLeft}" y1="${myBestY}" x2="${width - padRight}" y2="${myBestY}" stroke="hsl(195, 85%, 38%)" stroke-width="1.8" stroke-dasharray="3 3" />`;
 
   const series = [
-    { key: 'wrong', color: 'hsl(355, 78%, 52%)', width: 2, radius: 3 },
     { key: 'right', color: 'hsl(145, 65%, 35%)', width: 2, radius: 3 },
     { key: 'score', color: 'hsl(215, 85%, 48%)', width: 2.5, radius: 3.5 }
   ];

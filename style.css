@@ -542,10 +542,6 @@ html, body {
   background: var(--right);
 }
 
-.dot-wrong {
-  background: var(--wrong);
-}
-
 .dot-my-best {
   background: hsl(195, 85%, 38%);
 }
