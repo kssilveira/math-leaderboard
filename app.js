@@ -645,7 +645,7 @@ function renderHistoryChart(sessions) {
   const width = 360;
   const height = 160;
   const padLeft = 30;
-  const padRight = 34;
+  const padRight = 14;
   const padTop = 12;
   const padBottom = 22;
   const plotW = width - padLeft - padRight;
@@ -657,63 +657,36 @@ function renderHistoryChart(sessions) {
     boardObj[userId] && typeof boardObj[userId].score === 'number' ? boardObj[userId].score : localBestScore;
   const myBestScore = Math.max(localBestScore, myLeaderboardScore);
 
-  const pointsData = chronological.map((s) => {
-    const qs = Array.isArray(s.questions) ? s.questions : [];
-    const slowestSec =
-      qs.length > 0 ? Math.max(...qs.map(q => (q.durationMs || 0) / 1000)) : 0;
-    const avgSec =
-      qs.length > 0
-        ? qs.reduce((sum, q) => sum + (q.durationMs || 0), 0) / qs.length / 1000
-        : 0;
-    return {
-      score: s.score || 0,
-      right: s.right || 0,
-      wrong: s.wrong || 0,
-      myBest: myBestScore,
-      slowest: Number(slowestSec.toFixed(2)),
-      avg: Number(avgSec.toFixed(2))
-    };
-  });
+  const pointsData = chronological.map((s) => ({
+    score: s.score || 0,
+    right: s.right || 0,
+    wrong: s.wrong || 0,
+    myBest: myBestScore
+  }));
 
-  // Left axis bounds (Score, Right, Wrong, My Best)
-  let minLeft = 0;
-  let maxLeft = 5;
-  // Right axis bounds (Duration in seconds: Slowest, Avg)
-  const minRight = 0;
-  let maxRight = 2;
-
+  let minVal = 0;
+  let maxVal = 5;
   pointsData.forEach((p) => {
-    minLeft = Math.min(minLeft, p.score, p.right, p.wrong, p.myBest);
-    maxLeft = Math.max(maxLeft, p.score, p.right, p.wrong, p.myBest);
-    maxRight = Math.max(maxRight, p.slowest, p.avg);
+    minVal = Math.min(minVal, p.score, p.right, p.wrong, p.myBest);
+    maxVal = Math.max(maxVal, p.score, p.right, p.wrong, p.myBest);
   });
-  minLeft = Math.floor(minLeft);
-  maxLeft = Math.ceil(maxLeft);
-  if (maxLeft === minLeft) maxLeft = minLeft + 5;
-  maxRight = Math.max(1, Math.ceil(maxRight));
+  minVal = Math.floor(minVal);
+  maxVal = Math.ceil(maxVal);
+  if (maxVal === minVal) maxVal = minVal + 5;
 
   const getX = (i) => (n === 1 ? padLeft + plotW / 2 : padLeft + (i / (n - 1)) * plotW);
-  const getYLeft = (val) => padTop + plotH - ((val - minLeft) / (maxLeft - minLeft)) * plotH;
-  const getYRight = (sec) => padTop + plotH - ((sec - minRight) / (maxRight - minRight)) * plotH;
+  const getY = (val) => padTop + plotH - ((val - minVal) / (maxVal - minVal)) * plotH;
 
-  const midLeft = minLeft < 0 ? 0 : Math.round((minLeft + maxLeft) / 2);
-  const leftTicks = Array.from(new Set([minLeft, midLeft, maxLeft]));
-  const midRight = Number(((minRight + maxRight) / 2).toFixed(1));
-  const rightTicks = [minRight, midRight, maxRight];
+  const midVal = minVal < 0 ? 0 : Math.round((minVal + maxVal) / 2);
+  const yTicks = Array.from(new Set([minVal, midVal, maxVal]));
 
   let svg = '';
 
-  // Left Y-axis labels and horizontal grid lines
-  leftTicks.forEach((tick) => {
-    const y = getYLeft(tick).toFixed(1);
+  // Y-axis labels and horizontal grid lines
+  yTicks.forEach((tick) => {
+    const y = getY(tick).toFixed(1);
     svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="hsl(214, 20%, 86%)" stroke-dasharray="3 3" stroke-width="1" />`;
     svg += `<text x="${padLeft - 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">${tick}</text>`;
-  });
-
-  // Right Y-axis labels (Duration in seconds)
-  rightTicks.forEach((tick) => {
-    const y = getYRight(tick).toFixed(1);
-    svg += `<text x="${width - padRight + 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="start" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">${tick}s</text>`;
   });
 
   // X-axis labels (#1 .. #N)
@@ -724,27 +697,24 @@ function renderHistoryChart(sessions) {
     svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
   }
 
-  // Reference line for My Best (Left axis)
-  const myBestY = getYLeft(pointsData[0].myBest).toFixed(1);
+  // Reference line for My Best
+  const myBestY = getY(pointsData[0].myBest).toFixed(1);
   svg += `<line x1="${padLeft}" y1="${myBestY}" x2="${width - padRight}" y2="${myBestY}" stroke="hsl(195, 85%, 38%)" stroke-width="1.8" stroke-dasharray="3 3" />`;
 
   const series = [
-    { key: 'slowest', axis: 'right', color: 'hsl(24, 90%, 50%)', width: 1.8, radius: 2.8 },
-    { key: 'avg', axis: 'right', color: 'hsl(172, 75%, 34%)', width: 1.8, radius: 2.8 },
-    { key: 'wrong', axis: 'left', color: 'hsl(355, 78%, 52%)', width: 2, radius: 3 },
-    { key: 'right', axis: 'left', color: 'hsl(145, 65%, 35%)', width: 2, radius: 3 },
-    { key: 'score', axis: 'left', color: 'hsl(215, 85%, 48%)', width: 2.5, radius: 3.5 }
+    { key: 'wrong', color: 'hsl(355, 78%, 52%)', width: 2, radius: 3 },
+    { key: 'right', color: 'hsl(145, 65%, 35%)', width: 2, radius: 3 },
+    { key: 'score', color: 'hsl(215, 85%, 48%)', width: 2.5, radius: 3.5 }
   ];
 
   series.forEach((s) => {
-    const mapY = s.axis === 'right' ? getYRight : getYLeft;
-    const pts = pointsData.map((item, idx) => `${getX(idx).toFixed(1)},${mapY(item[s.key]).toFixed(1)}`);
+    const pts = pointsData.map((item, idx) => `${getX(idx).toFixed(1)},${getY(item[s.key]).toFixed(1)}`);
     if (n > 1) {
       svg += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.width}" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(' ')}" />`;
     }
     pointsData.forEach((item, idx) => {
       const cx = getX(idx).toFixed(1);
-      const cy = mapY(item[s.key]).toFixed(1);
+      const cy = getY(item[s.key]).toFixed(1);
       svg += `<circle cx="${cx}" cy="${cy}" r="${s.radius}" fill="${s.color}" stroke="#fff" stroke-width="1" />`;
     });
   });
