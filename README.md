@@ -21,7 +21,7 @@ Mobile-friendly 1-minute math game with shared game configurations, multi-user s
   - On-screen mobile keypad formatted with 3 digits per row (plus physical keyboard support).
   - Right answers automatically advance to the next question.
   - Wrong answers stay visible and are automatically erased when a new answer starts being typed.
-  - Score is `total right - total wrong` in the 1-minute window (ending a game early also saves the current score).
+  - Score is `total right - total wrong` in the 1-minute window (ending a game early also saves the current score), followed by a celebratory confetti & score-pop animation at the end of each game.
 - **Practice Mode (`Practice Weak & Slow`)**:
   - Prioritizes questions from past games that had mistakes or took the longest average time.
   - Shows a `Last:` badge above the equation with previous wrong attempts and running average duration.

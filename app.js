@@ -117,6 +117,8 @@ const replaySpeedBtn = document.getElementById('replay-speed-btn');
 const replayRestartBtn = document.getElementById('replay-restart-btn');
 const replayShareBtn = document.getElementById('replay-share-btn');
 const replayLogList = document.getElementById('replay-log-list');
+const celebrationCanvas = document.getElementById('celebration-canvas');
+let celebrationRafId = null;
 
 // --- Helpers ---
 
@@ -1504,7 +1506,129 @@ function handleDigitInput(digitStr) {
   renderQuestion();
 }
 
+function stopCelebration() {
+  if (celebrationRafId) {
+    cancelAnimationFrame(celebrationRafId);
+    celebrationRafId = null;
+  }
+  if (celebrationCanvas) {
+    celebrationCanvas.classList.add('hidden');
+    const ctx = celebrationCanvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, celebrationCanvas.width, celebrationCanvas.height);
+    }
+  }
+}
+
+function triggerCelebration(isNewHigh = false) {
+  if (lastResult) {
+    lastResult.classList.remove('celebrate-pop');
+    void lastResult.offsetWidth;
+    lastResult.classList.add('celebrate-pop');
+  }
+
+  if (!celebrationCanvas) return;
+  stopCelebration();
+
+  const dpr = window.devicePixelRatio || 1;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  celebrationCanvas.width = vw * dpr;
+  celebrationCanvas.height = vh * dpr;
+  celebrationCanvas.classList.remove('hidden');
+
+  const ctx = celebrationCanvas.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  let originX = vw / 2;
+  let originY = Math.min(vh * 0.25, 160);
+  if (lastResult) {
+    const rect = lastResult.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      originX = rect.left + rect.width / 2;
+      originY = rect.top + rect.height / 2;
+    }
+  }
+
+  const colors = isNewHigh
+    ? ['#16a34a', '#22c55e', '#f59e0b', '#fbbf24', '#2563eb', '#ec4899', '#8b5cf6']
+    : ['#2563eb', '#3b82f6', '#16a34a', '#f59e0b', '#ec4899', '#06b6d4'];
+
+  const count = isNewHigh ? 90 : 55;
+  const particles = [];
+
+  for (let i = 0; i < count; i++) {
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.15;
+    const speed = (isNewHigh ? 6.5 : 5.2) + Math.random() * (isNewHigh ? 8.5 : 6.5);
+    particles.push({
+      x: originX + (Math.random() - 0.5) * 90,
+      y: originY + (Math.random() - 0.5) * 24,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - Math.random() * 2.5,
+      w: 6 + Math.random() * 6,
+      h: 4 + Math.random() * 5,
+      color: colors[i % colors.length],
+      rotation: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.25,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: 0.08 + Math.random() * 0.08,
+      isCircle: i % 5 === 0,
+      opacity: 1
+    });
+  }
+
+  const startMs = performance.now();
+  const maxDurationMs = 2400;
+
+  function frame(now) {
+    const elapsed = now - startMs;
+    ctx.clearRect(0, 0, vw, vh);
+
+    let alive = 0;
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.wobble += p.wobbleSpeed;
+      p.x += p.vx + Math.sin(p.wobble) * 0.6;
+      p.y += p.vy;
+      p.vx *= 0.985;
+      p.vy = p.vy * 0.985 + 0.26;
+      p.rotation += p.spin;
+
+      if (elapsed > maxDurationMs * 0.65) {
+        p.opacity = Math.max(0, 1 - (elapsed - maxDurationMs * 0.65) / (maxDurationMs * 0.35));
+      }
+
+      if (p.y < vh + 30 && p.opacity > 0.02) {
+        alive += 1;
+        ctx.save();
+        ctx.globalAlpha = p.opacity;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        if (p.isCircle) {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.w * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.cos(p.wobble));
+        }
+        ctx.restore();
+      }
+    }
+
+    if (alive > 0 && elapsed < maxDurationMs) {
+      celebrationRafId = requestAnimationFrame(frame);
+    } else {
+      stopCelebration();
+    }
+  }
+
+  celebrationRafId = requestAnimationFrame(frame);
+}
+
 function startGame(practice = false) {
+  stopCelebration();
   if (isReplaying) {
     stopReplay(false);
   }
@@ -1593,6 +1717,7 @@ async function finishGame(saveScore) {
       lastScoreValue.textContent = finalScore;
       lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
       lastResult.classList.remove('hidden');
+      triggerCelebration(false);
     } else {
       const cachedEntry = leaderboardsMap[activeConfigId] && leaderboardsMap[activeConfigId][userId];
       const isInitialNewHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score;
@@ -1601,6 +1726,7 @@ async function finishGame(saveScore) {
       lastScoreValue.textContent = finalScore;
       lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
       lastResult.classList.remove('hidden');
+      triggerCelebration(isInitialNewHigh);
       await submitScoreToLeaderboard(finalScore, sessionRecord);
     }
   }

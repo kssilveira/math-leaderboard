@@ -343,6 +343,50 @@ html, body {
   box-shadow: var(--shadow);
 }
 
+.result-banner.celebrate-pop {
+  animation: resultPop 0.55s cubic-bezier(0.22, 1.28, 0.36, 1);
+}
+
+.result-banner.celebrate-pop .result-score-value {
+  animation: scorePop 0.65s cubic-bezier(0.22, 1.35, 0.36, 1);
+}
+
+@keyframes resultPop {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scorePop {
+  0% {
+    transform: scale(0.6);
+  }
+  65% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.celebration-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 999;
+}
+
 .result-banner.new-high-score {
   background: hsl(145, 70%, 96%);
   border: 2px solid var(--right);
