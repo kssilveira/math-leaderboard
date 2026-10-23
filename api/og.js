@@ -143,8 +143,8 @@ function renderReplayCard(replay) {
       .replace(/ (\S+)$/, ' = $1');
 
     const statusText = hadMistake
-      ? `✗ ${q.wrongAnswers.join(', ')}${q.right > 0 ? ` → ✓ ${q.expected}` : ''}`
-      : `✓ ${q.expected}`;
+      ? `Wrong: ${q.wrongAnswers.join(', ')}${q.right > 0 ? ` -> ${q.expected}` : ''}`
+      : `Ans: ${q.expected}`;
 
     return h(
       'div',

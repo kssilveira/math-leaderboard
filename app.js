@@ -1685,7 +1685,10 @@ function decodeReplayParam(encoded) {
 async function copyReplayLink(session, btnEl) {
   if (!session || !Array.isArray(session.questions) || session.questions.length === 0) return;
   const encoded = encodeReplayParam(session);
-  const url = `${window.location.origin}${window.location.pathname}?replay=${encoded}`;
+  const baseUrl = window.location.hostname.endsWith('github.io')
+    ? 'https://math-leaderboard.vercel.app/'
+    : `${window.location.origin}${window.location.pathname}`;
+  const url = `${baseUrl}?replay=${encoded}`;
 
   let copied = false;
   if (navigator.clipboard && navigator.clipboard.writeText) {
