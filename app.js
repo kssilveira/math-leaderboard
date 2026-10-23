@@ -651,23 +651,22 @@ function renderHistoryChart(sessions) {
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
 
-  const boardObj = leaderboardsMap[activeConfigId] || {};
-  const localBestScore = Math.max(...chronological.map(s => (typeof s.score === 'number' ? s.score : 0)));
-  const myLeaderboardScore =
-    boardObj[userId] && typeof boardObj[userId].score === 'number' ? boardObj[userId].score : localBestScore;
-  const myBestScore = Math.max(localBestScore, myLeaderboardScore);
-
-  const pointsData = chronological.map((s) => ({
-    score: s.score || 0,
-    right: s.right || 0,
-    myBest: myBestScore
-  }));
+  let runningBest = -Infinity;
+  const pointsData = chronological.map((s) => {
+    const score = typeof s.score === 'number' ? s.score : 0;
+    runningBest = Math.max(runningBest, score);
+    return {
+      score,
+      right: s.right || 0,
+      best: runningBest
+    };
+  });
 
   let minVal = 0;
   let maxVal = 5;
   pointsData.forEach((p) => {
-    minVal = Math.min(minVal, p.score, p.right, p.myBest);
-    maxVal = Math.max(maxVal, p.score, p.right, p.myBest);
+    minVal = Math.min(minVal, p.score, p.right, p.best);
+    maxVal = Math.max(maxVal, p.score, p.right, p.best);
   });
   minVal = Math.floor(minVal);
   maxVal = Math.ceil(maxVal);
@@ -696,12 +695,9 @@ function renderHistoryChart(sessions) {
     svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
   }
 
-  // Reference line for Best
-  const myBestY = getY(pointsData[0].myBest).toFixed(1);
-  svg += `<line x1="${padLeft}" y1="${myBestY}" x2="${width - padRight}" y2="${myBestY}" stroke="hsl(36, 95%, 46%)" stroke-width="2" stroke-dasharray="4 3" />`;
-
   const series = [
     { key: 'right', color: 'hsl(152, 76%, 36%)', width: 2, radius: 3 },
+    { key: 'best', color: 'hsl(36, 95%, 46%)', width: 2.2, radius: 3.2 },
     { key: 'score', color: 'hsl(217, 91%, 53%)', width: 2.5, radius: 3.5 }
   ];
 
