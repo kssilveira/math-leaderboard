@@ -652,12 +652,10 @@ function renderHistoryChart(sessions) {
   const plotH = height - padTop - padBottom;
 
   const boardObj = leaderboardsMap[activeConfigId] || {};
-  const boardScores = Object.values(boardObj).map(e => (typeof e.score === 'number' ? e.score : 0));
   const localBestScore = Math.max(...chronological.map(s => (typeof s.score === 'number' ? s.score : 0)));
   const myLeaderboardScore =
     boardObj[userId] && typeof boardObj[userId].score === 'number' ? boardObj[userId].score : localBestScore;
   const myBestScore = Math.max(localBestScore, myLeaderboardScore);
-  const topLeaderboardScore = boardScores.length > 0 ? Math.max(...boardScores, myBestScore) : myBestScore;
 
   const pointsData = chronological.map((s) => {
     const qs = Array.isArray(s.questions) ? s.questions : [];
@@ -672,7 +670,6 @@ function renderHistoryChart(sessions) {
       right: s.right || 0,
       wrong: s.wrong || 0,
       myBest: myBestScore,
-      topBest: topLeaderboardScore,
       slowest: Number(slowestSec.toFixed(2)),
       avg: Number(avgSec.toFixed(2))
     };
@@ -681,8 +678,8 @@ function renderHistoryChart(sessions) {
   let minVal = 0;
   let maxVal = 5;
   pointsData.forEach((p) => {
-    minVal = Math.min(minVal, p.score, p.right, p.wrong, p.myBest, p.topBest, p.slowest, p.avg);
-    maxVal = Math.max(maxVal, p.score, p.right, p.wrong, p.myBest, p.topBest, p.slowest, p.avg);
+    minVal = Math.min(minVal, p.score, p.right, p.wrong, p.myBest, p.slowest, p.avg);
+    maxVal = Math.max(maxVal, p.score, p.right, p.wrong, p.myBest, p.slowest, p.avg);
   });
   minVal = Math.floor(minVal);
   maxVal = Math.ceil(maxVal);
@@ -711,17 +708,9 @@ function renderHistoryChart(sessions) {
     svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
   }
 
-  // Reference lines for Top #1 and My Best (span across plot width even for 1 game)
-  const refSeries = [
-    { key: 'topBest', color: 'hsl(42, 95%, 42%)', width: 1.8, dash: '5 3' },
-    { key: 'myBest', color: 'hsl(195, 85%, 38%)', width: 1.8, dash: '3 3' }
-  ];
-
-  refSeries.forEach((ref) => {
-    const val = pointsData[0][ref.key];
-    const y = getY(val).toFixed(1);
-    svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="${ref.color}" stroke-width="${ref.width}" stroke-dasharray="${ref.dash}" />`;
-  });
+  // Reference line for My Best (spans across plot width)
+  const myBestY = getY(pointsData[0].myBest).toFixed(1);
+  svg += `<line x1="${padLeft}" y1="${myBestY}" x2="${width - padRight}" y2="${myBestY}" stroke="hsl(195, 85%, 38%)" stroke-width="1.8" stroke-dasharray="3 3" />`;
 
   const series = [
     { key: 'slowest', color: 'hsl(24, 90%, 50%)', width: 1.8, radius: 2.8 },

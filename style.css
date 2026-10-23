@@ -550,10 +550,6 @@ html, body {
   background: hsl(195, 85%, 38%);
 }
 
-.dot-top-best {
-  background: hsl(42, 95%, 42%);
-}
-
 .dot-slowest {
   background: hsl(24, 90%, 50%);
 }
