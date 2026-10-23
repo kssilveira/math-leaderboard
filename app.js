@@ -69,6 +69,7 @@ const myBestValue = document.getElementById('my-best-value');
 const leaderboardList = document.getElementById('leaderboard-list');
 const reviewCard = document.getElementById('review-card');
 const reviewSummaryBadge = document.getElementById('review-summary-badge');
+const historyChart = document.getElementById('history-chart');
 const sortImproveBtn = document.getElementById('sort-improve-btn');
 const sortOrderBtn = document.getElementById('sort-order-btn');
 const reviewList = document.getElementById('review-list');
@@ -636,6 +637,72 @@ function deleteUserReviewFromStorage(targetUserId) {
   localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
 }
 
+function renderHistoryChart(sessions) {
+  if (!historyChart) return;
+  const chronological = [...sessions].reverse();
+  const n = chronological.length;
+
+  const width = 360;
+  const height = 130;
+  const padLeft = 30;
+  const padRight = 14;
+  const padTop = 12;
+  const padBottom = 22;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+
+  let minVal = 0;
+  let maxVal = 5;
+  chronological.forEach((s) => {
+    minVal = Math.min(minVal, s.score || 0, s.right || 0, s.wrong || 0);
+    maxVal = Math.max(maxVal, s.score || 0, s.right || 0, s.wrong || 0);
+  });
+  if (maxVal === minVal) maxVal = minVal + 5;
+
+  const getX = (i) => (n === 1 ? padLeft + plotW / 2 : padLeft + (i / (n - 1)) * plotW);
+  const getY = (val) => padTop + plotH - ((val - minVal) / (maxVal - minVal)) * plotH;
+
+  const midVal = minVal < 0 ? 0 : Math.round((minVal + maxVal) / 2);
+  const yTicks = Array.from(new Set([minVal, midVal, maxVal]));
+
+  let svg = '';
+
+  // Horizontal grid lines and Y-axis labels
+  yTicks.forEach((tick) => {
+    const y = getY(tick).toFixed(1);
+    svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="hsl(214, 20%, 86%)" stroke-dasharray="3 3" stroke-width="1" />`;
+    svg += `<text x="${padLeft - 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">${tick}</text>`;
+  });
+
+  // X-axis labels (#1 .. #N)
+  if (n === 1) {
+    svg += `<text x="${getX(0).toFixed(1)}" y="${height - 5}" text-anchor="middle" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#1</text>`;
+  } else {
+    svg += `<text x="${getX(0).toFixed(1)}" y="${height - 5}" text-anchor="start" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#1</text>`;
+    svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
+  }
+
+  const series = [
+    { key: 'wrong', color: 'hsl(355, 78%, 52%)', width: 2, radius: 3 },
+    { key: 'right', color: 'hsl(145, 65%, 35%)', width: 2, radius: 3 },
+    { key: 'score', color: 'hsl(215, 85%, 48%)', width: 2.5, radius: 3.5 }
+  ];
+
+  series.forEach((s) => {
+    const pts = chronological.map((item, idx) => `${getX(idx).toFixed(1)},${getY(item[s.key] || 0).toFixed(1)}`);
+    if (n > 1) {
+      svg += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.width}" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(' ')}" />`;
+    }
+    chronological.forEach((item, idx) => {
+      const cx = getX(idx).toFixed(1);
+      const cy = getY(item[s.key] || 0).toFixed(1);
+      svg += `<circle cx="${cx}" cy="${cy}" r="${s.radius}" fill="${s.color}" stroke="#fff" stroke-width="1" />`;
+    });
+  });
+
+  historyChart.innerHTML = svg;
+}
+
 function renderReview() {
   const map = getGameHistoryMap();
   const key = `${userId}__${activeConfigId}`;
@@ -648,6 +715,7 @@ function renderReview() {
   }
 
   reviewCard.classList.remove('hidden');
+  renderHistoryChart(sessions);
 
   const questions = lastSession.questions;
   const totalQMs = questions.reduce((sum, q) => sum + (q.durationMs || 0), 0);

@@ -128,8 +128,17 @@
 
       <section id="review-card" class="leaderboard-card hidden" aria-labelledby="review-heading">
         <div class="leaderboard-header">
-          <h2 id="review-heading">Last Game Review</h2>
+          <h2 id="review-heading">Progress &amp; Review</h2>
           <span id="review-summary-badge" class="badge">0.0s avg</span>
+        </div>
+
+        <div class="chart-section">
+          <div class="chart-legend" aria-label="Chart legend">
+            <span class="legend-item"><span class="legend-dot dot-score"></span>Score</span>
+            <span class="legend-item"><span class="legend-dot dot-right"></span>Right</span>
+            <span class="legend-item"><span class="legend-dot dot-wrong"></span>Wrong</span>
+          </div>
+          <svg id="history-chart" class="history-chart" viewBox="0 0 360 130" role="img" aria-label="Past games score, right, and wrong line chart"></svg>
         </div>
 
         <div class="review-tabs" role="tablist" aria-label="Sort review questions">
