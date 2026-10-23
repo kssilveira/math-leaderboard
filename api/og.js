@@ -452,29 +452,45 @@ function renderLeaderboardCard(top10) {
     )
   );
 
+  const keyCell = (digit, hidden = false) =>
+    h(
+      'div',
+      {
+        flex: 1,
+        height: '52px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: hidden ? 'transparent' : '#ffffff',
+        border: hidden ? 'none' : '1px solid #dbe2ea',
+        borderRadius: '12px',
+        fontSize: '24px',
+        fontWeight: 800,
+        color: '#1b222c',
+      },
+      hidden ? '' : String(digit)
+    );
+
   return h(
     'div',
     {
       width: '1200px',
       height: '630px',
       display: 'flex',
-      padding: '36px 44px',
+      padding: '34px 44px',
       backgroundColor: '#eef3f9',
       fontFamily: 'sans-serif',
-      gap: '32px',
+      gap: '34px',
     },
     [
       h(
         'div',
         {
-          width: '490px',
+          width: '520px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          backgroundColor: '#ffffff',
-          border: '1px solid #dbe2ea',
-          borderRadius: '22px',
-          padding: '28px',
+          gap: '12px',
         },
         [
           h(
@@ -504,6 +520,112 @@ function renderLeaderboardCard(top10) {
               ),
             ]
           ),
+          // HUD Card: Time / Score / Right / Wrong
+          h(
+            'div',
+            {
+              display: 'flex',
+              backgroundColor: '#ffffff',
+              border: '1px solid #dbe2ea',
+              borderRadius: '16px',
+              padding: '12px 16px',
+              justifyContent: 'space-between',
+            },
+            [
+              h(
+                'div',
+                {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  flex: 1,
+                },
+                [
+                  h(
+                    'span',
+                    {
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: '#627084',
+                      textTransform: 'uppercase',
+                      marginBottom: '2px',
+                    },
+                    'Time'
+                  ),
+                  h(
+                    'span',
+                    { fontSize: '26px', fontWeight: 800, color: '#1b222c' },
+                    '42s'
+                  ),
+                ]
+              ),
+              h(
+                'div',
+                {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  flex: 1,
+                },
+                [
+                  h(
+                    'span',
+                    {
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: '#627084',
+                      textTransform: 'uppercase',
+                      marginBottom: '2px',
+                    },
+                    'Score'
+                  ),
+                  h(
+                    'span',
+                    { fontSize: '26px', fontWeight: 800, color: '#1264e1' },
+                    '28'
+                  ),
+                ]
+              ),
+              h(
+                'div',
+                {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  flex: 1,
+                },
+                [
+                  h(
+                    'span',
+                    {
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: '#627084',
+                      textTransform: 'uppercase',
+                      marginBottom: '2px',
+                    },
+                    'Right / Wrong'
+                  ),
+                  h(
+                    'div',
+                    {
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '26px',
+                      fontWeight: 800,
+                    },
+                    [
+                      h('span', { color: '#1f934c' }, '29'),
+                      h('span', { color: '#1b222c' }, '/'),
+                      h('span', { color: '#e32636' }, '1'),
+                    ]
+                  ),
+                ]
+              ),
+            ]
+          ),
+          // Equation Card
           h(
             'div',
             {
@@ -511,11 +633,11 @@ function renderLeaderboardCard(top10) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '16px',
-              backgroundColor: '#f8fafc',
+              backgroundColor: '#ffffff',
               border: '1px solid #dbe2ea',
               borderRadius: '18px',
-              padding: '36px 20px',
-              fontSize: '52px',
+              padding: '22px 20px',
+              fontSize: '46px',
               fontWeight: 900,
               color: '#1b222c',
             },
@@ -528,22 +650,43 @@ function renderLeaderboardCard(top10) {
                   backgroundColor: '#e8f1fd',
                   border: '3px solid #1264e1',
                   borderRadius: '14px',
-                  padding: '6px 22px',
+                  padding: '4px 22px',
                 },
                 '?'
               ),
               h('span', {}, ' = 15'),
             ]
           ),
+          // Keypad
           h(
             'div',
             {
-              fontSize: '18px',
-              fontWeight: 700,
-              color: '#627084',
-              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
             },
-            'Play 1-Minute Math · Watch Replays · Compete Globally'
+            [
+              h('div', { display: 'flex', gap: '8px' }, [
+                keyCell(1),
+                keyCell(2),
+                keyCell(3),
+              ]),
+              h('div', { display: 'flex', gap: '8px' }, [
+                keyCell(4),
+                keyCell(5),
+                keyCell(6),
+              ]),
+              h('div', { display: 'flex', gap: '8px' }, [
+                keyCell(7),
+                keyCell(8),
+                keyCell(9),
+              ]),
+              h('div', { display: 'flex', gap: '8px' }, [
+                keyCell('', true),
+                keyCell(0),
+                keyCell('', true),
+              ]),
+            ]
           ),
         ]
       ),
