@@ -1,8 +1,9 @@
 # math-leaderboard
 
-Mobile-friendly 1-minute math game with shared game configurations, multi-user support, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly 1-minute math game with shared game configurations, multi-user support, practice mode, interactive replays, and global leaderboards backed by Firebase Realtime Database.
 
-Live on GitHub Pages: **https://kssilveira.github.io/math-leaderboard/**
+- **Play**: **https://kssilveira.github.io/math-leaderboard/**
+- **Share URL** (live Open Graph previews + redirect to GitHub Pages): **https://math-leaderboard.vercel.app/**
 
 ## Features
 
@@ -21,9 +22,25 @@ Live on GitHub Pages: **https://kssilveira.github.io/math-leaderboard/**
   - Right answers automatically advance to the next question.
   - Wrong answers stay visible and are automatically erased when a new answer starts being typed.
   - Score is `total right - total wrong` in the 1-minute window (ending a game early also saves the current score).
-- **Global Leaderboards**:
-  - Each game configuration has its own global leaderboard in Firebase Realtime Database.
-  - Shows the Top 10 users and the rank and best score of the current user.
+- **Practice Mode (`Practice Weak & Slow`)**:
+  - Prioritizes questions from past games that had mistakes or took the longest average time.
+  - Shows a `Last:` badge above the equation with previous wrong attempts and running average duration.
+  - Updates per-question stats without submitting practice scores to the global leaderboard.
+- **Progress & Review**:
+  - Collapsible section (collapsed by default so first-time visitors see the leaderboard immediately, with expand/collapse state saved in `localStorage`).
+  - **Progress Chart**: Plots `Score`, `Right`, and cumulative `Best` across past games.
+  - **Review Tabs**:
+    - **Mistakes & Slowest**: Questions from the last game sorted by mistakes first, then slowest time.
+    - **Order Played**: Questions from the last game in the exact order played.
+    - **To Practice**: All tracked questions across past games with running average duration and mistake history.
+- **Interactive Replays & Shareable Links**:
+  - Watch step-by-step replays (`▶ Replay`) of your last game, your best game, or any player's best game on the global leaderboard (`1×` / `2×` / `4×` speed, pause/resume, restart, and live question log).
+  - Includes a **Play 1-Minute Game** button at the top of the replay view so recipients of a shared replay can jump right into playing.
+  - **🔗 Share Replay** copies a self-contained `?replay=...` URL (`https://math-leaderboard.vercel.app/?replay=...`).
+- **Global Leaderboards & Live Open Graph Previews**:
+  - Each game configuration has its own global leaderboard in Firebase Realtime Database using standard competition ranking (tied scores share the same rank).
+  - Shows the Top 10 users (with score, right/wrong breakdown, and `▶` replay button) and the current user's rank and best score.
+  - `api/og.js` and `middleware.js` on Vercel serve dynamic Open Graph preview images for both the live leaderboard and shared `?replay=...` links while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
 
 ## Running Locally
 
