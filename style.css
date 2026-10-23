@@ -485,10 +485,45 @@ html, body {
   gap: 8px;
 }
 
+.review-card {
+  flex: 0 0 auto;
+}
+
 .leaderboard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.collapsible-header {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.collapsible-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chevron-icon {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  width: 12px;
+  display: inline-block;
+  text-align: center;
+}
+
+.review-body {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 

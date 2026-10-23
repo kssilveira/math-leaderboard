@@ -6,7 +6,8 @@ const STORAGE_KEYS = {
   username: 'math_username',
   activeConfigId: 'math_active_config_id',
   gameHistory: 'math_game_history_v1',
-  questionStats: 'math_question_stats_v1'
+  questionStats: 'math_question_stats_v1',
+  reviewExpanded: 'math_review_expanded_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -45,6 +46,7 @@ let questionStartTime = 0;
 let currentQuestionRecord = null;
 let currentGameQuestions = [];
 let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
+let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
 
 // DOM Elements
 const usernameInput = document.getElementById('username-input');
@@ -85,6 +87,9 @@ const replayBestBtn = document.getElementById('replay-best-btn');
 const shareBestBtn = document.getElementById('share-best-btn');
 const leaderboardList = document.getElementById('leaderboard-list');
 const reviewCard = document.getElementById('review-card');
+const reviewToggleBtn = document.getElementById('review-toggle-btn');
+const reviewChevron = document.getElementById('review-chevron');
+const reviewBody = document.getElementById('review-body');
 const reviewSummaryBadge = document.getElementById('review-summary-badge');
 const chartSection = document.querySelector('.chart-section');
 const historyChart = document.getElementById('history-chart');
@@ -1084,6 +1089,18 @@ function renderHistoryChart(sessions) {
   historyChart.innerHTML = svg;
 }
 
+function updateReviewCollapseUI() {
+  if (reviewBody) {
+    reviewBody.classList.toggle('hidden', !isReviewExpanded);
+  }
+  if (reviewToggleBtn) {
+    reviewToggleBtn.setAttribute('aria-expanded', isReviewExpanded ? 'true' : 'false');
+  }
+  if (reviewChevron) {
+    reviewChevron.textContent = isReviewExpanded ? '▾' : '▸';
+  }
+}
+
 function renderReview() {
   const map = getGameHistoryMap();
   const key = `${userId}__${activeConfigId}`;
@@ -1101,6 +1118,7 @@ function renderReview() {
   }
 
   reviewCard.classList.remove('hidden');
+  updateReviewCollapseUI();
   renderHistoryChart(sessions || []);
 
   sortImproveBtn.classList.toggle('active', reviewSortMode === 'improve');
@@ -2114,6 +2132,14 @@ if (replayShareBtn) {
     if (replaySessionData && replaySessionData.session) {
       copyReplayLink(replaySessionData.session, replayShareBtn);
     }
+  });
+}
+
+if (reviewToggleBtn) {
+  reviewToggleBtn.addEventListener('click', () => {
+    isReviewExpanded = !isReviewExpanded;
+    localStorage.setItem(STORAGE_KEYS.reviewExpanded, isReviewExpanded ? '1' : '0');
+    updateReviewCollapseUI();
   });
 }
 

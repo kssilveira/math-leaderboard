@@ -132,34 +132,39 @@
         </button>
       </div>
 
-      <section id="review-card" class="leaderboard-card hidden" aria-labelledby="review-heading">
-        <div class="leaderboard-header">
-          <h2 id="review-heading">Progress &amp; Review</h2>
+      <section id="review-card" class="leaderboard-card review-card hidden" aria-labelledby="review-heading">
+        <button id="review-toggle-btn" class="leaderboard-header collapsible-header" type="button" aria-expanded="false" aria-controls="review-body">
+          <span class="collapsible-title">
+            <span id="review-chevron" class="chevron-icon" aria-hidden="true">▸</span>
+            <h2 id="review-heading">Progress &amp; Review</h2>
+          </span>
           <span id="review-summary-badge" class="badge">0.0s avg</span>
-        </div>
+        </button>
 
-        <div class="chart-section">
-          <div class="chart-legend" aria-label="Chart legend">
-            <span class="legend-item"><span class="legend-dot dot-score"></span>Score</span>
-            <span class="legend-item"><span class="legend-dot dot-right"></span>Right</span>
-            <span class="legend-item"><span class="legend-dot dot-my-best"></span>Best</span>
+        <div id="review-body" class="review-body hidden">
+          <div class="chart-section">
+            <div class="chart-legend" aria-label="Chart legend">
+              <span class="legend-item"><span class="legend-dot dot-score"></span>Score</span>
+              <span class="legend-item"><span class="legend-dot dot-right"></span>Right</span>
+              <span class="legend-item"><span class="legend-dot dot-my-best"></span>Best</span>
+            </div>
+            <svg id="history-chart" class="history-chart" viewBox="0 0 360 160" role="img" aria-label="Past games progress chart"></svg>
           </div>
-          <svg id="history-chart" class="history-chart" viewBox="0 0 360 160" role="img" aria-label="Past games progress chart"></svg>
-        </div>
 
-        <div class="review-tabs" role="tablist" aria-label="Sort review questions">
-          <button type="button" id="sort-improve-btn" class="pill-btn active" role="tab" aria-selected="true">
-            Mistakes &amp; Slowest
-          </button>
-          <button type="button" id="sort-order-btn" class="pill-btn" role="tab" aria-selected="false">
-            Order Played
-          </button>
-          <button type="button" id="sort-practice-btn" class="pill-btn" role="tab" aria-selected="false">
-            To Practice
-          </button>
-        </div>
+          <div class="review-tabs" role="tablist" aria-label="Sort review questions">
+            <button type="button" id="sort-improve-btn" class="pill-btn active" role="tab" aria-selected="true">
+              Mistakes &amp; Slowest
+            </button>
+            <button type="button" id="sort-order-btn" class="pill-btn" role="tab" aria-selected="false">
+              Order Played
+            </button>
+            <button type="button" id="sort-practice-btn" class="pill-btn" role="tab" aria-selected="false">
+              To Practice
+            </button>
+          </div>
 
-        <ol id="review-list" class="review-list"></ol>
+          <ol id="review-list" class="review-list"></ol>
+        </div>
       </section>
 
       <section class="leaderboard-card" aria-labelledby="leaderboard-heading">
