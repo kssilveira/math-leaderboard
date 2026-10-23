@@ -104,6 +104,7 @@ const slotOp = document.getElementById('slot-op');
 const keypad = document.getElementById('keypad');
 const minusKey = document.getElementById('minus-key');
 const replayPanel = document.getElementById('replay-panel');
+const replayPlayBtn = document.getElementById('replay-play-btn');
 const replayTitle = document.getElementById('replay-title');
 const replayStepBadge = document.getElementById('replay-step-badge');
 const replayPauseBtn = document.getElementById('replay-pause-btn');
@@ -1949,6 +1950,7 @@ function startReplay(session) {
 
   if (questionLastPerf) questionLastPerf.classList.add('hidden');
   keypad.classList.add('hidden');
+  if (replayPlayBtn) replayPlayBtn.classList.remove('hidden');
   if (replayPanel) replayPanel.classList.remove('hidden');
   if (replayTitle) {
     replayTitle.textContent = `Replay: ${session.username || 'Player'} (Score ${session.score})`;
@@ -1974,16 +1976,18 @@ function stopReplay(returnHome = true) {
   isReplayPaused = false;
   replaySessionData = null;
 
+  if (replayPlayBtn) replayPlayBtn.classList.add('hidden');
   if (replayPanel) replayPanel.classList.add('hidden');
   keypad.classList.remove('hidden');
   deleteUserBtn.classList.remove('hidden');
 
+  if (window.location.search.includes('replay=')) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
   if (returnHome) {
     gameView.classList.remove('active');
     homeView.classList.add('active');
-    if (window.location.search.includes('replay=')) {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
   }
 }
 
@@ -2060,6 +2064,9 @@ opToggleBtns.forEach((btn) => {
 });
 
 playBtn.addEventListener('click', () => startGame(false));
+if (replayPlayBtn) {
+  replayPlayBtn.addEventListener('click', () => startGame(false));
+}
 if (practiceBtn) {
   practiceBtn.addEventListener('click', () => startGame(true));
 }
