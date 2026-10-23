@@ -1,0 +1,31 @@
+name: Update OG Image
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-og:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate og-image.png if Top 10 changed
+        run: python3 scripts/generate_og.py
+
+      - name: Commit and push updated OG image
+        run: |
+          if [ -n "$(git status --porcelain og-image.png scripts/og-state.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add og-image.png scripts/og-state.json
+            git commit -m "chore: update og-image.png from live leaderboard"
+            git push
+          else
+            echo "No leaderboard changes to commit."
+          fi
