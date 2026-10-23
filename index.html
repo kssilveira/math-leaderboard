@@ -125,6 +125,24 @@
           <li class="empty-row">No scores yet. Be the first!</li>
         </ol>
       </section>
+
+      <section id="review-card" class="leaderboard-card hidden" aria-labelledby="review-heading">
+        <div class="leaderboard-header">
+          <h2 id="review-heading">Last Game Review</h2>
+          <span id="review-summary-badge" class="badge">0.0s avg</span>
+        </div>
+
+        <div class="review-tabs" role="tablist" aria-label="Sort review questions">
+          <button type="button" id="sort-improve-btn" class="pill-btn active" role="tab" aria-selected="true">
+            Mistakes &amp; Slowest
+          </button>
+          <button type="button" id="sort-order-btn" class="pill-btn" role="tab" aria-selected="false">
+            Order Played
+          </button>
+        </div>
+
+        <ol id="review-list" class="review-list"></ol>
+      </section>
     </section>
 
     <!-- GAME VIEW -->

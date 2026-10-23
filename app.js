@@ -4,7 +4,8 @@ const STORAGE_KEYS = {
   users: 'math_users_v1',
   userId: 'math_user_id',
   username: 'math_username',
-  activeConfigId: 'math_active_config_id'
+  activeConfigId: 'math_active_config_id',
+  gameHistory: 'math_game_history_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -28,6 +29,11 @@ let wrongCount = 0;
 let currentQuestion = null; // { nums: [a, b, c], op, missingIndex: 0|1|2, answer: number, key: string }
 let typedAnswer = '';
 let isWrong = false;
+let gameStartTime = 0;
+let questionStartTime = 0;
+let currentQuestionRecord = null;
+let currentGameQuestions = [];
+let reviewSortMode = 'improve'; // 'improve' | 'order'
 
 // DOM Elements
 const usernameInput = document.getElementById('username-input');
@@ -61,6 +67,11 @@ const lastScoreDetail = document.getElementById('last-score-detail');
 const myRankValue = document.getElementById('my-rank-value');
 const myBestValue = document.getElementById('my-best-value');
 const leaderboardList = document.getElementById('leaderboard-list');
+const reviewCard = document.getElementById('review-card');
+const reviewSummaryBadge = document.getElementById('review-summary-badge');
+const sortImproveBtn = document.getElementById('sort-improve-btn');
+const sortOrderBtn = document.getElementById('sort-order-btn');
+const reviewList = document.getElementById('review-list');
 const timerDisplay = document.getElementById('timer-display');
 const scoreDisplay = document.getElementById('score-display');
 const rightDisplay = document.getElementById('right-display');
@@ -156,6 +167,7 @@ async function switchUser(targetUserId) {
   lastResult.classList.add('hidden');
   renderUserList();
   renderLeaderboard();
+  renderReview();
 }
 
 async function addUser() {
@@ -173,6 +185,7 @@ async function addUser() {
   lastResult.classList.add('hidden');
   renderUserList();
   renderLeaderboard();
+  renderReview();
 }
 
 async function deleteCurrentUser() {
@@ -196,6 +209,8 @@ async function deleteCurrentUser() {
   usernameInput.value = username;
   lastResult.classList.add('hidden');
   renderUserList();
+  deleteUserReviewFromStorage(deletedUserId);
+  renderReview();
 
   await deleteUserFromFirebase(deletedUserId);
 }
@@ -404,6 +419,7 @@ async function switchConfig(targetConfigId) {
   lastResult.classList.add('hidden');
   renderConfigsUI();
   renderLeaderboard();
+  renderReview();
   await syncFromFirebase();
 }
 
@@ -470,6 +486,7 @@ async function syncFromFirebase() {
 
     renderConfigsUI();
     renderLeaderboard();
+    renderReview();
   } catch (err) {
     console.error('Failed to sync with Firebase:', err);
   }
@@ -580,6 +597,118 @@ function renderLeaderboard() {
 
     li.append(rankSpan, nameSpan, scoreSpan);
     leaderboardList.appendChild(li);
+  });
+}
+
+// --- Local Storage Game Review (Per User & Config) ---
+
+function getGameHistoryMap() {
+  const raw = localStorage.getItem(STORAGE_KEYS.gameHistory);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (_) {
+      // Fall through
+    }
+  }
+  return {};
+}
+
+function saveGameReviewToStorage(gameSession) {
+  const map = getGameHistoryMap();
+  const key = `${gameSession.userId}__${gameSession.configId}`;
+  const historyList = Array.isArray(map[key]) ? map[key] : [];
+  historyList.unshift(gameSession);
+  map[key] = historyList.slice(0, 20); // Keep last 20 games per user+config
+  localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+}
+
+function deleteUserReviewFromStorage(targetUserId) {
+  const map = getGameHistoryMap();
+  Object.keys(map).forEach((key) => {
+    if (key.startsWith(`${targetUserId}__`)) {
+      delete map[key];
+    }
+  });
+  localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+}
+
+function renderReview() {
+  const map = getGameHistoryMap();
+  const key = `${userId}__${activeConfigId}`;
+  const sessions = map[key];
+  const lastSession = Array.isArray(sessions) && sessions.length > 0 ? sessions[0] : null;
+
+  if (!lastSession || !Array.isArray(lastSession.questions) || lastSession.questions.length === 0) {
+    reviewCard.classList.add('hidden');
+    return;
+  }
+
+  reviewCard.classList.remove('hidden');
+
+  const questions = lastSession.questions;
+  const totalQMs = questions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+  const avgSec = (totalQMs / questions.length / 1000).toFixed(1);
+  reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
+
+  sortImproveBtn.classList.toggle('active', reviewSortMode === 'improve');
+  sortImproveBtn.setAttribute('aria-selected', reviewSortMode === 'improve' ? 'true' : 'false');
+  sortOrderBtn.classList.toggle('active', reviewSortMode === 'order');
+  sortOrderBtn.setAttribute('aria-selected', reviewSortMode === 'order' ? 'true' : 'false');
+
+  const ordered = questions.map((q, idx) => ({ ...q, index: idx + 1 }));
+  if (reviewSortMode === 'improve') {
+    ordered.sort((a, b) => {
+      if (b.wrong !== a.wrong) return b.wrong - a.wrong;
+      return (b.durationMs || 0) - (a.durationMs || 0);
+    });
+  }
+
+  reviewList.innerHTML = '';
+  ordered.forEach((q) => {
+    const li = document.createElement('li');
+    li.className = 'review-row' + (q.wrong > 0 ? ' has-wrong' : '');
+
+    // 1. Equation with highlighted question slot
+    const eqSpan = document.createElement('span');
+    eqSpan.className = 'review-eq';
+    const opChar = q.op === '-' ? '−' : q.op;
+    const parts = q.nums.map((n, idx) => {
+      if (idx === q.missingIndex) {
+        return `<span class="review-q-slot">${n}</span>`;
+      }
+      return String(n);
+    });
+    eqSpan.innerHTML = `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
+
+    // 2. Typed answers (wrong attempts & right answer)
+    const ansSpan = document.createElement('span');
+    ansSpan.className = 'review-answers';
+    const expectedStr = String(q.expected);
+    const wrongTyped = (q.answers || []).filter(a => a !== expectedStr);
+    wrongTyped.forEach((w) => {
+      const wEl = document.createElement('span');
+      wEl.className = 'review-wrong-ans';
+      wEl.textContent = `✗ ${w}`;
+      ansSpan.appendChild(wEl);
+    });
+    if (q.right > 0) {
+      const rEl = document.createElement('span');
+      rEl.className = 'review-right-ans';
+      rEl.textContent = `✓ ${expectedStr}`;
+      ansSpan.appendChild(rEl);
+    }
+
+    // 3. Duration
+    const durSpan = document.createElement('span');
+    durSpan.className = 'review-duration';
+    durSpan.textContent = `${((q.durationMs || 0) / 1000).toFixed(1)}s`;
+
+    li.append(eqSpan, ansSpan, durSpan);
+    reviewList.appendChild(li);
   });
 }
 
@@ -769,6 +898,19 @@ function nextQuestion() {
   currentQuestion = generateQuestion();
   typedAnswer = '';
   isWrong = false;
+  questionStartTime = Date.now();
+  currentQuestionRecord = currentQuestion
+    ? {
+        nums: [...currentQuestion.nums],
+        op: currentQuestion.op,
+        missingIndex: currentQuestion.missingIndex,
+        expected: currentQuestion.answer,
+        answers: [],
+        right: 0,
+        wrong: 0,
+        durationMs: 0
+      }
+    : null;
   renderQuestion();
 }
 
@@ -787,6 +929,12 @@ function handleDigitInput(digitStr) {
   // Right question automatically goes to the next question
   if (typedAnswer === expectedStr) {
     rightCount += 1;
+    if (currentQuestionRecord) {
+      currentQuestionRecord.answers.push(typedAnswer);
+      currentQuestionRecord.right = 1;
+      currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+      currentGameQuestions.push(currentQuestionRecord);
+    }
     updateHud();
     nextQuestion();
     return;
@@ -801,6 +949,11 @@ function handleDigitInput(digitStr) {
   // Otherwise, the typed answer is wrong
   wrongCount += 1;
   isWrong = true;
+  if (currentQuestionRecord) {
+    currentQuestionRecord.answers.push(typedAnswer);
+    currentQuestionRecord.wrong += 1;
+    currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+  }
   updateHud();
   renderQuestion();
 }
@@ -817,6 +970,9 @@ function startGame() {
   rightCount = 0;
   wrongCount = 0;
   currentQuestion = null;
+  gameStartTime = Date.now();
+  currentGameQuestions = [];
+  currentQuestionRecord = null;
 
   deleteUserBtn.classList.add('hidden');
   homeView.classList.remove('active');
@@ -840,13 +996,32 @@ async function finishGame(saveScore) {
   timerInterval = null;
   isPlaying = false;
 
+  if (currentQuestionRecord && currentQuestionRecord.wrong > 0) {
+    currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+    currentGameQuestions.push(currentQuestionRecord);
+    currentQuestionRecord = null;
+  }
+
   const finalScore = rightCount - wrongCount;
+  const gameDurationMs = Date.now() - gameStartTime;
 
   deleteUserBtn.classList.remove('hidden');
   gameView.classList.remove('active');
   homeView.classList.add('active');
 
   if (saveScore) {
+    saveGameReviewToStorage({
+      userId,
+      configId: activeConfigId,
+      playedAt: Date.now(),
+      score: finalScore,
+      right: rightCount,
+      wrong: wrongCount,
+      durationMs: gameDurationMs,
+      questions: currentGameQuestions
+    });
+    renderReview();
+
     const cachedEntry = leaderboardsMap[activeConfigId] && leaderboardsMap[activeConfigId][userId];
     const isInitialNewHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score;
     lastResult.classList.toggle('new-high-score', isInitialNewHigh);
@@ -892,6 +1067,16 @@ opToggleBtns.forEach((btn) => {
 
 playBtn.addEventListener('click', startGame);
 quitBtn.addEventListener('click', () => finishGame(true));
+
+sortImproveBtn.addEventListener('click', () => {
+  reviewSortMode = 'improve';
+  renderReview();
+});
+
+sortOrderBtn.addEventListener('click', () => {
+  reviewSortMode = 'order';
+  renderReview();
+});
 
 // Fast touch/click response on the 3-digits-per-row keypad
 keypad.addEventListener('pointerdown', (e) => {

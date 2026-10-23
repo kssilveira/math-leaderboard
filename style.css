@@ -502,6 +502,80 @@ html, body {
   font-size: 0.88rem;
 }
 
+/* Review Section */
+.review-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.review-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.review-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-row.has-wrong {
+  background: var(--wrong-bg);
+}
+
+.review-eq {
+  font-weight: 700;
+}
+
+.review-q-slot {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: hsl(215, 90%, 93%);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.review-row.has-wrong .review-q-slot {
+  background: #fff;
+  color: var(--wrong);
+}
+
+.review-answers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.review-wrong-ans {
+  color: var(--wrong);
+  text-decoration: line-through;
+}
+
+.review-right-ans {
+  color: var(--right);
+}
+
+.review-duration {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 42px;
+  text-align: right;
+}
+
 /* Game View */
 #game-view {
   justify-content: space-between;
