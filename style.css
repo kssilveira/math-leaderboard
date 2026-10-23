@@ -404,9 +404,12 @@ html, body {
   gap: 8px;
 }
 
+.play-actions > button {
+  flex: 1;
+}
+
 .primary-btn {
   width: 100%;
-  flex: 1;
   border: none;
   border-radius: var(--radius);
   background: var(--primary);
@@ -427,6 +430,12 @@ html, body {
 .primary-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.primary-btn.small-btn {
+  padding: 9px 14px;
+  font-size: 0.9rem;
+  border-radius: 10px;
 }
 
 .secondary-btn {
