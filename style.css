@@ -374,15 +374,21 @@ html, body {
 }
 
 /* Buttons */
+.play-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .primary-btn {
   width: 100%;
+  flex: 1;
   border: none;
   border-radius: var(--radius);
   background: var(--primary);
   color: #fff;
   font-size: 1.02rem;
   font-weight: 700;
-  padding: 13px 18px;
+  padding: 13px 16px;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(18, 100, 225, 0.25);
   transition: transform 0.08s ease, background 0.15s ease, opacity 0.15s ease;
@@ -395,6 +401,29 @@ html, body {
 
 .primary-btn:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondary-btn {
+  flex: 1;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  background: hsl(215, 90%, 96%);
+  color: var(--primary);
+  font-size: 0.96rem;
+  font-weight: 700;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.secondary-btn:active {
+  transform: scale(0.98);
+  background: hsl(215, 90%, 91%);
+}
+
+.secondary-btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -678,6 +707,30 @@ html, body {
 }
 
 /* Equation Card */
+.equation-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question-last-perf {
+  align-self: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.question-last-perf.had-wrong {
+  color: var(--wrong);
+  background: var(--wrong-bg);
+  border-color: hsl(355, 70%, 84%);
+}
+
 .equation-card {
   background: var(--surface);
   border: 1px solid var(--border);

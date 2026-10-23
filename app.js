@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
   userId: 'math_user_id',
   username: 'math_username',
   activeConfigId: 'math_active_config_id',
-  gameHistory: 'math_game_history_v1'
+  gameHistory: 'math_game_history_v1',
+  questionStats: 'math_question_stats_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -24,9 +25,10 @@ let draftConfig = null;
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
 let isPlaying = false;
+let isPracticeMode = false;
 let rightCount = 0;
 let wrongCount = 0;
-let currentQuestion = null; // { nums: [a, b, c], op, missingIndex: 0|1|2, answer: number, key: string }
+let currentQuestion = null; // { nums: [a, b, c], op, missingIndex: 0|1|2, answer: number, key: string, lastPerf?: object }
 let typedAnswer = '';
 let isWrong = false;
 let gameStartTime = 0;
@@ -59,6 +61,7 @@ const leaderboardConfigBadge = document.getElementById('leaderboard-config-badge
 const homeView = document.getElementById('home-view');
 const gameView = document.getElementById('game-view');
 const playBtn = document.getElementById('play-btn');
+const practiceBtn = document.getElementById('practice-btn');
 const quitBtn = document.getElementById('quit-btn');
 const lastResult = document.getElementById('last-result');
 const lastScoreLabel = document.getElementById('last-score-label');
@@ -69,6 +72,7 @@ const myBestValue = document.getElementById('my-best-value');
 const leaderboardList = document.getElementById('leaderboard-list');
 const reviewCard = document.getElementById('review-card');
 const reviewSummaryBadge = document.getElementById('review-summary-badge');
+const chartSection = document.querySelector('.chart-section');
 const historyChart = document.getElementById('history-chart');
 const sortImproveBtn = document.getElementById('sort-improve-btn');
 const sortOrderBtn = document.getElementById('sort-order-btn');
@@ -77,6 +81,7 @@ const timerDisplay = document.getElementById('timer-display');
 const scoreDisplay = document.getElementById('score-display');
 const rightDisplay = document.getElementById('right-display');
 const wrongDisplay = document.getElementById('wrong-display');
+const questionLastPerf = document.getElementById('question-last-perf');
 const slot0 = document.getElementById('slot-0');
 const slot1 = document.getElementById('slot-1');
 const slot2 = document.getElementById('slot-2');
@@ -601,7 +606,11 @@ function renderLeaderboard() {
   });
 }
 
-// --- Local Storage Game Review (Per User & Config) ---
+// --- Local Storage Game Review & Per-Question Performance (Per User & Config) ---
+
+function getQuestionKeyFromRecord(q) {
+  return `${q.nums[0]}${q.op}${q.nums[1]}=${q.nums[2]}?${q.missingIndex}`;
+}
 
 function getGameHistoryMap() {
   const raw = localStorage.getItem(STORAGE_KEYS.gameHistory);
@@ -616,6 +625,86 @@ function getGameHistoryMap() {
     }
   }
   return {};
+}
+
+function getQuestionStatsMap() {
+  const raw = localStorage.getItem(STORAGE_KEYS.questionStats);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (_) {
+      // Fall through
+    }
+  }
+  return {};
+}
+
+function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
+  const statsMap = getQuestionStatsMap();
+  const compKey = `${targetUserId}__${targetConfigId}`;
+  if (!statsMap[compKey] || typeof statsMap[compKey] !== 'object') {
+    const bucket = {};
+    const historyMap = getGameHistoryMap();
+    const sessions = Array.isArray(historyMap[compKey]) ? [...historyMap[compKey]].reverse() : [];
+    sessions.forEach((session) => {
+      if (Array.isArray(session.questions)) {
+        session.questions.forEach((q) => {
+          if (q && Array.isArray(q.nums) && q.nums.length === 3) {
+            const qKey = getQuestionKeyFromRecord(q);
+            bucket[qKey] = {
+              key: qKey,
+              nums: [...q.nums],
+              op: q.op,
+              missingIndex: q.missingIndex,
+              expected: q.expected,
+              answers: Array.isArray(q.answers) ? [...q.answers] : [],
+              right: q.right || 0,
+              wrong: q.wrong || 0,
+              durationMs: q.durationMs || 0,
+              updatedAt: session.playedAt || Date.now()
+            };
+          }
+        });
+      }
+    });
+    statsMap[compKey] = bucket;
+    localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
+  }
+  return { statsMap, compKey, bucket: statsMap[compKey] };
+}
+
+function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
+  if (!qRecord || !Array.isArray(qRecord.nums) || qRecord.nums.length !== 3) return;
+  const { statsMap, compKey, bucket } = ensureQuestionStatsBucket(targetUserId, targetConfigId);
+  const qKey = getQuestionKeyFromRecord(qRecord);
+  bucket[qKey] = {
+    key: qKey,
+    nums: [...qRecord.nums],
+    op: qRecord.op,
+    missingIndex: qRecord.missingIndex,
+    expected: qRecord.expected,
+    answers: Array.isArray(qRecord.answers) ? [...qRecord.answers] : [],
+    right: qRecord.right || 0,
+    wrong: qRecord.wrong || 0,
+    durationMs: qRecord.durationMs || 0,
+    updatedAt: Date.now()
+  };
+  statsMap[compKey] = bucket;
+  localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
+}
+
+function getTrackedQuestions(targetUserId, targetConfigId) {
+  const { bucket } = ensureQuestionStatsBucket(targetUserId, targetConfigId);
+  return Object.values(bucket).sort((a, b) => {
+    const aMistake = a.wrong > 0 || a.right === 0 ? 1 : 0;
+    const bMistake = b.wrong > 0 || b.right === 0 ? 1 : 0;
+    if (bMistake !== aMistake) return bMistake - aMistake;
+    if (b.wrong !== a.wrong) return b.wrong - a.wrong;
+    return (b.durationMs || 0) - (a.durationMs || 0);
+  });
 }
 
 function saveGameReviewToStorage(gameSession) {
@@ -635,11 +724,27 @@ function deleteUserReviewFromStorage(targetUserId) {
     }
   });
   localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+
+  const statsMap = getQuestionStatsMap();
+  Object.keys(statsMap).forEach((key) => {
+    if (key.startsWith(`${targetUserId}__`)) {
+      delete statsMap[key];
+    }
+  });
+  localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
 }
 
 function renderHistoryChart(sessions) {
   if (!historyChart) return;
-  const chronological = [...sessions].reverse();
+  const regularSessions = Array.isArray(sessions) ? sessions.filter(s => !s.isPractice) : [];
+  if (regularSessions.length === 0) {
+    if (chartSection) chartSection.classList.add('hidden');
+    historyChart.innerHTML = '';
+    return;
+  }
+  if (chartSection) chartSection.classList.remove('hidden');
+
+  const chronological = [...regularSessions].reverse();
   const n = chronological.length;
 
   const width = 360;
@@ -721,37 +826,45 @@ function renderReview() {
   const key = `${userId}__${activeConfigId}`;
   const sessions = map[key];
   const lastSession = Array.isArray(sessions) && sessions.length > 0 ? sessions[0] : null;
+  const trackedQuestions = getTrackedQuestions(userId, activeConfigId);
 
-  if (!lastSession || !Array.isArray(lastSession.questions) || lastSession.questions.length === 0) {
+  if (practiceBtn) {
+    practiceBtn.classList.toggle('hidden', trackedQuestions.length === 0);
+  }
+
+  if (trackedQuestions.length === 0 && (!lastSession || !Array.isArray(lastSession.questions) || lastSession.questions.length === 0)) {
     reviewCard.classList.add('hidden');
     return;
   }
 
   reviewCard.classList.remove('hidden');
-  renderHistoryChart(sessions);
-
-  const questions = lastSession.questions;
-  const totalQMs = questions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
-  const avgSec = (totalQMs / questions.length / 1000).toFixed(1);
-  reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
+  renderHistoryChart(sessions || []);
 
   sortImproveBtn.classList.toggle('active', reviewSortMode === 'improve');
   sortImproveBtn.setAttribute('aria-selected', reviewSortMode === 'improve' ? 'true' : 'false');
   sortOrderBtn.classList.toggle('active', reviewSortMode === 'order');
   sortOrderBtn.setAttribute('aria-selected', reviewSortMode === 'order' ? 'true' : 'false');
 
-  const ordered = questions.map((q, idx) => ({ ...q, index: idx + 1 }));
-  if (reviewSortMode === 'improve') {
-    ordered.sort((a, b) => {
-      if (b.wrong !== a.wrong) return b.wrong - a.wrong;
-      return (b.durationMs || 0) - (a.durationMs || 0);
-    });
+  const ordered = reviewSortMode === 'improve'
+    ? trackedQuestions
+    : (lastSession && Array.isArray(lastSession.questions) ? lastSession.questions : []);
+
+  if (reviewSortMode === 'improve' && trackedQuestions.length > 0) {
+    const totalQMs = trackedQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+    const avgSec = (totalQMs / trackedQuestions.length / 1000).toFixed(1);
+    const mistakeCount = trackedQuestions.filter(q => q.wrong > 0 || q.right === 0).length;
+    reviewSummaryBadge.textContent = `${trackedQuestions.length} tracked · ${avgSec}s avg · ${mistakeCount} to fix`;
+  } else if (lastSession && Array.isArray(lastSession.questions) && lastSession.questions.length > 0) {
+    const questions = lastSession.questions;
+    const totalQMs = questions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+    const avgSec = (totalQMs / questions.length / 1000).toFixed(1);
+    reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
   }
 
   reviewList.innerHTML = '';
   ordered.forEach((q) => {
     const li = document.createElement('li');
-    li.className = 'review-row' + (q.wrong > 0 ? ' has-wrong' : '');
+    li.className = 'review-row' + (q.wrong > 0 || q.right === 0 ? ' has-wrong' : '');
 
     // 1. Equation with highlighted question slot
     const eqSpan = document.createElement('span');
@@ -915,7 +1028,7 @@ function getValidMissingIndices(a, op, b, c) {
   return [0, 1, 2];
 }
 
-function generateQuestion() {
+function generateRandomQuestion() {
   const cfg = getActiveConfig();
   if (!cfg) return null;
   const samplers = getValidSamplers(cfg);
@@ -928,12 +1041,15 @@ function generateQuestion() {
     const nums = [a, b, c];
     const validIndices = getValidMissingIndices(a, op, b, c);
     const missingIndex = validIndices[randomInt(0, validIndices.length - 1)];
+    const key = `${a}${op}${b}=${c}?${missingIndex}`;
+    const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
     candidate = {
       nums,
       op,
       missingIndex,
       answer: nums[missingIndex],
-      key: `${a}${op}${b}=${c}?${missingIndex}`
+      key,
+      lastPerf: bucket[key] ? { ...bucket[key] } : null
     };
     if (!currentQuestion || candidate.key !== currentQuestion.key) {
       break;
@@ -942,10 +1058,62 @@ function generateQuestion() {
   return candidate;
 }
 
+function generatePracticeQuestion() {
+  const tracked = getTrackedQuestions(userId, activeConfigId);
+  if (tracked.length === 0) {
+    return generateRandomQuestion();
+  }
+
+  const candidates = tracked.length > 1 && currentQuestion
+    ? tracked.filter(q => q.key !== currentQuestion.key)
+    : tracked;
+
+  if (candidates.length === 0) {
+    return generateRandomQuestion();
+  }
+
+  const picked = candidates[0];
+  return {
+    nums: [...picked.nums],
+    op: picked.op,
+    missingIndex: picked.missingIndex,
+    answer: picked.expected,
+    key: picked.key,
+    lastPerf: { ...picked }
+  };
+}
+
+function generateQuestion() {
+  return isPracticeMode ? generatePracticeQuestion() : generateRandomQuestion();
+}
+
 function renderQuestion() {
   if (!currentQuestion) return;
   const slots = [slot0, slot1, slot2];
   slotOp.textContent = currentQuestion.op === '-' ? '−' : currentQuestion.op;
+
+  if (questionLastPerf) {
+    if (isPracticeMode && currentQuestion.lastPerf) {
+      const lp = currentQuestion.lastPerf;
+      const secStr = `${((lp.durationMs || 0) / 1000).toFixed(1)}s`;
+      const hadMistake = lp.wrong > 0 || lp.right === 0;
+      const expectedStr = String(lp.expected);
+      const wrongTyped = (lp.answers || []).filter(a => a !== expectedStr);
+
+      if (hadMistake) {
+        const wrongText = wrongTyped.length > 0
+          ? wrongTyped.map(w => `✗ ${w}`).join(' ')
+          : `${lp.wrong} wrong`;
+        questionLastPerf.textContent = `Last: ${wrongText} · ${secStr}`;
+      } else {
+        questionLastPerf.textContent = `Last: ✓ in ${secStr}`;
+      }
+      questionLastPerf.classList.toggle('had-wrong', hadMistake);
+      questionLastPerf.classList.remove('hidden');
+    } else {
+      questionLastPerf.classList.add('hidden');
+    }
+  }
 
   slots.forEach((slotEl, idx) => {
     slotEl.className = 'eq-item';
@@ -1015,6 +1183,7 @@ function handleDigitInput(digitStr) {
       currentQuestionRecord.right = 1;
       currentQuestionRecord.durationMs = Date.now() - questionStartTime;
       currentGameQuestions.push(currentQuestionRecord);
+      updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
     }
     updateHud();
     nextQuestion();
@@ -1039,7 +1208,7 @@ function handleDigitInput(digitStr) {
   renderQuestion();
 }
 
-function startGame() {
+function startGame(practice = false) {
   saveUsername(usernameInput.value);
   closeNewConfigPanel();
 
@@ -1047,6 +1216,7 @@ function startGame() {
   if (!activeCfg || getValidSamplers(activeCfg).length === 0) return;
 
   isPlaying = true;
+  isPracticeMode = Boolean(practice);
   timeLeft = GAME_DURATION_SECONDS;
   rightCount = 0;
   wrongCount = 0;
@@ -1055,6 +1225,7 @@ function startGame() {
   currentGameQuestions = [];
   currentQuestionRecord = null;
 
+  quitBtn.textContent = isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
   homeView.classList.remove('active');
   gameView.classList.add('active');
@@ -1076,10 +1247,13 @@ async function finishGame(saveScore) {
   clearInterval(timerInterval);
   timerInterval = null;
   isPlaying = false;
+  const wasPractice = isPracticeMode;
+  isPracticeMode = false;
 
   if (currentQuestionRecord && currentQuestionRecord.wrong > 0) {
     currentQuestionRecord.durationMs = Date.now() - questionStartTime;
     currentGameQuestions.push(currentQuestionRecord);
+    updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
     currentQuestionRecord = null;
   }
 
@@ -1095,6 +1269,7 @@ async function finishGame(saveScore) {
       userId,
       configId: activeConfigId,
       playedAt: Date.now(),
+      isPractice: wasPractice,
       score: finalScore,
       right: rightCount,
       wrong: wrongCount,
@@ -1103,14 +1278,22 @@ async function finishGame(saveScore) {
     });
     renderReview();
 
-    const cachedEntry = leaderboardsMap[activeConfigId] && leaderboardsMap[activeConfigId][userId];
-    const isInitialNewHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score;
-    lastResult.classList.toggle('new-high-score', isInitialNewHigh);
-    lastScoreLabel.textContent = isInitialNewHigh ? '★ New High Score!' : 'Last Score';
-    lastScoreValue.textContent = finalScore;
-    lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
-    lastResult.classList.remove('hidden');
-    await submitScoreToLeaderboard(finalScore);
+    if (wasPractice) {
+      lastResult.classList.remove('new-high-score');
+      lastScoreLabel.textContent = 'Practice Score (Not Ranked)';
+      lastScoreValue.textContent = finalScore;
+      lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
+      lastResult.classList.remove('hidden');
+    } else {
+      const cachedEntry = leaderboardsMap[activeConfigId] && leaderboardsMap[activeConfigId][userId];
+      const isInitialNewHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score;
+      lastResult.classList.toggle('new-high-score', isInitialNewHigh);
+      lastScoreLabel.textContent = isInitialNewHigh ? '★ New High Score!' : 'Last Score';
+      lastScoreValue.textContent = finalScore;
+      lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
+      lastResult.classList.remove('hidden');
+      await submitScoreToLeaderboard(finalScore);
+    }
   }
 }
 
@@ -1146,7 +1329,10 @@ opToggleBtns.forEach((btn) => {
   inputEl.addEventListener('change', updateDraftRangeInputs);
 });
 
-playBtn.addEventListener('click', startGame);
+playBtn.addEventListener('click', () => startGame(false));
+if (practiceBtn) {
+  practiceBtn.addEventListener('click', () => startGame(true));
+}
 quitBtn.addEventListener('click', () => finishGame(true));
 
 sortImproveBtn.addEventListener('click', () => {

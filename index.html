@@ -106,9 +106,14 @@
         <div id="last-score-detail" class="result-score-detail">0 right · 0 wrong</div>
       </div>
 
-      <button id="play-btn" class="primary-btn" type="button">
-        Play 1-Minute Game
-      </button>
+      <div class="play-actions">
+        <button id="play-btn" class="primary-btn" type="button">
+          Play 1-Minute Game
+        </button>
+        <button id="practice-btn" class="secondary-btn hidden" type="button">
+          Practice Weak &amp; Slow
+        </button>
+      </div>
 
       <section id="review-card" class="leaderboard-card hidden" aria-labelledby="review-heading">
         <div class="leaderboard-header">
@@ -173,12 +178,15 @@
         </div>
       </div>
 
-      <div class="equation-card" id="equation-card">
-        <span id="slot-0" class="eq-item">0</span>
-        <span id="slot-op" class="eq-op">+</span>
-        <span id="slot-1" class="eq-item">0</span>
-        <span class="eq-op">=</span>
-        <span id="slot-2" class="eq-item">0</span>
+      <div class="equation-wrap">
+        <div id="question-last-perf" class="question-last-perf hidden"></div>
+        <div class="equation-card" id="equation-card">
+          <span id="slot-0" class="eq-item">0</span>
+          <span id="slot-op" class="eq-op">+</span>
+          <span id="slot-1" class="eq-item">0</span>
+          <span class="eq-op">=</span>
+          <span id="slot-2" class="eq-item">0</span>
+        </div>
       </div>
 
       <div class="keypad" id="keypad" role="group" aria-label="Number pad">
