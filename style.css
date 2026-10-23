@@ -343,12 +343,22 @@ html, body {
   box-shadow: var(--shadow);
 }
 
+.result-banner.new-high-score {
+  background: hsl(145, 70%, 96%);
+  border: 2px solid var(--right);
+}
+
 .result-score-label {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
+}
+
+.result-banner.new-high-score .result-score-label,
+.result-banner.new-high-score .result-score-value {
+  color: var(--right);
 }
 
 .result-score-value {

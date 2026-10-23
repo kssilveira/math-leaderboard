@@ -55,6 +55,7 @@ const gameView = document.getElementById('game-view');
 const playBtn = document.getElementById('play-btn');
 const quitBtn = document.getElementById('quit-btn');
 const lastResult = document.getElementById('last-result');
+const lastScoreLabel = document.getElementById('last-score-label');
 const lastScoreValue = document.getElementById('last-score-value');
 const lastScoreDetail = document.getElementById('last-score-detail');
 const myRankValue = document.getElementById('my-rank-value');
@@ -480,7 +481,12 @@ async function submitScoreToLeaderboard(score) {
 
   const existingRes = await fetch(userUrl);
   const existing = existingRes.ok ? await existingRes.json() : null;
-  const bestScore = existing && typeof existing.score === 'number' ? Math.max(existing.score, score) : score;
+  const hasExisting = existing && typeof existing.score === 'number';
+  const isNewHighScore = !hasExisting || score > existing.score;
+  const bestScore = hasExisting ? Math.max(existing.score, score) : score;
+
+  lastResult.classList.toggle('new-high-score', isNewHighScore);
+  lastScoreLabel.textContent = isNewHighScore ? '★ New High Score!' : 'Last Score';
 
   const record = {
     userId,
@@ -841,6 +847,10 @@ async function finishGame(saveScore) {
   homeView.classList.add('active');
 
   if (saveScore) {
+    const cachedEntry = leaderboardsMap[activeConfigId] && leaderboardsMap[activeConfigId][userId];
+    const isInitialNewHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score;
+    lastResult.classList.toggle('new-high-score', isInitialNewHigh);
+    lastScoreLabel.textContent = isInitialNewHigh ? '★ New High Score!' : 'Last Score';
     lastScoreValue.textContent = finalScore;
     lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
     lastResult.classList.remove('hidden');
