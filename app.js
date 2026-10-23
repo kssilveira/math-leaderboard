@@ -643,20 +643,49 @@ function renderHistoryChart(sessions) {
   const n = chronological.length;
 
   const width = 360;
-  const height = 130;
-  const padLeft = 30;
+  const height = 160;
+  const padLeft = 32;
   const padRight = 14;
   const padTop = 12;
   const padBottom = 22;
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
 
+  const boardObj = leaderboardsMap[activeConfigId] || {};
+  const boardScores = Object.values(boardObj).map(e => (typeof e.score === 'number' ? e.score : 0));
+  const localBestScore = Math.max(...chronological.map(s => (typeof s.score === 'number' ? s.score : 0)));
+  const myLeaderboardScore =
+    boardObj[userId] && typeof boardObj[userId].score === 'number' ? boardObj[userId].score : localBestScore;
+  const myBestScore = Math.max(localBestScore, myLeaderboardScore);
+  const topLeaderboardScore = boardScores.length > 0 ? Math.max(...boardScores, myBestScore) : myBestScore;
+
+  const pointsData = chronological.map((s) => {
+    const qs = Array.isArray(s.questions) ? s.questions : [];
+    const slowestSec =
+      qs.length > 0 ? Math.max(...qs.map(q => (q.durationMs || 0) / 1000)) : 0;
+    const avgSec =
+      qs.length > 0
+        ? qs.reduce((sum, q) => sum + (q.durationMs || 0), 0) / qs.length / 1000
+        : 0;
+    return {
+      score: s.score || 0,
+      right: s.right || 0,
+      wrong: s.wrong || 0,
+      myBest: myBestScore,
+      topBest: topLeaderboardScore,
+      slowest: Number(slowestSec.toFixed(2)),
+      avg: Number(avgSec.toFixed(2))
+    };
+  });
+
   let minVal = 0;
   let maxVal = 5;
-  chronological.forEach((s) => {
-    minVal = Math.min(minVal, s.score || 0, s.right || 0, s.wrong || 0);
-    maxVal = Math.max(maxVal, s.score || 0, s.right || 0, s.wrong || 0);
+  pointsData.forEach((p) => {
+    minVal = Math.min(minVal, p.score, p.right, p.wrong, p.myBest, p.topBest, p.slowest, p.avg);
+    maxVal = Math.max(maxVal, p.score, p.right, p.wrong, p.myBest, p.topBest, p.slowest, p.avg);
   });
+  minVal = Math.floor(minVal);
+  maxVal = Math.ceil(maxVal);
   if (maxVal === minVal) maxVal = minVal + 5;
 
   const getX = (i) => (n === 1 ? padLeft + plotW / 2 : padLeft + (i / (n - 1)) * plotW);
@@ -682,20 +711,34 @@ function renderHistoryChart(sessions) {
     svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
   }
 
+  // Reference lines for Top #1 and My Best (span across plot width even for 1 game)
+  const refSeries = [
+    { key: 'topBest', color: 'hsl(42, 95%, 42%)', width: 1.8, dash: '5 3' },
+    { key: 'myBest', color: 'hsl(195, 85%, 38%)', width: 1.8, dash: '3 3' }
+  ];
+
+  refSeries.forEach((ref) => {
+    const val = pointsData[0][ref.key];
+    const y = getY(val).toFixed(1);
+    svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="${ref.color}" stroke-width="${ref.width}" stroke-dasharray="${ref.dash}" />`;
+  });
+
   const series = [
+    { key: 'slowest', color: 'hsl(24, 90%, 50%)', width: 1.8, radius: 2.8 },
+    { key: 'avg', color: 'hsl(172, 75%, 34%)', width: 1.8, radius: 2.8 },
     { key: 'wrong', color: 'hsl(355, 78%, 52%)', width: 2, radius: 3 },
     { key: 'right', color: 'hsl(145, 65%, 35%)', width: 2, radius: 3 },
     { key: 'score', color: 'hsl(215, 85%, 48%)', width: 2.5, radius: 3.5 }
   ];
 
   series.forEach((s) => {
-    const pts = chronological.map((item, idx) => `${getX(idx).toFixed(1)},${getY(item[s.key] || 0).toFixed(1)}`);
+    const pts = pointsData.map((item, idx) => `${getX(idx).toFixed(1)},${getY(item[s.key]).toFixed(1)}`);
     if (n > 1) {
       svg += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.width}" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(' ')}" />`;
     }
-    chronological.forEach((item, idx) => {
+    pointsData.forEach((item, idx) => {
       const cx = getX(idx).toFixed(1);
-      const cy = getY(item[s.key] || 0).toFixed(1);
+      const cy = getY(item[s.key]).toFixed(1);
       svg += `<circle cx="${cx}" cy="${cy}" r="${s.radius}" fill="${s.color}" stroke="#fff" stroke-width="1" />`;
     });
   });

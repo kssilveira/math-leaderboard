@@ -514,9 +514,10 @@ html, body {
 
 .chart-legend {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  font-size: 0.74rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px 10px;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-muted);
 }
@@ -545,9 +546,25 @@ html, body {
   background: var(--wrong);
 }
 
+.dot-my-best {
+  background: hsl(195, 85%, 38%);
+}
+
+.dot-top-best {
+  background: hsl(42, 95%, 42%);
+}
+
+.dot-slowest {
+  background: hsl(24, 90%, 50%);
+}
+
+.dot-avg {
+  background: hsl(172, 75%, 34%);
+}
+
 .history-chart {
   width: 100%;
-  height: 125px;
+  height: 155px;
   display: block;
   overflow: visible;
 }
