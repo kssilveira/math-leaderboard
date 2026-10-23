@@ -663,6 +663,15 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
         session.questions.forEach((q) => {
           if (q && Array.isArray(q.nums) && q.nums.length === 3) {
             const qKey = getQuestionKeyFromRecord(q);
+            const existing = bucket[qKey];
+            const prevCount = existing && typeof existing.count === 'number' && existing.count > 0 ? existing.count : 0;
+            const prevTotalMs = existing && typeof existing.totalDurationMs === 'number'
+              ? existing.totalDurationMs
+              : (existing ? (existing.durationMs || 0) * prevCount : 0);
+            const count = prevCount + 1;
+            const totalDurationMs = prevTotalMs + (q.durationMs || 0);
+            const avgDurationMs = Math.round(totalDurationMs / count);
+
             bucket[qKey] = {
               key: qKey,
               nums: [...q.nums],
@@ -672,7 +681,9 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
               answers: Array.isArray(q.answers) ? [...q.answers] : [],
               right: q.right || 0,
               wrong: q.wrong || 0,
-              durationMs: q.durationMs || 0,
+              count,
+              totalDurationMs,
+              durationMs: avgDurationMs,
               updatedAt: session.playedAt || Date.now()
             };
           }
@@ -689,6 +700,17 @@ function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
   if (!qRecord || !Array.isArray(qRecord.nums) || qRecord.nums.length !== 3) return;
   const { statsMap, compKey, bucket } = ensureQuestionStatsBucket(targetUserId, targetConfigId);
   const qKey = getQuestionKeyFromRecord(qRecord);
+  const existing = bucket[qKey];
+  const prevCount = existing
+    ? (typeof existing.count === 'number' && existing.count > 0 ? existing.count : 1)
+    : 0;
+  const prevTotalMs = existing
+    ? (typeof existing.totalDurationMs === 'number' ? existing.totalDurationMs : (existing.durationMs || 0) * prevCount)
+    : 0;
+  const count = prevCount + 1;
+  const totalDurationMs = prevTotalMs + (qRecord.durationMs || 0);
+  const avgDurationMs = Math.round(totalDurationMs / count);
+
   bucket[qKey] = {
     key: qKey,
     nums: [...qRecord.nums],
@@ -698,7 +720,9 @@ function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
     answers: Array.isArray(qRecord.answers) ? [...qRecord.answers] : [],
     right: qRecord.right || 0,
     wrong: qRecord.wrong || 0,
-    durationMs: qRecord.durationMs || 0,
+    count,
+    totalDurationMs,
+    durationMs: avgDurationMs,
     updatedAt: Date.now()
   };
   statsMap[compKey] = bucket;
@@ -1126,9 +1150,9 @@ function renderQuestion() {
         const wrongText = wrongTyped.length > 0
           ? wrongTyped.map(w => `✗ ${w}`).join(' ')
           : `${lp.wrong} wrong`;
-        questionLastPerf.textContent = `Last: ${wrongText} · ${secStr}`;
+        questionLastPerf.textContent = `Last: ${wrongText} · ${secStr} avg`;
       } else {
-        questionLastPerf.textContent = `Last: ✓ in ${secStr}`;
+        questionLastPerf.textContent = `Last: ✓ · ${secStr} avg`;
       }
       questionLastPerf.classList.toggle('had-wrong', hadMistake);
       questionLastPerf.classList.remove('hidden');
