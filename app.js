@@ -696,13 +696,13 @@ function renderHistoryChart(sessions) {
     svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
   }
 
-  // Reference line for My Best
+  // Reference line for Best
   const myBestY = getY(pointsData[0].myBest).toFixed(1);
-  svg += `<line x1="${padLeft}" y1="${myBestY}" x2="${width - padRight}" y2="${myBestY}" stroke="hsl(195, 85%, 38%)" stroke-width="1.8" stroke-dasharray="3 3" />`;
+  svg += `<line x1="${padLeft}" y1="${myBestY}" x2="${width - padRight}" y2="${myBestY}" stroke="hsl(36, 95%, 46%)" stroke-width="2" stroke-dasharray="4 3" />`;
 
   const series = [
-    { key: 'right', color: 'hsl(145, 65%, 35%)', width: 2, radius: 3 },
-    { key: 'score', color: 'hsl(215, 85%, 48%)', width: 2.5, radius: 3.5 }
+    { key: 'right', color: 'hsl(152, 76%, 36%)', width: 2, radius: 3 },
+    { key: 'score', color: 'hsl(217, 91%, 53%)', width: 2.5, radius: 3.5 }
   ];
 
   series.forEach((s) => {
