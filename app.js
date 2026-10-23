@@ -26,6 +26,15 @@ let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
 let isPlaying = false;
 let isPracticeMode = false;
+let isReplaying = false;
+let isReplayPaused = false;
+let replaySpeed = 1;
+let replayRafId = null;
+let replaySessionData = null;
+let replayElapsedMs = 0;
+let replayLastTickTime = 0;
+let lastCompletedSession = null;
+let hasHandledInitialUrlReplay = false;
 let rightCount = 0;
 let wrongCount = 0;
 let currentQuestion = null; // { nums: [a, b, c], op, missingIndex: 0|1|2, answer: number, key: string, lastPerf?: object }
@@ -35,7 +44,7 @@ let gameStartTime = 0;
 let questionStartTime = 0;
 let currentQuestionRecord = null;
 let currentGameQuestions = [];
-let reviewSortMode = 'improve'; // 'improve' | 'order'
+let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
 
 // DOM Elements
 const usernameInput = document.getElementById('username-input');
@@ -67,8 +76,13 @@ const lastResult = document.getElementById('last-result');
 const lastScoreLabel = document.getElementById('last-score-label');
 const lastScoreValue = document.getElementById('last-score-value');
 const lastScoreDetail = document.getElementById('last-score-detail');
+const replayLastBtn = document.getElementById('replay-last-btn');
+const shareLastBtn = document.getElementById('share-last-btn');
 const myRankValue = document.getElementById('my-rank-value');
 const myBestValue = document.getElementById('my-best-value');
+const myBestActions = document.getElementById('my-best-actions');
+const replayBestBtn = document.getElementById('replay-best-btn');
+const shareBestBtn = document.getElementById('share-best-btn');
 const leaderboardList = document.getElementById('leaderboard-list');
 const reviewCard = document.getElementById('review-card');
 const reviewSummaryBadge = document.getElementById('review-summary-badge');
@@ -89,6 +103,14 @@ const slot2 = document.getElementById('slot-2');
 const slotOp = document.getElementById('slot-op');
 const keypad = document.getElementById('keypad');
 const minusKey = document.getElementById('minus-key');
+const replayPanel = document.getElementById('replay-panel');
+const replayTitle = document.getElementById('replay-title');
+const replayStepBadge = document.getElementById('replay-step-badge');
+const replayPauseBtn = document.getElementById('replay-pause-btn');
+const replaySpeedBtn = document.getElementById('replay-speed-btn');
+const replayRestartBtn = document.getElementById('replay-restart-btn');
+const replayShareBtn = document.getElementById('replay-share-btn');
+const replayLogList = document.getElementById('replay-log-list');
 
 // --- Helpers ---
 
@@ -484,6 +506,7 @@ async function syncFromFirebase() {
     }
 
     configs = Array.from(byId.values());
+    await backfillLocalBestToLeaderboard();
     sortConfigsByLeaderboardSize();
 
     const savedConfigId = activeConfigId || localStorage.getItem(STORAGE_KEYS.activeConfigId);
@@ -494,12 +517,135 @@ async function syncFromFirebase() {
     renderConfigsUI();
     renderLeaderboard();
     renderReview();
+    checkUrlReplayOnLoad();
   } catch (err) {
     console.error('Failed to sync with Firebase:', err);
   }
 }
 
-async function submitScoreToLeaderboard(score) {
+function normalizeQuestionRecord(q) {
+  const nums = Array.isArray(q.nums) ? [...q.nums] : [0, 0, 0];
+  const missingIndex = typeof q.missingIndex === 'number' ? q.missingIndex : 2;
+  const expected = typeof q.expected === 'number' ? q.expected : nums[missingIndex];
+  const expectedStr = String(expected);
+  const answers = Array.isArray(q.answers) ? q.answers.map(String) : [];
+  const wrongAnswers = Array.isArray(q.wrongAnswers)
+    ? q.wrongAnswers.map(String)
+    : answers.filter(a => a !== expectedStr);
+  const right = typeof q.right === 'number' ? q.right : (answers.includes(expectedStr) ? 1 : 0);
+  const wrong = typeof q.wrong === 'number' ? q.wrong : wrongAnswers.length;
+  const durationMs = typeof q.durationMs === 'number' ? q.durationMs : 0;
+
+  return {
+    nums,
+    op: q.op || '+',
+    missingIndex,
+    expected,
+    answers,
+    wrongAnswers,
+    right,
+    wrong,
+    durationMs
+  };
+}
+
+function getBestLocalSession(targetUserId, targetConfigId) {
+  const historyMap = getGameHistoryMap();
+  const key = `${targetUserId}__${targetConfigId}`;
+  const sessions = Array.isArray(historyMap[key]) ? historyMap[key] : [];
+  const regular = sessions.filter(s => !s.isPractice && typeof s.score === 'number');
+  if (regular.length === 0) return null;
+
+  let best = regular[0];
+  for (let i = 1; i < regular.length; i++) {
+    const s = regular[i];
+    if (s.score > best.score) {
+      best = s;
+    } else if (
+      s.score === best.score &&
+      (!Array.isArray(best.questions) || best.questions.length === 0) &&
+      Array.isArray(s.questions) &&
+      s.questions.length > 0
+    ) {
+      best = s;
+    }
+  }
+  return best;
+}
+
+async function backfillLocalBestToLeaderboard() {
+  const historyMap = getGameHistoryMap();
+  const pairs = new Set();
+
+  users.forEach((u) => {
+    configs.forEach((c) => {
+      pairs.add(`${u.userId}__${c.id}`);
+    });
+  });
+  Object.keys(historyMap).forEach((k) => pairs.add(k));
+
+  const uploads = [];
+  pairs.forEach((compKey) => {
+    const sepIdx = compKey.indexOf('__');
+    if (sepIdx <= 0) return;
+    const uId = compKey.slice(0, sepIdx);
+    const cfgId = compKey.slice(sepIdx + 2);
+    if (!uId || !cfgId) return;
+
+    const bestLocal = getBestLocalSession(uId, cfgId);
+    if (!bestLocal) return;
+
+    const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][uId];
+    const hasExisting = existing && typeof existing.score === 'number';
+    const existingHasQuestions = hasExisting && Array.isArray(existing.questions) && existing.questions.length > 0;
+    const localHasQuestions = Array.isArray(bestLocal.questions) && bestLocal.questions.length > 0;
+
+    const needsUpload =
+      !hasExisting ||
+      bestLocal.score > existing.score ||
+      (!existingHasQuestions && localHasQuestions);
+
+    if (!needsUpload) return;
+
+    const userObj = users.find(u => u.userId === uId);
+    const resolvedUsername = (userObj && userObj.username) || (existing && existing.username) || username || 'Player';
+    const bestScore = hasExisting ? Math.max(existing.score, bestLocal.score) : bestLocal.score;
+    const normalizedQuestions = localHasQuestions ? bestLocal.questions.map(normalizeQuestionRecord) : [];
+
+    const record = {
+      userId: uId,
+      username: resolvedUsername,
+      score: bestScore,
+      right: typeof bestLocal.right === 'number' ? bestLocal.right : 0,
+      wrong: typeof bestLocal.wrong === 'number' ? bestLocal.wrong : 0,
+      durationMs: typeof bestLocal.durationMs === 'number' ? bestLocal.durationMs : GAME_DURATION_SECONDS * 1000,
+      questions: normalizedQuestions,
+      updatedAt: (hasExisting && bestLocal.score <= existing.score && existing.updatedAt)
+        ? existing.updatedAt
+        : (bestLocal.playedAt || Date.now())
+    };
+
+    if (!leaderboardsMap[cfgId]) {
+      leaderboardsMap[cfgId] = {};
+    }
+    leaderboardsMap[cfgId][uId] = record;
+
+    const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(uId)}.json`;
+    uploads.push(
+      fetch(userUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record)
+      }).catch(() => {})
+    );
+  });
+
+  if (uploads.length > 0) {
+    await Promise.all(uploads);
+  }
+}
+
+async function submitScoreToLeaderboard(score, sessionData) {
   const configId = activeConfigId;
   const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`;
 
@@ -512,11 +658,28 @@ async function submitScoreToLeaderboard(score) {
   lastResult.classList.toggle('new-high-score', isNewHighScore);
   lastScoreLabel.textContent = isNewHighScore ? '★ New High Score!' : 'Last Score';
 
+  const existingHasQuestions = hasExisting && Array.isArray(existing.questions) && existing.questions.length > 0;
+  const useSessionQuestions = isNewHighScore || (score === existing.score && !existingHasQuestions);
+  const bestLocal = getBestLocalSession(userId, configId);
+  const sourceSession = useSessionQuestions
+    ? sessionData
+    : (existingHasQuestions ? existing : (bestLocal || sessionData));
+
+  const normalizedQuestions = sourceSession && Array.isArray(sourceSession.questions)
+    ? sourceSession.questions.map(normalizeQuestionRecord)
+    : [];
+
   const record = {
     userId,
     username,
     score: bestScore,
-    updatedAt: Date.now()
+    right: sourceSession && typeof sourceSession.right === 'number' ? sourceSession.right : rightCount,
+    wrong: sourceSession && typeof sourceSession.wrong === 'number' ? sourceSession.wrong : wrongCount,
+    durationMs: sourceSession && typeof sourceSession.durationMs === 'number'
+      ? sourceSession.durationMs
+      : GAME_DURATION_SECONDS * 1000,
+    questions: normalizedQuestions,
+    updatedAt: isNewHighScore ? Date.now() : (existing.updatedAt || Date.now())
   };
 
   await fetch(userUrl, {
@@ -565,6 +728,35 @@ function sortLeaderboard(entries) {
   });
 }
 
+function getMyBestReplaySession() {
+  const boardObj = leaderboardsMap[activeConfigId] || {};
+  const myEntry = boardObj[userId];
+  if (myEntry && Array.isArray(myEntry.questions) && myEntry.questions.length > 0) {
+    return {
+      username: myEntry.username || username,
+      configId: activeConfigId,
+      score: myEntry.score,
+      right: myEntry.right,
+      wrong: myEntry.wrong,
+      durationMs: myEntry.durationMs || GAME_DURATION_SECONDS * 1000,
+      questions: myEntry.questions.map(normalizeQuestionRecord)
+    };
+  }
+  const bestLocal = getBestLocalSession(userId, activeConfigId);
+  if (bestLocal && Array.isArray(bestLocal.questions) && bestLocal.questions.length > 0) {
+    return {
+      username,
+      configId: activeConfigId,
+      score: bestLocal.score,
+      right: bestLocal.right,
+      wrong: bestLocal.wrong,
+      durationMs: bestLocal.durationMs || GAME_DURATION_SECONDS * 1000,
+      questions: bestLocal.questions.map(normalizeQuestionRecord)
+    };
+  }
+  return null;
+}
+
 function renderLeaderboard() {
   const boardObj = leaderboardsMap[activeConfigId] || {};
   const entries = sortLeaderboard(Object.values(boardObj));
@@ -578,13 +770,18 @@ function renderLeaderboard() {
 
   const top10 = rankedEntries.slice(0, 10);
   const myEntry = rankedEntries.find(e => e.userId === userId);
+  const myBestSession = getMyBestReplaySession();
 
   if (myEntry) {
     myRankValue.textContent = `#${myEntry.rank} of ${rankedEntries.length}`;
     myBestValue.textContent = myEntry.score;
   } else {
     myRankValue.textContent = 'Unranked';
-    myBestValue.textContent = '—';
+    myBestValue.textContent = myBestSession ? myBestSession.score : '—';
+  }
+
+  if (myBestActions) {
+    myBestActions.classList.toggle('hidden', !myBestSession);
   }
 
   if (top10.length === 0) {
@@ -606,11 +803,43 @@ function renderLeaderboard() {
     nameSpan.className = 'player-name';
     nameSpan.textContent = entry.username + (isMe ? ' (you)' : '');
 
+    const rightGroup = document.createElement('span');
+    rightGroup.className = 'player-right-group';
+
+    if (Array.isArray(entry.questions) && entry.questions.length > 0) {
+      const replaySession = {
+        username: entry.username,
+        configId: activeConfigId,
+        score: entry.score,
+        right: entry.right,
+        wrong: entry.wrong,
+        durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
+        questions: entry.questions.map(normalizeQuestionRecord)
+      };
+
+      const replayBtn = document.createElement('button');
+      replayBtn.type = 'button';
+      replayBtn.className = 'inline-btn';
+      replayBtn.textContent = '▶ Replay';
+      replayBtn.title = `Replay ${entry.username}'s best game`;
+      replayBtn.addEventListener('click', () => startReplay(replaySession));
+
+      const shareBtn = document.createElement('button');
+      shareBtn.type = 'button';
+      shareBtn.className = 'inline-btn';
+      shareBtn.textContent = '🔗';
+      shareBtn.title = `Copy share link for ${entry.username}'s best game`;
+      shareBtn.addEventListener('click', () => copyReplayLink(replaySession, shareBtn));
+
+      rightGroup.append(replayBtn, shareBtn);
+    }
+
     const scoreSpan = document.createElement('span');
     scoreSpan.className = 'player-score';
     scoreSpan.textContent = entry.score;
+    rightGroup.appendChild(scoreSpan);
 
-    li.append(rankSpan, nameSpan, scoreSpan);
+    li.append(rankSpan, nameSpan, rightGroup);
     leaderboardList.appendChild(li);
   });
 }
@@ -1201,6 +1430,7 @@ function nextQuestion() {
         missingIndex: currentQuestion.missingIndex,
         expected: currentQuestion.answer,
         answers: [],
+        wrongAnswers: [],
         right: 0,
         wrong: 0,
         durationMs: 0
@@ -1210,7 +1440,7 @@ function nextQuestion() {
 }
 
 function handleDigitInput(digitStr) {
-  if (!isPlaying || !currentQuestion) return;
+  if (!isPlaying || isReplaying || !currentQuestion) return;
 
   // Wrong question automatically erases the answer when a new answer starts being typed
   if (isWrong) {
@@ -1247,6 +1477,7 @@ function handleDigitInput(digitStr) {
   isWrong = true;
   if (currentQuestionRecord) {
     currentQuestionRecord.answers.push(typedAnswer);
+    currentQuestionRecord.wrongAnswers.push(typedAnswer);
     currentQuestionRecord.wrong += 1;
     currentQuestionRecord.durationMs = Date.now() - questionStartTime;
   }
@@ -1255,6 +1486,9 @@ function handleDigitInput(digitStr) {
 }
 
 function startGame(practice = false) {
+  if (isReplaying) {
+    stopReplay(false);
+  }
   saveUsername(usernameInput.value);
   closeNewConfigPanel();
 
@@ -1271,6 +1505,8 @@ function startGame(practice = false) {
   currentGameQuestions = [];
   currentQuestionRecord = null;
 
+  if (replayPanel) replayPanel.classList.add('hidden');
+  keypad.classList.remove('hidden');
   quitBtn.textContent = isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
   homeView.classList.remove('active');
@@ -1305,14 +1541,16 @@ async function finishGame(saveScore) {
 
   const finalScore = rightCount - wrongCount;
   const gameDurationMs = Date.now() - gameStartTime;
+  const normalizedQuestions = currentGameQuestions.map(normalizeQuestionRecord);
 
   deleteUserBtn.classList.remove('hidden');
   gameView.classList.remove('active');
   homeView.classList.add('active');
 
   if (saveScore) {
-    saveGameReviewToStorage({
+    const sessionRecord = {
       userId,
+      username,
       configId: activeConfigId,
       playedAt: Date.now(),
       isPractice: wasPractice,
@@ -1320,9 +1558,15 @@ async function finishGame(saveScore) {
       right: rightCount,
       wrong: wrongCount,
       durationMs: gameDurationMs,
-      questions: currentGameQuestions
-    });
+      questions: normalizedQuestions
+    };
+    lastCompletedSession = sessionRecord;
+    saveGameReviewToStorage(sessionRecord);
     renderReview();
+
+    const hasReplayableQuestions = normalizedQuestions.length > 0;
+    if (replayLastBtn) replayLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
+    if (shareLastBtn) shareLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
 
     if (wasPractice) {
       lastResult.classList.remove('new-high-score');
@@ -1338,9 +1582,446 @@ async function finishGame(saveScore) {
       lastScoreValue.textContent = finalScore;
       lastScoreDetail.textContent = `${rightCount} right · ${wrongCount} wrong`;
       lastResult.classList.remove('hidden');
-      await submitScoreToLeaderboard(finalScore);
+      await submitScoreToLeaderboard(finalScore, sessionRecord);
     }
   }
+}
+
+// --- Replay & Share Feature ---
+
+function encodeReplayParam(session) {
+  const compactQuestions = (session.questions || []).map((rawQ) => {
+    const q = normalizeQuestionRecord(rawQ);
+    const opIdx = Math.max(0, ALL_OPS.indexOf(q.op));
+    const entry = [q.nums[0], opIdx, q.nums[1], q.missingIndex, q.durationMs || 0];
+    if ((q.wrongAnswers && q.wrongAnswers.length > 0) || q.right === 0) {
+      entry.push(q.wrongAnswers || []);
+    }
+    if (q.right === 0) {
+      entry.push(0);
+    }
+    return entry;
+  });
+
+  const payload = {
+    u: session.username || 'Player',
+    c: session.configId || activeConfigId,
+    s: typeof session.score === 'number' ? session.score : 0,
+    r: typeof session.right === 'number' ? session.right : 0,
+    w: typeof session.wrong === 'number' ? session.wrong : 0,
+    d: typeof session.durationMs === 'number' ? session.durationMs : GAME_DURATION_SECONDS * 1000,
+    q: compactQuestions
+  };
+
+  const json = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(json);
+  let binary = '';
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeReplayParam(encoded) {
+  try {
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
+    if (!payload || !Array.isArray(payload.q) || payload.q.length === 0) return null;
+
+    const questions = payload.q.map((item) => {
+      const a = Number(item[0]) || 0;
+      const op = ALL_OPS[item[1]] || '+';
+      const b = Number(item[2]) || 0;
+      let c = 0;
+      if (op === '+') c = a + b;
+      else if (op === '-') c = a - b;
+      else if (op === '×') c = a * b;
+      else if (op === '÷') c = b !== 0 ? Math.trunc(a / b) : 0;
+
+      const nums = [a, b, c];
+      const missingIndex = typeof item[3] === 'number' ? item[3] : 2;
+      const expected = nums[missingIndex];
+      const durationMs = typeof item[4] === 'number' ? item[4] : 800;
+      const wrongAnswers = Array.isArray(item[5]) ? item[5].map(String) : [];
+      const right = item[6] === 0 ? 0 : 1;
+      const answers = [...wrongAnswers];
+      if (right > 0) {
+        answers.push(String(expected));
+      }
+      return normalizeQuestionRecord({
+        nums,
+        op,
+        missingIndex,
+        expected,
+        answers,
+        wrongAnswers,
+        right,
+        wrong: wrongAnswers.length,
+        durationMs
+      });
+    });
+
+    return {
+      username: String(payload.u || 'Player'),
+      configId: String(payload.c || activeConfigId),
+      score: Number(payload.s) || 0,
+      right: Number(payload.r) || 0,
+      wrong: Number(payload.w) || 0,
+      durationMs: Number(payload.d) || GAME_DURATION_SECONDS * 1000,
+      questions
+    };
+  } catch (err) {
+    console.error('Failed to decode replay link:', err);
+    return null;
+  }
+}
+
+async function copyReplayLink(session, btnEl) {
+  if (!session || !Array.isArray(session.questions) || session.questions.length === 0) return;
+  const encoded = encodeReplayParam(session);
+  const url = `${window.location.origin}${window.location.pathname}?replay=${encoded}`;
+
+  let copied = false;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch (_) {
+      copied = false;
+    }
+  }
+
+  if (!copied) {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      copied = true;
+    } catch (_) {
+      // Ignore
+    }
+    document.body.removeChild(ta);
+  }
+
+  if (btnEl) {
+    const originalText = btnEl.dataset.origText || btnEl.textContent;
+    btnEl.dataset.origText = originalText;
+    btnEl.textContent = '✓ Copied!';
+    setTimeout(() => {
+      btnEl.textContent = originalText;
+    }, 1800);
+  }
+}
+
+function checkUrlReplayOnLoad() {
+  if (hasHandledInitialUrlReplay) return;
+  const params = new URLSearchParams(window.location.search);
+  const replayParam = params.get('replay');
+  if (!replayParam) return;
+
+  hasHandledInitialUrlReplay = true;
+  const decoded = decodeReplayParam(replayParam);
+  if (decoded) {
+    if (decoded.configId && configs.some(c => c.id === decoded.configId)) {
+      activeConfigId = decoded.configId;
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+    }
+    startReplay(decoded);
+  }
+}
+
+function buildReplayTimeline(session) {
+  const questions = (session.questions || []).map(normalizeQuestionRecord);
+  let cursorMs = 0;
+  const segments = questions.map((q, index) => {
+    const dur = Math.max(150, q.durationMs || 800);
+    const startMs = cursorMs;
+    const endMs = startMs + dur;
+    cursorMs = endMs;
+
+    const attempts = [
+      ...(q.wrongAnswers || []).map(ans => ({ value: String(ans), isRight: false })),
+      ...(q.right > 0 ? [{ value: String(q.expected), isRight: true }] : [])
+    ];
+    const k = attempts.length;
+    const events = attempts.map((att, attIdx) => {
+      const triggerMs = startMs + Math.round(((attIdx + 1) / (k + 0.15)) * dur);
+      const clearMs = att.isRight
+        ? endMs
+        : Math.min(endMs - 20, triggerMs + Math.max(120, Math.round((dur / (k + 1)) * 0.6)));
+      return {
+        ...att,
+        triggerMs,
+        clearMs
+      };
+    });
+
+    return {
+      index,
+      question: q,
+      startMs,
+      endMs,
+      events
+    };
+  });
+
+  const totalDurationMs = Math.max(cursorMs, 500);
+  return { segments, totalDurationMs };
+}
+
+function createReplayLogRow(q) {
+  const li = document.createElement('li');
+  li.className = 'review-row' + (q.wrong > 0 || q.right === 0 ? ' has-wrong' : '');
+
+  const eqSpan = document.createElement('span');
+  eqSpan.className = 'review-eq';
+  const opChar = q.op === '-' ? '−' : q.op;
+  const parts = q.nums.map((n, idx) => {
+    if (idx === q.missingIndex) {
+      return `<span class="review-q-slot">${n}</span>`;
+    }
+    return String(n);
+  });
+  eqSpan.innerHTML = `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
+
+  const ansSpan = document.createElement('span');
+  ansSpan.className = 'review-answers';
+  const expectedStr = String(q.expected);
+  const wrongTyped = (q.wrongAnswers || (q.answers || []).filter(a => a !== expectedStr));
+  wrongTyped.forEach((w) => {
+    const wEl = document.createElement('span');
+    wEl.className = 'review-wrong-ans';
+    wEl.textContent = `✗ ${w}`;
+    ansSpan.appendChild(wEl);
+  });
+  if (q.right > 0) {
+    const rEl = document.createElement('span');
+    rEl.className = 'review-right-ans';
+    rEl.textContent = `✓ ${expectedStr}`;
+    ansSpan.appendChild(rEl);
+  }
+
+  const durSpan = document.createElement('span');
+  durSpan.className = 'review-duration';
+  durSpan.textContent = `${((q.durationMs || 0) / 1000).toFixed(1)}s`;
+
+  li.append(eqSpan, ansSpan, durSpan);
+  return li;
+}
+
+function renderReplayStateAt(elapsedMs) {
+  if (!replaySessionData) return;
+  const { timeline, session } = replaySessionData;
+  const { segments, totalDurationMs } = timeline;
+  const clampedMs = Math.min(elapsedMs, totalDurationMs);
+
+  let rCount = 0;
+  let wCount = 0;
+  let completedCount = 0;
+  let activeSeg = segments[segments.length - 1];
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (clampedMs >= seg.endMs) {
+      rCount += seg.question.right > 0 ? 1 : 0;
+      wCount += seg.question.wrong || 0;
+      completedCount = i + 1;
+    } else {
+      activeSeg = seg;
+      seg.events.forEach((ev) => {
+        if (clampedMs >= ev.triggerMs) {
+          if (ev.isRight) rCount += 1;
+          else wCount += 1;
+        }
+      });
+      break;
+    }
+  }
+
+  rightCount = rCount;
+  wrongCount = wCount;
+  const totalSec = Math.round(Math.max(GAME_DURATION_SECONDS * 1000, totalDurationMs) / 1000);
+  timeLeft = Math.max(0, totalSec - Math.floor(clampedMs / 1000));
+  updateHud();
+
+  if (activeSeg) {
+    currentQuestion = {
+      nums: [...activeSeg.question.nums],
+      op: activeSeg.question.op,
+      missingIndex: activeSeg.question.missingIndex,
+      answer: activeSeg.question.expected,
+      key: getQuestionKeyFromRecord(activeSeg.question)
+    };
+
+    let activeTyped = '';
+    let activeWrong = false;
+    activeSeg.events.forEach((ev) => {
+      if (clampedMs >= ev.triggerMs && clampedMs < ev.clearMs) {
+        activeTyped = ev.value;
+        activeWrong = !ev.isRight;
+      } else if (clampedMs >= ev.triggerMs && ev.isRight) {
+        activeTyped = ev.value;
+        activeWrong = false;
+      }
+    });
+
+    typedAnswer = activeTyped;
+    isWrong = activeWrong;
+    renderQuestion();
+
+    if (replayStepBadge) {
+      replayStepBadge.textContent = clampedMs >= totalDurationMs
+        ? `Done (${segments.length} Qs)`
+        : `Q ${activeSeg.index + 1} / ${segments.length}`;
+    }
+  }
+
+  if (replayLogList && replaySessionData.renderedLogCount !== completedCount) {
+    replayLogList.innerHTML = '';
+    for (let i = completedCount - 1; i >= 0; i--) {
+      replayLogList.appendChild(createReplayLogRow(segments[i].question));
+    }
+    replaySessionData.renderedLogCount = completedCount;
+  }
+
+  if (clampedMs >= totalDurationMs) {
+    isReplayPaused = true;
+    if (replayPauseBtn) replayPauseBtn.textContent = '✓ Finished';
+    if (replayRafId) {
+      cancelAnimationFrame(replayRafId);
+      replayRafId = null;
+    }
+  }
+}
+
+function tickReplay(now) {
+  if (!isReplaying || isReplayPaused || !replaySessionData) return;
+  const dt = Math.max(0, now - replayLastTickTime);
+  replayLastTickTime = now;
+  replayElapsedMs += dt * replaySpeed;
+  renderReplayStateAt(replayElapsedMs);
+
+  if (isReplaying && !isReplayPaused) {
+    replayRafId = requestAnimationFrame(tickReplay);
+  }
+}
+
+function startReplay(session) {
+  if (!session || !Array.isArray(session.questions) || session.questions.length === 0) return;
+  if (isPlaying) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    isPlaying = false;
+  }
+  if (replayRafId) {
+    cancelAnimationFrame(replayRafId);
+    replayRafId = null;
+  }
+
+  closeNewConfigPanel();
+  isReplaying = true;
+  isReplayPaused = false;
+  replayElapsedMs = 0;
+  replayLastTickTime = performance.now();
+
+  const timeline = buildReplayTimeline(session);
+  replaySessionData = {
+    session,
+    timeline,
+    renderedLogCount: -1
+  };
+
+  if (questionLastPerf) questionLastPerf.classList.add('hidden');
+  keypad.classList.add('hidden');
+  if (replayPanel) replayPanel.classList.remove('hidden');
+  if (replayTitle) {
+    replayTitle.textContent = `Replay: ${session.username || 'Player'} (Score ${session.score})`;
+  }
+  if (replayPauseBtn) replayPauseBtn.textContent = '⏸ Pause';
+  if (replaySpeedBtn) replaySpeedBtn.textContent = `${replaySpeed}× Speed`;
+  quitBtn.textContent = 'Exit Replay';
+
+  deleteUserBtn.classList.add('hidden');
+  homeView.classList.remove('active');
+  gameView.classList.add('active');
+
+  renderReplayStateAt(0);
+  replayRafId = requestAnimationFrame(tickReplay);
+}
+
+function stopReplay(returnHome = true) {
+  if (replayRafId) {
+    cancelAnimationFrame(replayRafId);
+    replayRafId = null;
+  }
+  isReplaying = false;
+  isReplayPaused = false;
+  replaySessionData = null;
+
+  if (replayPanel) replayPanel.classList.add('hidden');
+  keypad.classList.remove('hidden');
+  deleteUserBtn.classList.remove('hidden');
+
+  if (returnHome) {
+    gameView.classList.remove('active');
+    homeView.classList.add('active');
+    if (window.location.search.includes('replay=')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }
+}
+
+function toggleReplayPause() {
+  if (!isReplaying || !replaySessionData) return;
+  if (replayElapsedMs >= replaySessionData.timeline.totalDurationMs) {
+    restartReplay();
+    return;
+  }
+  isReplayPaused = !isReplayPaused;
+  if (replayPauseBtn) {
+    replayPauseBtn.textContent = isReplayPaused ? '▶ Resume' : '⏸ Pause';
+  }
+  if (!isReplayPaused) {
+    replayLastTickTime = performance.now();
+    replayRafId = requestAnimationFrame(tickReplay);
+  }
+}
+
+function cycleReplaySpeed() {
+  const speeds = [1, 2, 4];
+  const idx = speeds.indexOf(replaySpeed);
+  replaySpeed = speeds[(idx + 1) % speeds.length];
+  if (replaySpeedBtn) {
+    replaySpeedBtn.textContent = `${replaySpeed}× Speed`;
+  }
+}
+
+function restartReplay() {
+  if (!isReplaying || !replaySessionData) return;
+  if (replayRafId) {
+    cancelAnimationFrame(replayRafId);
+    replayRafId = null;
+  }
+  replayElapsedMs = 0;
+  replaySessionData.renderedLogCount = -1;
+  isReplayPaused = false;
+  if (replayPauseBtn) replayPauseBtn.textContent = '⏸ Pause';
+  replayLastTickTime = performance.now();
+  renderReplayStateAt(0);
+  replayRafId = requestAnimationFrame(tickReplay);
 }
 
 // --- Event Listeners ---
@@ -1379,7 +2060,52 @@ playBtn.addEventListener('click', () => startGame(false));
 if (practiceBtn) {
   practiceBtn.addEventListener('click', () => startGame(true));
 }
-quitBtn.addEventListener('click', () => finishGame(true));
+quitBtn.addEventListener('click', () => {
+  if (isReplaying) {
+    stopReplay(true);
+  } else {
+    finishGame(true);
+  }
+});
+
+if (replayLastBtn) {
+  replayLastBtn.addEventListener('click', () => {
+    if (lastCompletedSession) startReplay(lastCompletedSession);
+  });
+}
+if (shareLastBtn) {
+  shareLastBtn.addEventListener('click', () => {
+    if (lastCompletedSession) copyReplayLink(lastCompletedSession, shareLastBtn);
+  });
+}
+if (replayBestBtn) {
+  replayBestBtn.addEventListener('click', () => {
+    const best = getMyBestReplaySession();
+    if (best) startReplay(best);
+  });
+}
+if (shareBestBtn) {
+  shareBestBtn.addEventListener('click', () => {
+    const best = getMyBestReplaySession();
+    if (best) copyReplayLink(best, shareBestBtn);
+  });
+}
+if (replayPauseBtn) {
+  replayPauseBtn.addEventListener('click', toggleReplayPause);
+}
+if (replaySpeedBtn) {
+  replaySpeedBtn.addEventListener('click', cycleReplaySpeed);
+}
+if (replayRestartBtn) {
+  replayRestartBtn.addEventListener('click', restartReplay);
+}
+if (replayShareBtn) {
+  replayShareBtn.addEventListener('click', () => {
+    if (replaySessionData && replaySessionData.session) {
+      copyReplayLink(replaySessionData.session, replayShareBtn);
+    }
+  });
+}
 
 sortImproveBtn.addEventListener('click', () => {
   reviewSortMode = 'improve';

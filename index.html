@@ -104,6 +104,10 @@
         <div id="last-score-label" class="result-score-label">Last Score</div>
         <div id="last-score-value" class="result-score-value">0</div>
         <div id="last-score-detail" class="result-score-detail">0 right · 0 wrong</div>
+        <div id="last-result-actions" class="result-actions">
+          <button id="replay-last-btn" class="mini-action-btn" type="button">▶ Replay</button>
+          <button id="share-last-btn" class="mini-action-btn" type="button">🔗 Share Replay</button>
+        </div>
       </div>
 
       <div class="play-actions">
@@ -153,7 +157,13 @@
 
         <div id="my-rank-bar" class="my-rank-bar">
           <span>Your Rank: <strong id="my-rank-value">—</strong></span>
-          <span>Best: <strong id="my-best-value">—</strong></span>
+          <span class="my-best-group">
+            <span>Best: <strong id="my-best-value">—</strong></span>
+            <span id="my-best-actions" class="inline-actions hidden">
+              <button id="replay-best-btn" class="inline-btn" type="button" title="Replay your best game">▶ Replay</button>
+              <button id="share-best-btn" class="inline-btn" type="button" title="Copy share link for your best game">🔗 Share</button>
+            </span>
+          </span>
         </div>
 
         <ol id="leaderboard-list" class="leaderboard-list">
@@ -204,6 +214,20 @@
         <button type="button" class="key-btn" data-digit="9">9</button>
         <button type="button" id="minus-key" class="key-btn hidden" data-digit="-">−</button>
         <button type="button" class="key-btn key-zero" data-digit="0">0</button>
+      </div>
+
+      <div id="replay-panel" class="replay-panel hidden">
+        <div class="replay-info-row">
+          <span id="replay-title" class="replay-title">Replay</span>
+          <span id="replay-step-badge" class="badge">Q 1 / 1</span>
+        </div>
+        <div class="replay-controls">
+          <button id="replay-pause-btn" class="mini-action-btn" type="button">⏸ Pause</button>
+          <button id="replay-speed-btn" class="mini-action-btn" type="button">1× Speed</button>
+          <button id="replay-restart-btn" class="mini-action-btn" type="button">↻ Restart</button>
+          <button id="replay-share-btn" class="mini-action-btn" type="button">🔗 Share</button>
+        </div>
+        <ol id="replay-log-list" class="review-list replay-log-list"></ol>
       </div>
 
       <button id="quit-btn" class="ghost-btn" type="button">End Game</button>
