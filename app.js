@@ -76,6 +76,7 @@ const chartSection = document.querySelector('.chart-section');
 const historyChart = document.getElementById('history-chart');
 const sortImproveBtn = document.getElementById('sort-improve-btn');
 const sortOrderBtn = document.getElementById('sort-order-btn');
+const sortPracticeBtn = document.getElementById('sort-practice-btn');
 const reviewList = document.getElementById('review-list');
 const timerDisplay = document.getElementById('timer-display');
 const scoreDisplay = document.getElementById('score-display');
@@ -844,20 +845,33 @@ function renderReview() {
   sortImproveBtn.setAttribute('aria-selected', reviewSortMode === 'improve' ? 'true' : 'false');
   sortOrderBtn.classList.toggle('active', reviewSortMode === 'order');
   sortOrderBtn.setAttribute('aria-selected', reviewSortMode === 'order' ? 'true' : 'false');
+  if (sortPracticeBtn) {
+    sortPracticeBtn.classList.toggle('active', reviewSortMode === 'practice');
+    sortPracticeBtn.setAttribute('aria-selected', reviewSortMode === 'practice' ? 'true' : 'false');
+  }
 
-  const ordered = reviewSortMode === 'improve'
-    ? trackedQuestions
-    : (lastSession && Array.isArray(lastSession.questions) ? lastSession.questions : []);
+  const lastQuestions = lastSession && Array.isArray(lastSession.questions) ? lastSession.questions : [];
+  let ordered = [];
+  if (reviewSortMode === 'practice') {
+    ordered = trackedQuestions;
+  } else {
+    ordered = lastQuestions.map((q, idx) => ({ ...q, index: idx + 1 }));
+    if (reviewSortMode === 'improve') {
+      ordered.sort((a, b) => {
+        if (b.wrong !== a.wrong) return b.wrong - a.wrong;
+        return (b.durationMs || 0) - (a.durationMs || 0);
+      });
+    }
+  }
 
-  if (reviewSortMode === 'improve' && trackedQuestions.length > 0) {
+  if (reviewSortMode === 'practice' && trackedQuestions.length > 0) {
     const totalQMs = trackedQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
     const avgSec = (totalQMs / trackedQuestions.length / 1000).toFixed(1);
     const mistakeCount = trackedQuestions.filter(q => q.wrong > 0 || q.right === 0).length;
     reviewSummaryBadge.textContent = `${trackedQuestions.length} tracked · ${avgSec}s avg · ${mistakeCount} to fix`;
-  } else if (lastSession && Array.isArray(lastSession.questions) && lastSession.questions.length > 0) {
-    const questions = lastSession.questions;
-    const totalQMs = questions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
-    const avgSec = (totalQMs / questions.length / 1000).toFixed(1);
+  } else if (lastQuestions.length > 0) {
+    const totalQMs = lastQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+    const avgSec = (totalQMs / lastQuestions.length / 1000).toFixed(1);
     reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
   }
 
@@ -1344,6 +1358,13 @@ sortOrderBtn.addEventListener('click', () => {
   reviewSortMode = 'order';
   renderReview();
 });
+
+if (sortPracticeBtn) {
+  sortPracticeBtn.addEventListener('click', () => {
+    reviewSortMode = 'practice';
+    renderReview();
+  });
+}
 
 // Fast touch/click response on the 3-digits-per-row keypad
 keypad.addEventListener('pointerdown', (e) => {
