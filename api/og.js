@@ -92,6 +92,7 @@ function decodeReplay(encoded) {
         right: Number(payload.o.r) || 0,
         wrong: Number(payload.o.w) || 0,
         avgSec: oppAvgSec,
+        questions: oppQuestions,
       };
     }
 
@@ -111,8 +112,233 @@ function decodeReplay(encoded) {
   }
 }
 
+function buildTimelineEvents(questions) {
+  let cursorMs = 0;
+  const segments = (questions || []).map((q) => {
+    const dur = Math.max(150, q.durationMs || 800);
+    const startMs = cursorMs;
+    const endMs = startMs + dur;
+    cursorMs = endMs;
+    const attempts = [
+      ...(q.wrongAnswers || []).map(() => ({ isRight: false })),
+      ...(q.right > 0 ? [{ isRight: true }] : []),
+    ];
+    const k = attempts.length;
+    const events = attempts.map((att, idx) => ({
+      isRight: att.isRight,
+      triggerMs: startMs + Math.round(((idx + 1) / (k + 0.15)) * dur),
+    }));
+    return { startMs, endMs, question: q, events };
+  });
+  return { segments, totalDurationMs: Math.max(cursorMs, 500) };
+}
+
+function getScoreAt(timeline, elapsedMs) {
+  const { segments, totalDurationMs } = timeline;
+  const clampedMs = Math.min(Math.max(0, elapsedMs), totalDurationMs);
+  let r = 0;
+  let w = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (clampedMs >= seg.endMs) {
+      r += seg.question.right > 0 ? 1 : 0;
+      w += seg.question.wrong || 0;
+    } else {
+      seg.events.forEach((ev) => {
+        if (clampedMs >= ev.triggerMs) {
+          if (ev.isRight) r += 1;
+          else w += 1;
+        }
+      });
+      break;
+    }
+  }
+  return r - w;
+}
+
+function renderRaceScoreChartBox(replay, opp) {
+  const p1Timeline = buildTimelineEvents(replay.questions);
+  const p2Timeline = buildTimelineEvents(opp.questions);
+  const totalDurationMs = Math.max(p1Timeline.totalDurationMs, 500);
+  const steps = 60;
+  const samples = [];
+  let minScore = 0;
+  let maxScore = 5;
+
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * totalDurationMs;
+    const p1 = getScoreAt(p1Timeline, t);
+    const p2 = getScoreAt(p2Timeline, t);
+    minScore = Math.min(minScore, p1, p2);
+    maxScore = Math.max(maxScore, p1, p2);
+    samples.push({ t, p1, p2, delta: p1 - p2 });
+  }
+
+  const width = 520;
+  const topPad = 8;
+  const bottomPad = 88;
+  const plotH = bottomPad - topPad;
+  const getX = (ms) => (Math.min(Math.max(0, ms), totalDurationMs) / totalDurationMs) * width;
+  const getY = (s) => bottomPad - ((s - minScore) / Math.max(1, maxScore - minScore)) * plotH;
+
+  const svgChildren = [];
+  const yZero = getY(0).toFixed(1);
+  svgChildren.push(
+    h('line', {
+      x1: '0',
+      y1: String(topPad),
+      x2: String(width),
+      y2: String(topPad),
+      stroke: '#dbe2ea',
+      strokeWidth: '1',
+      strokeDasharray: '4 4',
+    }),
+    h('line', {
+      x1: '0',
+      y1: yZero,
+      x2: String(width),
+      y2: yZero,
+      stroke: '#dbe2ea',
+      strokeWidth: '1',
+      strokeDasharray: '4 4',
+    })
+  );
+
+  for (let i = 0; i < steps; i++) {
+    const s0 = samples[i];
+    const s1 = samples[i + 1];
+    const avgDelta = (s0.delta + s1.delta) / 2;
+    if (avgDelta !== 0) {
+      const x1 = getX(s0.t).toFixed(1);
+      const x2 = getX(s1.t).toFixed(1);
+      const y1a = getY(s0.p1).toFixed(1);
+      const y2a = getY(s1.p1).toFixed(1);
+      const y1b = getY(s0.p2).toFixed(1);
+      const y2b = getY(s1.p2).toFixed(1);
+      svgChildren.push(
+        h('polygon', {
+          points: `${x1},${y1a} ${x2},${y2a} ${x2},${y2b} ${x1},${y1b}`,
+          fill: avgDelta > 0 ? 'rgba(31, 147, 76, 0.22)' : 'rgba(227, 38, 54, 0.22)',
+        })
+      );
+    }
+  }
+
+  const p2Pts = samples.map((s) => `${getX(s.t).toFixed(1)},${getY(s.p2).toFixed(1)}`).join(' ');
+  const p1Pts = samples.map((s) => `${getX(s.t).toFixed(1)},${getY(s.p1).toFixed(1)}`).join(' ');
+  const lastSample = samples[samples.length - 1];
+
+  svgChildren.push(
+    h('polyline', {
+      fill: 'none',
+      stroke: '#f59e0b',
+      strokeWidth: '3',
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      points: p2Pts,
+    }),
+    h('polyline', {
+      fill: 'none',
+      stroke: '#1264e1',
+      strokeWidth: '3.5',
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      points: p1Pts,
+    }),
+    h('circle', {
+      cx: getX(lastSample.t).toFixed(1),
+      cy: getY(lastSample.p2).toFixed(1),
+      r: '4.5',
+      fill: '#f59e0b',
+      stroke: '#ffffff',
+      strokeWidth: '1.5',
+    }),
+    h('circle', {
+      cx: getX(lastSample.t).toFixed(1),
+      cy: getY(lastSample.p1).toFixed(1),
+      r: '5',
+      fill: '#1264e1',
+      stroke: '#ffffff',
+      strokeWidth: '1.5',
+    })
+  );
+
+  return h(
+    'div',
+    {
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: '#f8fafc',
+      border: '1px solid #dbe2ea',
+      borderRadius: '14px',
+      padding: '10px 14px 8px',
+      marginBottom: '8px',
+      gap: '6px',
+    },
+    [
+      h(
+        'div',
+        {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '13px',
+          fontWeight: 800,
+          color: '#627084',
+        },
+        [
+          h('span', {}, `Score Timeline (0 -> ${maxScore})`),
+          h(
+            'div',
+            { display: 'flex', alignItems: 'center', gap: '14px' },
+            [
+              h(
+                'div',
+                { display: 'flex', alignItems: 'center', gap: '5px', color: '#1264e1' },
+                [
+                  h('div', {
+                    width: '9px',
+                    height: '9px',
+                    borderRadius: '999px',
+                    backgroundColor: '#1264e1',
+                  }),
+                  h('span', {}, `${replay.username} (${replay.score})`),
+                ]
+              ),
+              h(
+                'div',
+                { display: 'flex', alignItems: 'center', gap: '5px', color: '#d97706' },
+                [
+                  h('div', {
+                    width: '9px',
+                    height: '9px',
+                    borderRadius: '999px',
+                    backgroundColor: '#f59e0b',
+                  }),
+                  h('span', {}, `${opp.username} (${opp.score})`),
+                ]
+              ),
+            ]
+          ),
+        ]
+      ),
+      h(
+        'svg',
+        {
+          width: '520',
+          height: '96',
+          viewBox: '0 0 520 96',
+        },
+        svgChildren
+      ),
+    ]
+  );
+}
+
 function renderReplayCard(replay) {
-  const sampleQuestions = replay.questions.slice(0, 9);
+  const opp = replay.opponent;
+  const isRace = Boolean(opp && Array.isArray(opp.questions) && opp.questions.length > 0);
+  const sampleQuestions = replay.questions.slice(0, isRace ? 5 : 9);
 
   const statBox = (label, value, color = '#1b222c') =>
     h(
@@ -208,8 +434,6 @@ function renderReplayCard(replay) {
     );
   });
 
-  const opp = replay.opponent;
-  const isRace = Boolean(opp);
   const diff = isRace ? replay.score - opp.score : 0;
   const diffStr = diff > 0 ? `+${diff}` : String(diff);
 
@@ -520,6 +744,7 @@ function renderReplayCard(replay) {
               ),
             ]
           ),
+          ...(isRace ? [renderRaceScoreChartBox(replay, opp)] : []),
           h(
             'div',
             {
