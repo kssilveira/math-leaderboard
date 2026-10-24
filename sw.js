@@ -1,4 +1,4 @@
-const CACHE_NAME = 'math-leaderboard-v5';
+const CACHE_NAME = 'math-leaderboard-v6';
 const APP_SHELL = [
   './',
   './index.html',

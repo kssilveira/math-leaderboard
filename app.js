@@ -847,15 +847,17 @@ function renderLeaderboard() {
       const replayBtn = document.createElement('button');
       replayBtn.type = 'button';
       replayBtn.className = 'inline-btn';
-      replayBtn.textContent = '▶ Replay';
+      replayBtn.textContent = '▶';
       replayBtn.title = `Replay ${entry.username}'s best game`;
+      replayBtn.setAttribute('aria-label', `Replay ${entry.username}'s best game`);
       replayBtn.addEventListener('click', () => startReplay(replaySession));
 
       const raceBtn = document.createElement('button');
       raceBtn.type = 'button';
       raceBtn.className = 'inline-btn';
-      raceBtn.textContent = '⚔️ Race';
+      raceBtn.textContent = '⚔️';
       raceBtn.title = `Race against ${entry.username}'s best game`;
+      raceBtn.setAttribute('aria-label', `Race against ${entry.username}'s best game`);
       raceBtn.addEventListener('click', () => startRace(replaySession));
 
       const shareBtn = document.createElement('button');
@@ -863,6 +865,7 @@ function renderLeaderboard() {
       shareBtn.className = 'inline-btn';
       shareBtn.textContent = '🔗';
       shareBtn.title = `Copy share link for ${entry.username}'s best game`;
+      shareBtn.setAttribute('aria-label', `Copy share link for ${entry.username}'s best game`);
       shareBtn.addEventListener('click', () => copyReplayLink(replaySession, shareBtn));
 
       rightGroup.append(replayBtn, raceBtn, shareBtn);
@@ -2032,7 +2035,7 @@ async function copyReplayLink(session, btnEl) {
   if (btnEl) {
     const originalText = btnEl.dataset.origText || btnEl.textContent;
     btnEl.dataset.origText = originalText;
-    btnEl.textContent = '✓ Copied!';
+    btnEl.textContent = originalText.trim() === '🔗' ? '✓' : '✓ Copied!';
     setTimeout(() => {
       btnEl.textContent = originalText;
     }, 1800);
