@@ -36,19 +36,20 @@ Mobile-friendly 1-minute math game with shared game configurations, multi-user s
     - **Order Played**: Questions from the last game in the exact order played.
     - **To Practice**: All tracked questions across past games with running average duration and mistake history.
 - **Interactive Replays, Ghost Race Mode & Shareable Links**:
-  - Watch step-by-step replays (`▶ Replay`) of your last game, your best game, or any player's best game on the global leaderboard (`1×` / `2×` / `4×` speed, pause/resume, restart, and live question log).
-  - **⚔️ Ghost Race Mode**: Tap `⚔️` (`⚔️ Race`) on any leaderboard entry, replay, or last game to play that exact sequence of questions yourself against a live split counter (`⚔️ You: 18 vs Player: 16 | +2`) without affecting the ranked leaderboard. Replays of Ghost Races show both players' scores, live equation & typed digits (`#race-opp-eq`), an interactive **Score & Delta (`Δ`) Timeline Chart** (`#replay-race-chart`), and head-to-head Open Graph preview cards.
-  - **Interactive Replay Timeline Bar**: Scrub or tap anywhere along the 60-second timeline (with green right-answer and red wrong-answer markers, or tap any question row in the log) to jump to any moment in the replay.
+  - Watch step-by-step replays (`▶`) of your last game, your best game, or any player's best game on the global leaderboard (`1×` / `2×` / `4×` speed, pause/resume, restart, top score summary banner, and live question log).
+  - **⚔️ Ghost Race Mode**: Tap `⚔️` (`⚔️ Race` at game end) on any leaderboard entry, replay, or last game to play that exact sequence of questions yourself against a live split counter (`⚔️ You: 18 vs Player: 16 | +2`) without affecting the ranked leaderboard.
+  - **Head-to-Head Race Replays**: Replays of Ghost Races show a head-to-head outcome banner, both players' live scores, the opponent's live equation & typed digits (`#race-opp-eq`), and an interactive **Score Timeline Chart** (`#replay-race-chart`) with green/red lead-deficit shading.
+  - **Interactive Replay Timeline Bar**: Scrub or tap anywhere along the 60-second timeline or score chart (with green right-answer and red wrong-answer markers, or tap any question row in the log) to jump to any moment in the replay.
   - Includes a **Play 1-Minute Game** button at the top of the replay view so recipients of a shared replay can jump right into playing.
-  - **🔗 Share Replay** copies a self-contained `?replay=...` URL (`https://math-leaderboard.vercel.app/?replay=...`).
+  - **🔗 Share Replay** (`🔗` / `🔗 Share`) copies a self-contained `?replay=...` URL (`https://math-leaderboard.vercel.app/?replay=...`).
 - **Global Leaderboards & Live Open Graph Previews**:
   - Each game configuration has its own global leaderboard in Firebase Realtime Database using standard competition ranking (tied scores share the same rank).
-  - Shows the Top 10 users (with score, right/wrong breakdown, and `▶` replay button) and the current user's rank and best score.
-  - `api/og.js` and `middleware.js` on Vercel serve dynamic Open Graph preview images for both the live leaderboard and shared `?replay=...` links while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
+  - Shows the Top 10 users (with score, right/wrong breakdown, and `▶`, `⚔️`, `🔗` action buttons) and the current user's rank and best score.
+  - `api/og.js` and `middleware.js` on Vercel serve dynamic Open Graph preview images for the live leaderboard, solo replays, and head-to-head Ghost Race replays (complete with a dual-player score timeline chart) while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
 - **Installable Phone App (PWA)**:
-  - Includes a Web App Manifest (`manifest.json`), home-screen icons, safe-area inset padding, and an offline-capable Service Worker (`sw.js`).
-  - **iPhone / iPad (Safari)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap **Share** → **Add to Home Screen**.
-  - **Android (Chrome)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap **Install App** (or **⋮ → Add to Home screen**).
+  - Includes a Web App Manifest (`manifest.json`), home-screen icons, safe-area inset padding, Android immersive fullscreen, a header `📲` install button, and an offline-capable Service Worker (`sw.js`).
+  - **iPhone / iPad (Safari)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap `📲` (or **Share** → **Add to Home Screen**).
+  - **Android (Chrome)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap `📲` (or **⋮ → Add to Home screen**).
 
 ## Running Locally
 
