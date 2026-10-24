@@ -907,6 +907,50 @@ html, body {
   color: var(--wrong);
 }
 
+.race-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 11px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow);
+}
+
+.race-vs-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-diff-badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.race-diff-badge.ahead {
+  background: hsl(145, 70%, 92%);
+  color: var(--right);
+}
+
+.race-diff-badge.behind {
+  background: var(--wrong-bg);
+  color: var(--wrong);
+}
+
+.race-diff-badge.tied {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
 /* Equation Card */
 .equation-wrap {
   display: flex;

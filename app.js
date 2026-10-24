@@ -27,6 +27,9 @@ let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
 let isPlaying = false;
 let isPracticeMode = false;
+let isRaceMode = false;
+let raceSessionData = null;
+let raceRafId = null;
 let isReplaying = false;
 let isReplayPaused = false;
 let replaySpeed = 1;
@@ -79,11 +82,13 @@ const lastScoreLabel = document.getElementById('last-score-label');
 const lastScoreValue = document.getElementById('last-score-value');
 const lastScoreDetail = document.getElementById('last-score-detail');
 const replayLastBtn = document.getElementById('replay-last-btn');
+const raceLastBtn = document.getElementById('race-last-btn');
 const shareLastBtn = document.getElementById('share-last-btn');
 const myRankValue = document.getElementById('my-rank-value');
 const myBestValue = document.getElementById('my-best-value');
 const myBestActions = document.getElementById('my-best-actions');
 const replayBestBtn = document.getElementById('replay-best-btn');
+const raceBestBtn = document.getElementById('race-best-btn');
 const shareBestBtn = document.getElementById('share-best-btn');
 const leaderboardList = document.getElementById('leaderboard-list');
 const reviewCard = document.getElementById('review-card');
@@ -115,6 +120,7 @@ const replayStepBadge = document.getElementById('replay-step-badge');
 const replayPauseBtn = document.getElementById('replay-pause-btn');
 const replaySpeedBtn = document.getElementById('replay-speed-btn');
 const replayRestartBtn = document.getElementById('replay-restart-btn');
+const replayRaceBtn = document.getElementById('replay-race-btn');
 const replayShareBtn = document.getElementById('replay-share-btn');
 const replayLogList = document.getElementById('replay-log-list');
 const replayTimeline = document.getElementById('replay-timeline');
@@ -122,6 +128,9 @@ const replayTimelineSegments = document.getElementById('replay-timeline-segments
 const replayTimelineFill = document.getElementById('replay-timeline-fill');
 const replayTimelineMarkers = document.getElementById('replay-timeline-markers');
 const replayTimelineThumb = document.getElementById('replay-timeline-thumb');
+const raceHudBar = document.getElementById('race-hud-bar');
+const raceVsText = document.getElementById('race-vs-text');
+const raceDiffBadge = document.getElementById('race-diff-badge');
 const celebrationCanvas = document.getElementById('celebration-canvas');
 const installAppBtn = document.getElementById('install-app-btn');
 const installHint = document.getElementById('install-hint');
@@ -842,6 +851,13 @@ function renderLeaderboard() {
       replayBtn.title = `Replay ${entry.username}'s best game`;
       replayBtn.addEventListener('click', () => startReplay(replaySession));
 
+      const raceBtn = document.createElement('button');
+      raceBtn.type = 'button';
+      raceBtn.className = 'inline-btn';
+      raceBtn.textContent = '⚔️ Race';
+      raceBtn.title = `Race against ${entry.username}'s best game`;
+      raceBtn.addEventListener('click', () => startRace(replaySession));
+
       const shareBtn = document.createElement('button');
       shareBtn.type = 'button';
       shareBtn.className = 'inline-btn';
@@ -849,7 +865,7 @@ function renderLeaderboard() {
       shareBtn.title = `Copy share link for ${entry.username}'s best game`;
       shareBtn.addEventListener('click', () => copyReplayLink(replaySession, shareBtn));
 
-      rightGroup.append(replayBtn, shareBtn);
+      rightGroup.append(replayBtn, raceBtn, shareBtn);
     }
 
     const scoreSpan = document.createElement('span');
@@ -1389,7 +1405,24 @@ function generatePracticeQuestion() {
   };
 }
 
+function generateRaceQuestion() {
+  if (raceSessionData && raceSessionData.questionIndex < raceSessionData.session.questions.length) {
+    const rawQ = raceSessionData.session.questions[raceSessionData.questionIndex];
+    raceSessionData.questionIndex += 1;
+    const q = normalizeQuestionRecord(rawQ);
+    return {
+      nums: [...q.nums],
+      op: q.op,
+      missingIndex: q.missingIndex,
+      answer: q.expected,
+      key: getQuestionKeyFromRecord(q)
+    };
+  }
+  return generateRandomQuestion();
+}
+
 function generateQuestion() {
+  if (isRaceMode) return generateRaceQuestion();
   return isPracticeMode ? generatePracticeQuestion() : generateRandomQuestion();
 }
 
@@ -1441,12 +1474,63 @@ function renderQuestion() {
   });
 }
 
+function getOpponentStatsAt(timeline, elapsedMs) {
+  const { segments, totalDurationMs } = timeline;
+  const clampedMs = Math.min(Math.max(0, elapsedMs), totalDurationMs);
+  let rCount = 0;
+  let wCount = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (clampedMs >= seg.endMs) {
+      rCount += seg.question.right > 0 ? 1 : 0;
+      wCount += seg.question.wrong || 0;
+    } else {
+      seg.events.forEach((ev) => {
+        if (clampedMs >= ev.triggerMs) {
+          if (ev.isRight) rCount += 1;
+          else wCount += 1;
+        }
+      });
+      break;
+    }
+  }
+  return { right: rCount, wrong: wCount, score: rCount - wCount };
+}
+
+function updateRaceHud() {
+  if (!isRaceMode || !raceSessionData || !raceHudBar) return;
+  const elapsedMs = Date.now() - gameStartTime;
+  const oppStats = getOpponentStatsAt(raceSessionData.timeline, elapsedMs);
+  const myScore = rightCount - wrongCount;
+  const oppScore = oppStats.score;
+  const diff = myScore - oppScore;
+  const oppName = raceSessionData.session.username || 'Opponent';
+
+  if (raceVsText) {
+    raceVsText.textContent = `⚔️ You: ${myScore} vs ${oppName}: ${oppScore}`;
+  }
+  if (raceDiffBadge) {
+    raceDiffBadge.className =
+      'race-diff-badge ' + (diff > 0 ? 'ahead' : diff < 0 ? 'behind' : 'tied');
+    raceDiffBadge.textContent = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Tied';
+  }
+}
+
+function tickRaceHud() {
+  if (!isPlaying || !isRaceMode || !raceSessionData) return;
+  updateRaceHud();
+  raceRafId = requestAnimationFrame(tickRaceHud);
+}
+
 function updateHud() {
   const score = rightCount - wrongCount;
   scoreDisplay.textContent = score;
   rightDisplay.textContent = rightCount;
   wrongDisplay.textContent = wrongCount;
   timerDisplay.textContent = `${timeLeft}s`;
+  if (isRaceMode) {
+    updateRaceHud();
+  }
 }
 
 function nextQuestion() {
@@ -1645,20 +1729,40 @@ function enterAndroidImmersiveFullscreen() {
   }
 }
 
-function startGame(practice = false) {
+function startGame(practice = false, raceTargetSession = null) {
   enterAndroidImmersiveFullscreen();
   stopCelebration();
+  if (raceRafId) {
+    cancelAnimationFrame(raceRafId);
+    raceRafId = null;
+  }
   if (isReplaying) {
     stopReplay(false);
   }
   saveUsername(usernameInput.value);
   closeNewConfigPanel();
 
+  if (raceTargetSession && raceTargetSession.configId && configs.some(c => c.id === raceTargetSession.configId)) {
+    activeConfigId = raceTargetSession.configId;
+    localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+    renderConfigsUI();
+    renderLeaderboard();
+    renderReview();
+  }
+
   const activeCfg = getActiveConfig();
   if (!activeCfg || getValidSamplers(activeCfg).length === 0) return;
 
   isPlaying = true;
-  isPracticeMode = Boolean(practice);
+  isRaceMode = Boolean(raceTargetSession && Array.isArray(raceTargetSession.questions) && raceTargetSession.questions.length > 0);
+  isPracticeMode = !isRaceMode && Boolean(practice);
+  raceSessionData = isRaceMode
+    ? {
+        session: raceTargetSession,
+        timeline: buildReplayTimeline(raceTargetSession),
+        questionIndex: 0
+      }
+    : null;
   timeLeft = GAME_DURATION_SECONDS;
   rightCount = 0;
   wrongCount = 0;
@@ -1668,8 +1772,9 @@ function startGame(practice = false) {
   currentQuestionRecord = null;
 
   if (replayPanel) replayPanel.classList.add('hidden');
+  if (raceHudBar) raceHudBar.classList.toggle('hidden', !isRaceMode);
   keypad.classList.remove('hidden');
-  quitBtn.textContent = isPracticeMode ? 'End Practice' : 'End Game';
+  quitBtn.textContent = isRaceMode ? 'End Race' : isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
   updateInstallBtnVisibility();
   homeView.classList.remove('active');
@@ -1677,6 +1782,10 @@ function startGame(practice = false) {
 
   updateHud();
   nextQuestion();
+
+  if (isRaceMode) {
+    raceRafId = requestAnimationFrame(tickRaceHud);
+  }
 
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
@@ -1688,12 +1797,26 @@ function startGame(practice = false) {
   }, 1000);
 }
 
+function startRace(targetSession) {
+  if (!targetSession || !Array.isArray(targetSession.questions) || targetSession.questions.length === 0) return;
+  startGame(false, targetSession);
+}
+
 async function finishGame(saveScore) {
   clearInterval(timerInterval);
   timerInterval = null;
+  if (raceRafId) {
+    cancelAnimationFrame(raceRafId);
+    raceRafId = null;
+  }
   isPlaying = false;
   const wasPractice = isPracticeMode;
+  const wasRace = isRaceMode;
+  const finishedRaceSession = raceSessionData ? raceSessionData.session : null;
   isPracticeMode = false;
+  isRaceMode = false;
+  raceSessionData = null;
+  if (raceHudBar) raceHudBar.classList.add('hidden');
 
   if (currentQuestionRecord && currentQuestionRecord.wrong > 0) {
     currentQuestionRecord.durationMs = Date.now() - questionStartTime;
@@ -1717,7 +1840,8 @@ async function finishGame(saveScore) {
       username,
       configId: activeConfigId,
       playedAt: Date.now(),
-      isPractice: wasPractice,
+      isPractice: wasPractice || wasRace,
+      isRace: wasRace,
       score: finalScore,
       right: rightCount,
       wrong: wrongCount,
@@ -1730,9 +1854,32 @@ async function finishGame(saveScore) {
 
     const hasReplayableQuestions = normalizedQuestions.length > 0;
     if (replayLastBtn) replayLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
+    if (raceLastBtn) raceLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
     if (shareLastBtn) shareLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
 
-    if (wasPractice) {
+    if (wasRace && finishedRaceSession) {
+      const oppName = finishedRaceSession.username || 'Opponent';
+      const oppRight = typeof finishedRaceSession.right === 'number' ? finishedRaceSession.right : 0;
+      const oppWrong = typeof finishedRaceSession.wrong === 'number' ? finishedRaceSession.wrong : 0;
+      const oppScore = typeof finishedRaceSession.score === 'number'
+        ? finishedRaceSession.score
+        : oppRight - oppWrong;
+      const diff = finalScore - oppScore;
+      const diffStr = diff > 0 ? `+${diff}` : String(diff);
+
+      lastResult.classList.toggle('new-high-score', diff > 0);
+      if (diff > 0) {
+        lastScoreLabel.textContent = `🏆 Beat ${oppName}! (${diffStr}) · Not Ranked`;
+      } else if (diff === 0) {
+        lastScoreLabel.textContent = `🤝 Tied with ${oppName}! · Not Ranked`;
+      } else {
+        lastScoreLabel.textContent = `⚔️ Race vs ${oppName} (${diffStr}) · Not Ranked`;
+      }
+      lastScoreValue.textContent = finalScore;
+      lastScoreDetail.textContent = `You: ${finalScore} (${rightCount}✓ ${wrongCount}✗) · ${oppName}: ${oppScore} (${oppRight}✓ ${oppWrong}✗)`;
+      lastResult.classList.remove('hidden');
+      triggerCelebration(diff > 0);
+    } else if (wasPractice) {
       lastResult.classList.remove('new-high-score');
       lastScoreLabel.textContent = 'Practice Score (Not Ranked)';
       lastScoreValue.textContent = finalScore;
@@ -2157,6 +2304,13 @@ function startReplay(session) {
     timerInterval = null;
     isPlaying = false;
   }
+  if (raceRafId) {
+    cancelAnimationFrame(raceRafId);
+    raceRafId = null;
+  }
+  isRaceMode = false;
+  raceSessionData = null;
+  if (raceHudBar) raceHudBar.classList.add('hidden');
   if (replayRafId) {
     cancelAnimationFrame(replayRafId);
     replayRafId = null;
@@ -2313,6 +2467,11 @@ if (replayLastBtn) {
     if (lastCompletedSession) startReplay(lastCompletedSession);
   });
 }
+if (raceLastBtn) {
+  raceLastBtn.addEventListener('click', () => {
+    if (lastCompletedSession) startRace(lastCompletedSession);
+  });
+}
 if (shareLastBtn) {
   shareLastBtn.addEventListener('click', () => {
     if (lastCompletedSession) copyReplayLink(lastCompletedSession, shareLastBtn);
@@ -2322,6 +2481,12 @@ if (replayBestBtn) {
   replayBestBtn.addEventListener('click', () => {
     const best = getMyBestReplaySession();
     if (best) startReplay(best);
+  });
+}
+if (raceBestBtn) {
+  raceBestBtn.addEventListener('click', () => {
+    const best = getMyBestReplaySession();
+    if (best) startRace(best);
   });
 }
 if (shareBestBtn) {
@@ -2338,6 +2503,13 @@ if (replaySpeedBtn) {
 }
 if (replayRestartBtn) {
   replayRestartBtn.addEventListener('click', restartReplay);
+}
+if (replayRaceBtn) {
+  replayRaceBtn.addEventListener('click', () => {
+    if (replaySessionData && replaySessionData.session) {
+      startRace(replaySessionData.session);
+    }
+  });
 }
 if (replayShareBtn) {
   replayShareBtn.addEventListener('click', () => {

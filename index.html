@@ -138,6 +138,7 @@
         <div id="last-score-detail" class="result-score-detail">0 right · 0 wrong</div>
         <div id="last-result-actions" class="result-actions">
           <button id="replay-last-btn" class="mini-action-btn" type="button">▶ Replay</button>
+          <button id="race-last-btn" class="mini-action-btn" type="button">⚔️ Race</button>
           <button id="share-last-btn" class="mini-action-btn" type="button">🔗 Share Replay</button>
         </div>
       </div>
@@ -198,6 +199,7 @@
             <span>Best: <strong id="my-best-value">—</strong></span>
             <span id="my-best-actions" class="inline-actions hidden">
               <button id="replay-best-btn" class="inline-btn" type="button" title="Replay your best game">▶ Replay</button>
+              <button id="race-best-btn" class="inline-btn" type="button" title="Race against your best game">⚔️ Race</button>
               <button id="share-best-btn" class="inline-btn" type="button" title="Copy share link for your best game">🔗 Share</button>
             </span>
           </span>
@@ -230,6 +232,11 @@
             <span id="right-display" class="text-right">0</span> / <span id="wrong-display" class="text-wrong">0</span>
           </span>
         </div>
+      </div>
+
+      <div id="race-hud-bar" class="race-hud-bar hidden" aria-live="off">
+        <span id="race-vs-text" class="race-vs-text">⚔️ You: 0 vs Opponent: 0</span>
+        <span id="race-diff-badge" class="race-diff-badge tied">Tied</span>
       </div>
 
       <div class="equation-wrap">
@@ -283,6 +290,7 @@
           <button id="replay-pause-btn" class="mini-action-btn" type="button">⏸ Pause</button>
           <button id="replay-speed-btn" class="mini-action-btn" type="button">1× Speed</button>
           <button id="replay-restart-btn" class="mini-action-btn" type="button">↻ Restart</button>
+          <button id="replay-race-btn" class="mini-action-btn" type="button">⚔️ Race</button>
           <button id="replay-share-btn" class="mini-action-btn" type="button">🔗 Share</button>
         </div>
         <ol id="replay-log-list" class="review-list replay-log-list"></ol>
