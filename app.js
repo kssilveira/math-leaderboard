@@ -2500,7 +2500,6 @@ function renderReplayRaceChart(timeline, opponentTimeline, session) {
   const samples = [];
   let minScore = 0;
   let maxScore = 5;
-  let maxAbsDelta = 2;
 
   for (let i = 0; i <= steps; i++) {
     const t = (i / steps) * totalDurationMs;
@@ -2509,7 +2508,6 @@ function renderReplayRaceChart(timeline, opponentTimeline, session) {
     const delta = p1 - p2;
     minScore = Math.min(minScore, p1, p2);
     maxScore = Math.max(maxScore, p1, p2);
-    maxAbsDelta = Math.max(maxAbsDelta, Math.abs(delta));
     samples.push({ t, p1, p2, delta });
   }
 
@@ -2517,19 +2515,14 @@ function renderReplayRaceChart(timeline, opponentTimeline, session) {
   const scoreTop = 8;
   const scoreBottom = 64;
   const scoreH = scoreBottom - scoreTop;
-  const deltaMid = 92;
-  const deltaHalfH = 14;
 
   const getX = (ms) => (Math.min(Math.max(0, ms), totalDurationMs) / totalDurationMs) * width;
   const getScoreY = (s) => scoreBottom - ((s - minScore) / Math.max(1, maxScore - minScore)) * scoreH;
-  const getDeltaY = (d) => deltaMid - (d / Math.max(1, maxAbsDelta)) * deltaHalfH;
 
   let svg = '';
   const yZeroScore = getScoreY(0).toFixed(1);
   svg += `<line x1="0" y1="${scoreTop}" x2="${width}" y2="${scoreTop}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1" />`;
   svg += `<line x1="0" y1="${yZeroScore}" x2="${width}" y2="${yZeroScore}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1" />`;
-  svg += `<line x1="0" y1="72" x2="${width}" y2="72" stroke="var(--border)" stroke-width="1" />`;
-  svg += `<line x1="0" y1="${deltaMid}" x2="${width}" y2="${deltaMid}" stroke="var(--border)" stroke-dasharray="2 2" stroke-width="1" />`;
 
   for (let i = 0; i < steps; i++) {
     const s0 = samples[i];
@@ -2543,16 +2536,9 @@ function renderReplayRaceChart(timeline, opponentTimeline, session) {
     const avgDelta = (s0.delta + s1.delta) / 2;
 
     if (avgDelta !== 0) {
-      const fill = avgDelta > 0 ? 'hsla(145, 70%, 45%, 0.2)' : 'hsla(355, 85%, 55%, 0.2)';
+      const fill = avgDelta > 0 ? 'hsla(145, 70%, 45%, 0.22)' : 'hsla(355, 85%, 55%, 0.22)';
       svg += `<polygon points="${x1},${y1a} ${x2},${y2a} ${x2},${y2b} ${x1},${y1b}" fill="${fill}" />`;
     }
-
-    const yd1 = getDeltaY(s0.delta).toFixed(1);
-    const yd2 = getDeltaY(s1.delta).toFixed(1);
-    const dFill = avgDelta >= 0 ? 'hsla(145, 70%, 45%, 0.28)' : 'hsla(355, 85%, 55%, 0.28)';
-    const dStroke = avgDelta >= 0 ? 'var(--right)' : 'var(--wrong)';
-    svg += `<polygon points="${x1},${deltaMid} ${x1},${yd1} ${x2},${yd2} ${x2},${deltaMid}" fill="${dFill}" />`;
-    svg += `<line x1="${x1}" y1="${yd1}" x2="${x2}" y2="${yd2}" stroke="${dStroke}" stroke-width="1.8" stroke-linecap="round" />`;
   }
 
   const p2Pts = samples.map(s => `${getX(s.t).toFixed(1)},${getScoreY(s.p2).toFixed(1)}`).join(' ');
@@ -2562,36 +2548,30 @@ function renderReplayRaceChart(timeline, opponentTimeline, session) {
 
   svg += `<text x="4" y="${scoreTop + 8}" font-size="9" font-weight="700" fill="var(--text-muted)">${maxScore}</text>`;
   svg += `<text x="4" y="${Math.min(62, parseFloat(yZeroScore) - 2).toFixed(1)}" font-size="9" font-weight="700" fill="var(--text-muted)">0</text>`;
-  svg += `<text x="4" y="83" font-size="8.5" font-weight="700" fill="var(--right)">+${maxAbsDelta}</text>`;
-  svg += `<text x="4" y="108" font-size="8.5" font-weight="700" fill="var(--wrong)">−${maxAbsDelta}</text>`;
 
   const initY = getScoreY(0).toFixed(1);
-  svg += `<line id="replay-chart-playhead" x1="0" y1="4" x2="0" y2="108" stroke="var(--text-muted)" stroke-width="1.2" stroke-dasharray="2 2" />`;
+  svg += `<line id="replay-chart-playhead" x1="0" y1="4" x2="0" y2="68" stroke="var(--text-muted)" stroke-width="1.2" stroke-dasharray="2 2" />`;
   svg += `<circle id="replay-chart-p2-dot" cx="0" cy="${initY}" r="3.2" fill="hsl(36, 95%, 48%)" stroke="var(--surface)" stroke-width="1.2" />`;
   svg += `<circle id="replay-chart-p1-dot" cx="0" cy="${initY}" r="3.6" fill="hsl(217, 91%, 56%)" stroke="var(--surface)" stroke-width="1.2" />`;
-  svg += `<circle id="replay-chart-delta-dot" cx="0" cy="${deltaMid}" r="3" fill="var(--text-muted)" stroke="var(--surface)" stroke-width="1.2" />`;
 
   replayRaceChart.innerHTML = svg;
 
   return {
     getX,
     getScoreY,
-    getDeltaY,
     playheadEl: document.getElementById('replay-chart-playhead'),
     p1DotEl: document.getElementById('replay-chart-p1-dot'),
-    p2DotEl: document.getElementById('replay-chart-p2-dot'),
-    deltaDotEl: document.getElementById('replay-chart-delta-dot')
+    p2DotEl: document.getElementById('replay-chart-p2-dot')
   };
 }
 
 function updateReplayRaceChartPlayhead(clampedMs, myScore, oppScore) {
   if (!replaySessionData || !replaySessionData.raceChartMeta) return;
-  const { getX, getScoreY, getDeltaY, playheadEl, p1DotEl, p2DotEl, deltaDotEl } = replaySessionData.raceChartMeta;
+  const { getX, getScoreY, playheadEl, p1DotEl, p2DotEl } = replaySessionData.raceChartMeta;
   const diff = myScore - oppScore;
   const cx = getX(clampedMs).toFixed(1);
   const y1 = getScoreY(myScore).toFixed(1);
   const y2 = getScoreY(oppScore).toFixed(1);
-  const yd = getDeltaY(diff).toFixed(1);
 
   if (playheadEl) {
     playheadEl.setAttribute('x1', cx);
@@ -2604,14 +2584,6 @@ function updateReplayRaceChartPlayhead(clampedMs, myScore, oppScore) {
   if (p2DotEl) {
     p2DotEl.setAttribute('cx', cx);
     p2DotEl.setAttribute('cy', y2);
-  }
-  if (deltaDotEl) {
-    deltaDotEl.setAttribute('cx', cx);
-    deltaDotEl.setAttribute('cy', yd);
-    deltaDotEl.setAttribute(
-      'fill',
-      diff > 0 ? 'var(--right)' : diff < 0 ? 'var(--wrong)' : 'var(--text-muted)'
-    );
   }
   if (replayChartLive) {
     const sec = Math.floor(clampedMs / 1000);
