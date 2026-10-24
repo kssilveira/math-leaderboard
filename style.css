@@ -168,6 +168,20 @@ html, body {
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
+  transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.icon-btn:active {
+  transform: scale(0.93);
+}
+
+.sound-btn {
+  font-size: 0.86rem;
+}
+
+.sound-btn.muted {
+  opacity: 0.58;
+  background: var(--surface-subtle);
 }
 
 .danger-btn:active,

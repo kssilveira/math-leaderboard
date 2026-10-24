@@ -22,6 +22,7 @@ Mobile-friendly 1-minute math game with shared game configurations, multi-user s
   - Right answers automatically advance to the next question.
   - Wrong answers stay visible and are automatically erased when a new answer starts being typed.
   - Score is `total right - total wrong` in the 1-minute window (ending a game early also saves the current score), followed by a celebratory confetti & score-pop animation at the end of each game.
+  - **🔊 Zero-Asset Sound Effects & Haptics**: Web Audio API synthesis + `navigator.vibrate` (soft click on keypad press, ascending streak chime on right answers, descending buzz + phone vibration on wrong answers, final 5-second countdown ticks, and a victory chord on game end), with a persistent `🔊`/`🔇` toggle in the header.
 - **Practice Mode (`Practice Weak & Slow`)**:
   - Prioritizes questions from past games that had mistakes or took the longest average time.
   - Shows a `Last:` badge above the equation with previous wrong attempts and running average duration.
