@@ -114,6 +114,13 @@ const slotOp = document.getElementById('slot-op');
 const keypad = document.getElementById('keypad');
 const minusKey = document.getElementById('minus-key');
 const replayPanel = document.getElementById('replay-panel');
+const replayResultBanner = document.getElementById('replay-result-banner');
+const replayBannerLabel = document.getElementById('replay-banner-label');
+const replayBannerValue = document.getElementById('replay-banner-value');
+const replayBannerDetail = document.getElementById('replay-banner-detail');
+const replayBannerRestartBtn = document.getElementById('replay-banner-restart-btn');
+const replayBannerRaceBtn = document.getElementById('replay-banner-race-btn');
+const replayBannerShareBtn = document.getElementById('replay-banner-share-btn');
 const replayPlayBtn = document.getElementById('replay-play-btn');
 const replayTitle = document.getElementById('replay-title');
 const replayStepBadge = document.getElementById('replay-step-badge');
@@ -1775,6 +1782,7 @@ function startGame(practice = false, raceTargetSession = null) {
   currentQuestionRecord = null;
 
   if (replayPanel) replayPanel.classList.add('hidden');
+  if (replayResultBanner) replayResultBanner.classList.add('hidden');
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !isRaceMode);
   keypad.classList.remove('hidden');
   quitBtn.textContent = isRaceMode ? 'End Race' : isPracticeMode ? 'End Practice' : 'End Game';
@@ -2335,6 +2343,16 @@ function startReplay(session) {
 
   if (questionLastPerf) questionLastPerf.classList.add('hidden');
   keypad.classList.add('hidden');
+  if (replayResultBanner) {
+    const playerName = session.username || 'Player';
+    const rightVal = typeof session.right === 'number' ? session.right : 0;
+    const wrongVal = typeof session.wrong === 'number' ? session.wrong : 0;
+    const scoreVal = typeof session.score === 'number' ? session.score : rightVal - wrongVal;
+    if (replayBannerLabel) replayBannerLabel.textContent = `${playerName}'s Score`;
+    if (replayBannerValue) replayBannerValue.textContent = scoreVal;
+    if (replayBannerDetail) replayBannerDetail.textContent = `${rightVal} right · ${wrongVal} wrong`;
+    replayResultBanner.classList.remove('hidden');
+  }
   if (replayPlayBtn) replayPlayBtn.classList.remove('hidden');
   if (replayPanel) replayPanel.classList.remove('hidden');
   if (replayTitle) {
@@ -2362,6 +2380,7 @@ function stopReplay(returnHome = true) {
   isReplayPaused = false;
   replaySessionData = null;
 
+  if (replayResultBanner) replayResultBanner.classList.add('hidden');
   if (replayPlayBtn) replayPlayBtn.classList.add('hidden');
   if (replayPanel) replayPanel.classList.add('hidden');
   keypad.classList.remove('hidden');
@@ -2507,8 +2526,18 @@ if (replaySpeedBtn) {
 if (replayRestartBtn) {
   replayRestartBtn.addEventListener('click', restartReplay);
 }
+if (replayBannerRestartBtn) {
+  replayBannerRestartBtn.addEventListener('click', restartReplay);
+}
 if (replayRaceBtn) {
   replayRaceBtn.addEventListener('click', () => {
+    if (replaySessionData && replaySessionData.session) {
+      startRace(replaySessionData.session);
+    }
+  });
+}
+if (replayBannerRaceBtn) {
+  replayBannerRaceBtn.addEventListener('click', () => {
     if (replaySessionData && replaySessionData.session) {
       startRace(replaySessionData.session);
     }
@@ -2518,6 +2547,13 @@ if (replayShareBtn) {
   replayShareBtn.addEventListener('click', () => {
     if (replaySessionData && replaySessionData.session) {
       copyReplayLink(replaySessionData.session, replayShareBtn);
+    }
+  });
+}
+if (replayBannerShareBtn) {
+  replayBannerShareBtn.addEventListener('click', () => {
+    if (replaySessionData && replaySessionData.session) {
+      copyReplayLink(replaySessionData.session, replayBannerShareBtn);
     }
   });
 }

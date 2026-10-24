@@ -213,6 +213,17 @@
 
     <!-- GAME VIEW -->
     <section id="game-view" class="view" aria-live="polite">
+      <div id="replay-result-banner" class="result-banner hidden">
+        <div id="replay-banner-label" class="result-score-label">Replay Score</div>
+        <div id="replay-banner-value" class="result-score-value">0</div>
+        <div id="replay-banner-detail" class="result-score-detail">0 right · 0 wrong</div>
+        <div class="result-actions">
+          <button id="replay-banner-restart-btn" class="mini-action-btn" type="button">▶ Replay</button>
+          <button id="replay-banner-race-btn" class="mini-action-btn" type="button">⚔️ Race</button>
+          <button id="replay-banner-share-btn" class="mini-action-btn" type="button">🔗 Share Replay</button>
+        </div>
+      </div>
+
       <button id="replay-play-btn" class="primary-btn small-btn hidden" type="button">
         Play 1-Minute Game
       </button>
