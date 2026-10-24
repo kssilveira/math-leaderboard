@@ -99,11 +99,15 @@ html, body {
   background: var(--primary-light);
   color: var(--primary);
   border-radius: 999px;
-  padding: 4px 9px;
-  font-size: 0.74rem;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
   flex-shrink: 0;
   transition: transform 0.06s ease, background 0.12s ease;
 }
