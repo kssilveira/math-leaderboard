@@ -118,7 +118,12 @@ const replayRestartBtn = document.getElementById('replay-restart-btn');
 const replayShareBtn = document.getElementById('replay-share-btn');
 const replayLogList = document.getElementById('replay-log-list');
 const celebrationCanvas = document.getElementById('celebration-canvas');
+const installAppBtn = document.getElementById('install-app-btn');
+const installHint = document.getElementById('install-hint');
+const installHintText = document.getElementById('install-hint-text');
+const installHintClose = document.getElementById('install-hint-close');
 let celebrationRafId = null;
+let deferredInstallPrompt = null;
 
 // --- Helpers ---
 
@@ -1661,6 +1666,7 @@ function startGame(practice = false) {
   keypad.classList.remove('hidden');
   quitBtn.textContent = isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
+  updateInstallBtnVisibility();
   homeView.classList.remove('active');
   gameView.classList.add('active');
 
@@ -1696,6 +1702,7 @@ async function finishGame(saveScore) {
   const normalizedQuestions = currentGameQuestions.map(normalizeQuestionRecord);
 
   deleteUserBtn.classList.remove('hidden');
+  updateInstallBtnVisibility();
   gameView.classList.remove('active');
   homeView.classList.add('active');
 
@@ -2113,6 +2120,7 @@ function startReplay(session) {
   quitBtn.textContent = 'Exit Replay';
 
   deleteUserBtn.classList.add('hidden');
+  updateInstallBtnVisibility();
   homeView.classList.remove('active');
   gameView.classList.add('active');
 
@@ -2133,6 +2141,7 @@ function stopReplay(returnHome = true) {
   if (replayPanel) replayPanel.classList.add('hidden');
   keypad.classList.remove('hidden');
   deleteUserBtn.classList.remove('hidden');
+  updateInstallBtnVisibility();
 
   if (window.location.search.includes('replay=')) {
     window.history.replaceState({}, '', window.location.pathname);
@@ -2327,8 +2336,76 @@ document.addEventListener('click', (e) => {
   enterAndroidImmersiveFullscreen();
 });
 
+// --- PWA Install Prompt ---
+
+function isStandaloneApp() {
+  return (
+    window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://')
+  );
+}
+
+function updateInstallBtnVisibility() {
+  if (!installAppBtn) return;
+  if (isPlaying || isReplaying || isStandaloneApp()) {
+    installAppBtn.classList.add('hidden');
+    if (installHint) installHint.classList.add('hidden');
+    return;
+  }
+  const isMobileBrowser = /(Android|iPhone|iPad|iPod)/i.test(navigator.userAgent);
+  if (deferredInstallPrompt || isMobileBrowser) {
+    installAppBtn.classList.remove('hidden');
+  } else {
+    installAppBtn.classList.add('hidden');
+  }
+}
+
+function initInstallPrompt() {
+  updateInstallBtnVisibility();
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    updateInstallBtnVisibility();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    updateInstallBtnVisibility();
+  });
+
+  if (installAppBtn) {
+    installAppBtn.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice.catch(() => null);
+        deferredInstallPrompt = null;
+        if (choice && choice.outcome === 'accepted') {
+          updateInstallBtnVisibility();
+        }
+        return;
+      }
+
+      if (!installHint || !installHintText) return;
+      const isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
+      installHintText.textContent = isIOS
+        ? 'To install: tap Share (⍐) in Safari, then tap "Add to Home Screen" ➕.'
+        : 'To install: tap the browser menu (⋮) and select "Add to Home screen" or "Install app".';
+      installHint.classList.toggle('hidden');
+    });
+  }
+
+  if (installHintClose && installHint) {
+    installHintClose.addEventListener('click', () => {
+      installHint.classList.add('hidden');
+    });
+  }
+}
+
 // Initialize
 initUsers();
+initInstallPrompt();
 syncFromFirebase();
 
 if ('serviceWorker' in navigator) {

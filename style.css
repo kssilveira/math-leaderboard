@@ -53,7 +53,14 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .logo {
@@ -61,6 +68,50 @@ html, body {
   font-weight: 800;
   letter-spacing: -0.02em;
   white-space: nowrap;
+}
+
+.install-pill-btn {
+  border: 1px solid hsl(215, 80%, 82%);
+  background: hsl(215, 90%, 95%);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: transform 0.06s ease, background 0.12s ease;
+}
+
+.install-pill-btn:active {
+  transform: scale(0.96);
+  background: hsl(215, 90%, 90%);
+}
+
+.install-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: hsl(215, 90%, 96%);
+  border: 1px solid hsl(215, 80%, 84%);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.install-hint-close {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex-shrink: 0;
 }
 
 .user-actions {
@@ -86,7 +137,7 @@ html, body {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
-  width: 130px;
+  width: 112px;
   text-align: right;
   padding-right: 4px;
   outline: none;
