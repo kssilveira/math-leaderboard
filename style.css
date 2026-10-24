@@ -1047,6 +1047,103 @@ html, body {
   white-space: nowrap;
 }
 
+.replay-timeline {
+  position: relative;
+  padding: 8px 0;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.replay-timeline-track {
+  position: relative;
+  height: 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: visible;
+}
+
+.replay-timeline-segments {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.replay-seg-block {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.replay-seg-block.seg-right {
+  background: hsla(145, 65%, 42%, 0.14);
+}
+
+.replay-seg-block.seg-wrong {
+  background: hsla(355, 78%, 52%, 0.22);
+}
+
+.replay-timeline-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  background: hsla(215, 85%, 48%, 0.22);
+  border-radius: 999px 0 0 999px;
+  pointer-events: none;
+}
+
+.replay-timeline-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.replay-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+.replay-marker.marker-right {
+  background: var(--right);
+}
+
+.replay-marker.marker-wrong {
+  width: 7px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--wrong);
+  z-index: 2;
+}
+
+.replay-timeline-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.replay-timeline:focus-visible .replay-timeline-thumb {
+  box-shadow: 0 0 0 3px hsla(215, 85%, 48%, 0.35);
+}
+
 .replay-controls {
   display: flex;
   flex-wrap: wrap;
@@ -1056,4 +1153,12 @@ html, body {
 .replay-log-list {
   flex: 1;
   max-height: 220px;
+}
+
+.replay-log-list .review-row {
+  cursor: pointer;
+}
+
+.replay-log-list .review-row:active {
+  opacity: 0.8;
 }

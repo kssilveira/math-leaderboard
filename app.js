@@ -117,6 +117,11 @@ const replaySpeedBtn = document.getElementById('replay-speed-btn');
 const replayRestartBtn = document.getElementById('replay-restart-btn');
 const replayShareBtn = document.getElementById('replay-share-btn');
 const replayLogList = document.getElementById('replay-log-list');
+const replayTimeline = document.getElementById('replay-timeline');
+const replayTimelineSegments = document.getElementById('replay-timeline-segments');
+const replayTimelineFill = document.getElementById('replay-timeline-fill');
+const replayTimelineMarkers = document.getElementById('replay-timeline-markers');
+const replayTimelineThumb = document.getElementById('replay-timeline-thumb');
 const celebrationCanvas = document.getElementById('celebration-canvas');
 const installAppBtn = document.getElementById('install-app-btn');
 const installHint = document.getElementById('install-hint');
@@ -1946,9 +1951,60 @@ function buildReplayTimeline(session) {
   return { segments, totalDurationMs };
 }
 
-function createReplayLogRow(q) {
+function renderReplayTimelineBar(timeline) {
+  if (!replayTimelineSegments || !replayTimelineMarkers) return;
+  const { segments, totalDurationMs } = timeline;
+  replayTimelineSegments.innerHTML = '';
+  replayTimelineMarkers.innerHTML = '';
+
+  segments.forEach((seg) => {
+    const leftPct = (seg.startMs / totalDurationMs) * 100;
+    const widthPct = ((seg.endMs - seg.startMs) / totalDurationMs) * 100;
+    const hadMistake = (seg.question.wrong || 0) > 0 || seg.question.right === 0;
+
+    const block = document.createElement('div');
+    block.className = 'replay-seg-block ' + (hadMistake ? 'seg-wrong' : 'seg-right');
+    block.style.left = `${leftPct.toFixed(2)}%`;
+    block.style.width = `${widthPct.toFixed(2)}%`;
+    replayTimelineSegments.appendChild(block);
+
+    seg.events.forEach((ev) => {
+      const markerPct = (ev.triggerMs / totalDurationMs) * 100;
+      const marker = document.createElement('span');
+      marker.className = 'replay-marker ' + (ev.isRight ? 'marker-right' : 'marker-wrong');
+      marker.style.left = `${markerPct.toFixed(2)}%`;
+      replayTimelineMarkers.appendChild(marker);
+    });
+  });
+}
+
+function seekReplayTo(targetMs) {
+  if (!isReplaying || !replaySessionData) return;
+  const { totalDurationMs } = replaySessionData.timeline;
+  const clamped = Math.max(0, Math.min(totalDurationMs, targetMs));
+  const wasFinished = replayElapsedMs >= totalDurationMs;
+  replayElapsedMs = clamped;
+  replayLastTickTime = performance.now();
+
+  if (clamped < totalDurationMs && wasFinished) {
+    isReplayPaused = true;
+    if (replayPauseBtn) replayPauseBtn.textContent = '▶ Resume';
+  }
+
+  renderReplayStateAt(clamped);
+
+  if (!isReplayPaused && clamped < totalDurationMs && !replayRafId) {
+    replayRafId = requestAnimationFrame(tickReplay);
+  }
+}
+
+function createReplayLogRow(q, startMs) {
   const li = document.createElement('li');
   li.className = 'review-row' + (q.wrong > 0 || q.right === 0 ? ' has-wrong' : '');
+  li.title = 'Tap to jump to this question';
+  if (typeof startMs === 'number') {
+    li.addEventListener('click', () => seekReplayTo(startMs));
+  }
 
   const eqSpan = document.createElement('span');
   eqSpan.className = 'review-eq';
@@ -1988,9 +2044,20 @@ function createReplayLogRow(q) {
 
 function renderReplayStateAt(elapsedMs) {
   if (!replaySessionData) return;
-  const { timeline, session } = replaySessionData;
+  const { timeline } = replaySessionData;
   const { segments, totalDurationMs } = timeline;
   const clampedMs = Math.min(elapsedMs, totalDurationMs);
+  const progressPct = totalDurationMs > 0 ? (clampedMs / totalDurationMs) * 100 : 0;
+
+  if (replayTimelineFill) {
+    replayTimelineFill.style.width = `${progressPct.toFixed(2)}%`;
+  }
+  if (replayTimelineThumb) {
+    replayTimelineThumb.style.left = `${progressPct.toFixed(2)}%`;
+  }
+  if (replayTimeline) {
+    replayTimeline.setAttribute('aria-valuenow', String(Math.round(progressPct)));
+  }
 
   let rCount = 0;
   let wCount = 0;
@@ -2056,7 +2123,7 @@ function renderReplayStateAt(elapsedMs) {
   if (replayLogList && replaySessionData.renderedLogCount !== completedCount) {
     replayLogList.innerHTML = '';
     for (let i = completedCount - 1; i >= 0; i--) {
-      replayLogList.appendChild(createReplayLogRow(segments[i].question));
+      replayLogList.appendChild(createReplayLogRow(segments[i].question, segments[i].startMs));
     }
     replaySessionData.renderedLogCount = completedCount;
   }
@@ -2107,6 +2174,7 @@ function startReplay(session) {
     timeline,
     renderedLogCount: -1
   };
+  renderReplayTimelineBar(timeline);
 
   if (questionLastPerf) questionLastPerf.classList.add('hidden');
   keypad.classList.add('hidden');
@@ -2275,6 +2343,54 @@ if (replayShareBtn) {
   replayShareBtn.addEventListener('click', () => {
     if (replaySessionData && replaySessionData.session) {
       copyReplayLink(replaySessionData.session, replayShareBtn);
+    }
+  });
+}
+
+if (replayTimeline) {
+  let isScrubbing = false;
+
+  const scrubFromClientX = (clientX) => {
+    if (!replaySessionData) return;
+    const rect = replayTimeline.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    seekReplayTo(ratio * replaySessionData.timeline.totalDurationMs);
+  };
+
+  replayTimeline.addEventListener('pointerdown', (e) => {
+    if (!isReplaying || !replaySessionData) return;
+    e.preventDefault();
+    isScrubbing = true;
+    if (replayTimeline.setPointerCapture) {
+      try {
+        replayTimeline.setPointerCapture(e.pointerId);
+      } catch (_) {}
+    }
+    scrubFromClientX(e.clientX);
+  });
+
+  replayTimeline.addEventListener('pointermove', (e) => {
+    if (!isScrubbing) return;
+    e.preventDefault();
+    scrubFromClientX(e.clientX);
+  });
+
+  const endScrub = () => {
+    isScrubbing = false;
+  };
+  replayTimeline.addEventListener('pointerup', endScrub);
+  replayTimeline.addEventListener('pointercancel', endScrub);
+
+  replayTimeline.addEventListener('keydown', (e) => {
+    if (!isReplaying || !replaySessionData) return;
+    const stepMs = 2000;
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      seekReplayTo(replayElapsedMs + stepMs);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      seekReplayTo(replayElapsedMs - stepMs);
     }
   });
 }

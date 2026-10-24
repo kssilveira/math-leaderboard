@@ -35,6 +35,7 @@ Mobile-friendly 1-minute math game with shared game configurations, multi-user s
     - **To Practice**: All tracked questions across past games with running average duration and mistake history.
 - **Interactive Replays & Shareable Links**:
   - Watch step-by-step replays (`▶ Replay`) of your last game, your best game, or any player's best game on the global leaderboard (`1×` / `2×` / `4×` speed, pause/resume, restart, and live question log).
+  - **Interactive Replay Timeline Bar**: Scrub or tap anywhere along the 60-second timeline (with green right-answer and red wrong-answer markers, or tap any question row in the log) to jump to any moment in the replay.
   - Includes a **Play 1-Minute Game** button at the top of the replay view so recipients of a shared replay can jump right into playing.
   - **🔗 Share Replay** copies a self-contained `?replay=...` URL (`https://math-leaderboard.vercel.app/?replay=...`).
 - **Global Leaderboards & Live Open Graph Previews**:

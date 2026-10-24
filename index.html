@@ -262,6 +262,23 @@
           <span id="replay-title" class="replay-title">Replay</span>
           <span id="replay-step-badge" class="badge">Q 1 / 1</span>
         </div>
+        <div
+          id="replay-timeline"
+          class="replay-timeline"
+          role="slider"
+          aria-label="Replay timeline"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          tabindex="0"
+        >
+          <div class="replay-timeline-track">
+            <div id="replay-timeline-segments" class="replay-timeline-segments"></div>
+            <div id="replay-timeline-fill" class="replay-timeline-fill"></div>
+            <div id="replay-timeline-markers" class="replay-timeline-markers"></div>
+            <div id="replay-timeline-thumb" class="replay-timeline-thumb"></div>
+          </div>
+        </div>
         <div class="replay-controls">
           <button id="replay-pause-btn" class="mini-action-btn" type="button">⏸ Pause</button>
           <button id="replay-speed-btn" class="mini-action-btn" type="button">1× Speed</button>
