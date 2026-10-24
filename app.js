@@ -138,6 +138,11 @@ const replayRaceBtn = document.getElementById('replay-race-btn');
 const replayShareBtn = document.getElementById('replay-share-btn');
 const replayLogList = document.getElementById('replay-log-list');
 const replayTimeline = document.getElementById('replay-timeline');
+const replayRaceChartWrap = document.getElementById('replay-race-chart-wrap');
+const replayRaceChart = document.getElementById('replay-race-chart');
+const replayChartP1Name = document.getElementById('replay-chart-p1-name');
+const replayChartP2Name = document.getElementById('replay-chart-p2-name');
+const replayChartLive = document.getElementById('replay-chart-live');
 const replayTimelineSegments = document.getElementById('replay-timeline-segments');
 const replayTimelineFill = document.getElementById('replay-timeline-fill');
 const replayTimelineMarkers = document.getElementById('replay-timeline-markers');
@@ -2070,6 +2075,7 @@ function startGame(practice = false, raceTargetSession = null) {
   getAudioContext();
 
   if (replayPanel) replayPanel.classList.add('hidden');
+  if (replayRaceChartWrap) replayRaceChartWrap.classList.add('hidden');
   if (replayResultBanner) replayResultBanner.classList.add('hidden');
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !isRaceMode);
   if (raceOppEq) raceOppEq.classList.add('hidden');
@@ -2475,6 +2481,145 @@ function renderReplayTimelineBar(timeline) {
   });
 }
 
+function renderReplayRaceChart(timeline, opponentTimeline, session) {
+  if (!replayRaceChartWrap || !replayRaceChart) return null;
+  if (!opponentTimeline || !session || !session.opponent) {
+    replayRaceChartWrap.classList.add('hidden');
+    replayRaceChart.innerHTML = '';
+    return null;
+  }
+
+  replayRaceChartWrap.classList.remove('hidden');
+  const p1Name = session.username || 'Player';
+  const p2Name = session.opponent.username || 'Opponent';
+  if (replayChartP1Name) replayChartP1Name.textContent = p1Name;
+  if (replayChartP2Name) replayChartP2Name.textContent = p2Name;
+
+  const totalDurationMs = Math.max(timeline.totalDurationMs, 500);
+  const steps = 90;
+  const samples = [];
+  let minScore = 0;
+  let maxScore = 5;
+  let maxAbsDelta = 2;
+
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * totalDurationMs;
+    const p1 = getOpponentStatsAt(timeline, t).score;
+    const p2 = getOpponentStatsAt(opponentTimeline, t).score;
+    const delta = p1 - p2;
+    minScore = Math.min(minScore, p1, p2);
+    maxScore = Math.max(maxScore, p1, p2);
+    maxAbsDelta = Math.max(maxAbsDelta, Math.abs(delta));
+    samples.push({ t, p1, p2, delta });
+  }
+
+  const width = 360;
+  const scoreTop = 8;
+  const scoreBottom = 64;
+  const scoreH = scoreBottom - scoreTop;
+  const deltaMid = 92;
+  const deltaHalfH = 14;
+
+  const getX = (ms) => (Math.min(Math.max(0, ms), totalDurationMs) / totalDurationMs) * width;
+  const getScoreY = (s) => scoreBottom - ((s - minScore) / Math.max(1, maxScore - minScore)) * scoreH;
+  const getDeltaY = (d) => deltaMid - (d / Math.max(1, maxAbsDelta)) * deltaHalfH;
+
+  let svg = '';
+  const yZeroScore = getScoreY(0).toFixed(1);
+  svg += `<line x1="0" y1="${scoreTop}" x2="${width}" y2="${scoreTop}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1" />`;
+  svg += `<line x1="0" y1="${yZeroScore}" x2="${width}" y2="${yZeroScore}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1" />`;
+  svg += `<line x1="0" y1="72" x2="${width}" y2="72" stroke="var(--border)" stroke-width="1" />`;
+  svg += `<line x1="0" y1="${deltaMid}" x2="${width}" y2="${deltaMid}" stroke="var(--border)" stroke-dasharray="2 2" stroke-width="1" />`;
+
+  for (let i = 0; i < steps; i++) {
+    const s0 = samples[i];
+    const s1 = samples[i + 1];
+    const x1 = getX(s0.t).toFixed(1);
+    const x2 = getX(s1.t).toFixed(1);
+    const y1a = getScoreY(s0.p1).toFixed(1);
+    const y2a = getScoreY(s1.p1).toFixed(1);
+    const y1b = getScoreY(s0.p2).toFixed(1);
+    const y2b = getScoreY(s1.p2).toFixed(1);
+    const avgDelta = (s0.delta + s1.delta) / 2;
+
+    if (avgDelta !== 0) {
+      const fill = avgDelta > 0 ? 'hsla(145, 70%, 45%, 0.2)' : 'hsla(355, 85%, 55%, 0.2)';
+      svg += `<polygon points="${x1},${y1a} ${x2},${y2a} ${x2},${y2b} ${x1},${y1b}" fill="${fill}" />`;
+    }
+
+    const yd1 = getDeltaY(s0.delta).toFixed(1);
+    const yd2 = getDeltaY(s1.delta).toFixed(1);
+    const dFill = avgDelta >= 0 ? 'hsla(145, 70%, 45%, 0.28)' : 'hsla(355, 85%, 55%, 0.28)';
+    const dStroke = avgDelta >= 0 ? 'var(--right)' : 'var(--wrong)';
+    svg += `<polygon points="${x1},${deltaMid} ${x1},${yd1} ${x2},${yd2} ${x2},${deltaMid}" fill="${dFill}" />`;
+    svg += `<line x1="${x1}" y1="${yd1}" x2="${x2}" y2="${yd2}" stroke="${dStroke}" stroke-width="1.8" stroke-linecap="round" />`;
+  }
+
+  const p2Pts = samples.map(s => `${getX(s.t).toFixed(1)},${getScoreY(s.p2).toFixed(1)}`).join(' ');
+  const p1Pts = samples.map(s => `${getX(s.t).toFixed(1)},${getScoreY(s.p1).toFixed(1)}`).join(' ');
+  svg += `<polyline fill="none" stroke="hsl(36, 95%, 48%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${p2Pts}" />`;
+  svg += `<polyline fill="none" stroke="hsl(217, 91%, 56%)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" points="${p1Pts}" />`;
+
+  svg += `<text x="4" y="${scoreTop + 8}" font-size="9" font-weight="700" fill="var(--text-muted)">${maxScore}</text>`;
+  svg += `<text x="4" y="${Math.min(62, parseFloat(yZeroScore) - 2).toFixed(1)}" font-size="9" font-weight="700" fill="var(--text-muted)">0</text>`;
+  svg += `<text x="4" y="83" font-size="8.5" font-weight="700" fill="var(--right)">+${maxAbsDelta}</text>`;
+  svg += `<text x="4" y="108" font-size="8.5" font-weight="700" fill="var(--wrong)">−${maxAbsDelta}</text>`;
+
+  const initY = getScoreY(0).toFixed(1);
+  svg += `<line id="replay-chart-playhead" x1="0" y1="4" x2="0" y2="108" stroke="var(--text-muted)" stroke-width="1.2" stroke-dasharray="2 2" />`;
+  svg += `<circle id="replay-chart-p2-dot" cx="0" cy="${initY}" r="3.2" fill="hsl(36, 95%, 48%)" stroke="var(--surface)" stroke-width="1.2" />`;
+  svg += `<circle id="replay-chart-p1-dot" cx="0" cy="${initY}" r="3.6" fill="hsl(217, 91%, 56%)" stroke="var(--surface)" stroke-width="1.2" />`;
+  svg += `<circle id="replay-chart-delta-dot" cx="0" cy="${deltaMid}" r="3" fill="var(--text-muted)" stroke="var(--surface)" stroke-width="1.2" />`;
+
+  replayRaceChart.innerHTML = svg;
+
+  return {
+    getX,
+    getScoreY,
+    getDeltaY,
+    playheadEl: document.getElementById('replay-chart-playhead'),
+    p1DotEl: document.getElementById('replay-chart-p1-dot'),
+    p2DotEl: document.getElementById('replay-chart-p2-dot'),
+    deltaDotEl: document.getElementById('replay-chart-delta-dot')
+  };
+}
+
+function updateReplayRaceChartPlayhead(clampedMs, myScore, oppScore) {
+  if (!replaySessionData || !replaySessionData.raceChartMeta) return;
+  const { getX, getScoreY, getDeltaY, playheadEl, p1DotEl, p2DotEl, deltaDotEl } = replaySessionData.raceChartMeta;
+  const diff = myScore - oppScore;
+  const cx = getX(clampedMs).toFixed(1);
+  const y1 = getScoreY(myScore).toFixed(1);
+  const y2 = getScoreY(oppScore).toFixed(1);
+  const yd = getDeltaY(diff).toFixed(1);
+
+  if (playheadEl) {
+    playheadEl.setAttribute('x1', cx);
+    playheadEl.setAttribute('x2', cx);
+  }
+  if (p1DotEl) {
+    p1DotEl.setAttribute('cx', cx);
+    p1DotEl.setAttribute('cy', y1);
+  }
+  if (p2DotEl) {
+    p2DotEl.setAttribute('cx', cx);
+    p2DotEl.setAttribute('cy', y2);
+  }
+  if (deltaDotEl) {
+    deltaDotEl.setAttribute('cx', cx);
+    deltaDotEl.setAttribute('cy', yd);
+    deltaDotEl.setAttribute(
+      'fill',
+      diff > 0 ? 'var(--right)' : diff < 0 ? 'var(--wrong)' : 'var(--text-muted)'
+    );
+  }
+  if (replayChartLive) {
+    const sec = Math.floor(clampedMs / 1000);
+    const diffStr = diff > 0 ? `+${diff}` : diff < 0 ? `−${Math.abs(diff)}` : '0';
+    replayChartLive.textContent = `${sec}s · ${myScore}–${oppScore} (Δ ${diffStr})`;
+  }
+}
+
 function seekReplayTo(targetMs) {
   if (!isReplaying || !replaySessionData) return;
   const { totalDurationMs } = replaySessionData.timeline;
@@ -2601,6 +2746,7 @@ function renderReplayStateAt(elapsedMs) {
       raceDiffBadge.textContent = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Tied';
     }
     renderOpponentQuestion(oppName, oppStats);
+    updateReplayRaceChartPlayhead(clampedMs, myScore, oppScore);
   }
 
   if (activeSeg) {
@@ -2715,10 +2861,12 @@ function startReplay(session) {
     session.opponent && Array.isArray(session.opponent.questions) && session.opponent.questions.length > 0
   );
   const opponentTimeline = hasOpponent ? buildReplayTimeline(session.opponent) : null;
+  const raceChartMeta = renderReplayRaceChart(timeline, opponentTimeline, session);
   replaySessionData = {
     session,
     timeline,
     opponentTimeline,
+    raceChartMeta,
     renderedLogCount: -1
   };
   renderReplayTimelineBar(timeline);
@@ -2802,6 +2950,7 @@ function stopReplay(returnHome = true) {
   }
   if (raceHudBar) raceHudBar.classList.add('hidden');
   if (raceOppEq) raceOppEq.classList.add('hidden');
+  if (replayRaceChartWrap) replayRaceChartWrap.classList.add('hidden');
   if (replayPlayBtn) replayPlayBtn.classList.add('hidden');
   if (replayPanel) replayPanel.classList.add('hidden');
   keypad.classList.remove('hidden');

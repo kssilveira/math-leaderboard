@@ -818,6 +818,10 @@ html, body {
   background: hsl(36, 95%, 46%);
 }
 
+.dot-delta {
+  background: linear-gradient(135deg, var(--right) 50%, var(--wrong) 50%);
+}
+
 .history-chart {
   width: 100%;
   height: 155px;
@@ -1222,10 +1226,55 @@ html, body {
 
 .replay-timeline {
   position: relative;
-  padding: 8px 0;
+  padding: 6px 0;
   cursor: pointer;
   touch-action: none;
   outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replay-race-chart-wrap {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.replay-race-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.replay-race-chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.replay-chart-live {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.replay-race-chart {
+  width: 100%;
+  height: 104px;
+  display: block;
+  overflow: visible;
 }
 
 .replay-timeline-track {
