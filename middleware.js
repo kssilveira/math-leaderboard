@@ -27,12 +27,23 @@ function decodeReplaySummary(encoded) {
     const totalMs = payload.q.reduce((sum, q) => sum + (Number(q[4]) || 0), 0);
     const avgSec = (totalMs / payload.q.length / 1000).toFixed(1);
 
+    let opponent = null;
+    if (payload.o && typeof payload.o === 'object') {
+      opponent = {
+        username: String(payload.o.u || 'Opponent'),
+        score: Number(payload.o.s) || 0,
+        right: Number(payload.o.r) || 0,
+        wrong: Number(payload.o.w) || 0,
+      };
+    }
+
     return {
       username: String(payload.u || 'Player'),
       score: Number(payload.s) || 0,
       right: Number(payload.r) || 0,
       wrong: Number(payload.w) || 0,
       avgSec,
+      opponent,
     };
   } catch (_) {
     return null;
@@ -54,8 +65,21 @@ export default async function middleware(request) {
     const summary = decodeReplaySummary(replayParam);
     ogImage = `${origin}/api/og?replay=${encodeURIComponent(replayParam)}`;
     if (summary) {
-      ogTitle = `${summary.username} scored ${summary.score} in 1-Min Math!`;
-      ogDesc = `Watch replay: ${summary.right} right · ${summary.wrong} wrong · ${summary.avgSec}s avg per question.`;
+      if (summary.opponent) {
+        const opp = summary.opponent;
+        const diff = summary.score - opp.score;
+        if (diff > 0) {
+          ogTitle = `${summary.username} beat ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Math!`;
+        } else if (diff === 0) {
+          ogTitle = `${summary.username} tied with ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Math!`;
+        } else {
+          ogTitle = `${summary.username} vs ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Math!`;
+        }
+        ogDesc = `Watch Ghost Race replay: ${summary.username} (${summary.right} right · ${summary.wrong} wrong) vs ${opp.username} (${opp.right} right · ${opp.wrong} wrong).`;
+      } else {
+        ogTitle = `${summary.username} scored ${summary.score} in 1-Min Math!`;
+        ogDesc = `Watch replay: ${summary.right} right · ${summary.wrong} wrong · ${summary.avgSec}s avg per question.`;
+      }
     }
   }
 

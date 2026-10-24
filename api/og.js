@@ -32,6 +32,37 @@ function formatConfigId(configId) {
   return `${ops} (${parts[1]}..${parts[2]}, ${parts[3]}..${parts[4]}, ${parts[5]}..${parts[6]})`;
 }
 
+function decodeQuestionsList(list) {
+  return (list || []).map((item) => {
+    const a = Number(item[0]) || 0;
+    const op = ALL_OPS[item[1]] || '+';
+    const b = Number(item[2]) || 0;
+    let c = 0;
+    if (op === '+') c = a + b;
+    else if (op === '-') c = a - b;
+    else if (op === '×') c = a * b;
+    else if (op === '÷') c = b !== 0 ? Math.trunc(a / b) : 0;
+
+    const nums = [a, b, c];
+    const missingIndex = typeof item[3] === 'number' ? item[3] : 2;
+    const expected = nums[missingIndex];
+    const durationMs = typeof item[4] === 'number' ? item[4] : 800;
+    const wrongAnswers = Array.isArray(item[5]) ? item[5].map(String) : [];
+    const right = item[6] === 0 ? 0 : 1;
+
+    return {
+      nums,
+      op: op === '-' ? '−' : op,
+      missingIndex,
+      expected,
+      wrongAnswers,
+      right,
+      wrong: wrongAnswers.length,
+      durationMs,
+    };
+  });
+}
+
 function decodeReplay(encoded) {
   try {
     const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
@@ -44,39 +75,25 @@ function decodeReplay(encoded) {
     const payload = JSON.parse(new TextDecoder().decode(bytes));
     if (!payload || !Array.isArray(payload.q) || payload.q.length === 0) return null;
 
-    const questions = payload.q.map((item) => {
-      const a = Number(item[0]) || 0;
-      const op = ALL_OPS[item[1]] || '+';
-      const b = Number(item[2]) || 0;
-      let c = 0;
-      if (op === '+') c = a + b;
-      else if (op === '-') c = a - b;
-      else if (op === '×') c = a * b;
-      else if (op === '÷') c = b !== 0 ? Math.trunc(a / b) : 0;
-
-      const nums = [a, b, c];
-      const missingIndex = typeof item[3] === 'number' ? item[3] : 2;
-      const expected = nums[missingIndex];
-      const durationMs = typeof item[4] === 'number' ? item[4] : 800;
-      const wrongAnswers = Array.isArray(item[5]) ? item[5].map(String) : [];
-      const right = item[6] === 0 ? 0 : 1;
-
-      return {
-        nums,
-        op: op === '-' ? '−' : op,
-        missingIndex,
-        expected,
-        wrongAnswers,
-        right,
-        wrong: wrongAnswers.length,
-        durationMs,
-      };
-    });
-
+    const questions = decodeQuestionsList(payload.q);
     const totalQMs = questions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
     const slowestMs = questions.reduce((max, q) => Math.max(max, q.durationMs || 0), 0);
     const avgSec = (totalQMs / questions.length / 1000).toFixed(1);
     const slowestSec = (slowestMs / 1000).toFixed(1);
+
+    let opponent = null;
+    if (payload.o && Array.isArray(payload.o.q) && payload.o.q.length > 0) {
+      const oppQuestions = decodeQuestionsList(payload.o.q);
+      const oppTotalMs = oppQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+      const oppAvgSec = (oppTotalMs / oppQuestions.length / 1000).toFixed(1);
+      opponent = {
+        username: String(payload.o.u || 'Opponent'),
+        score: Number(payload.o.s) || 0,
+        right: Number(payload.o.r) || 0,
+        wrong: Number(payload.o.w) || 0,
+        avgSec: oppAvgSec,
+      };
+    }
 
     return {
       username: String(payload.u || 'Player'),
@@ -86,6 +103,7 @@ function decodeReplay(encoded) {
       wrong: Number(payload.w) || 0,
       avgSec,
       slowestSec,
+      opponent,
       questions,
     };
   } catch (_) {
@@ -190,6 +208,170 @@ function renderReplayCard(replay) {
     );
   });
 
+  const opp = replay.opponent;
+  const isRace = Boolean(opp);
+  const diff = isRace ? replay.score - opp.score : 0;
+  const diffStr = diff > 0 ? `+${diff}` : String(diff);
+
+  let scoreCenterBox;
+  if (isRace) {
+    const isWin = diff > 0;
+    const isTie = diff === 0;
+    const bannerColor = isWin ? '#1f934c' : isTie ? '#1264e1' : '#e32636';
+    const bannerBg = isWin ? '#eefbf3' : isTie ? '#f0f6ff' : '#fef2f3';
+    const outcomeText = isWin
+      ? `${replay.username} Beat ${opp.username} (${diffStr})`
+      : isTie
+      ? `Tied with ${opp.username}`
+      : `Race vs ${opp.username} (${diffStr})`;
+
+    scoreCenterBox = h(
+      'div',
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: bannerBg,
+        border: `2px solid ${bannerColor}`,
+        borderRadius: '18px',
+        padding: '16px 18px',
+        gap: '10px',
+      },
+      [
+        h(
+          'div',
+          {
+            fontSize: '14px',
+            fontWeight: 800,
+            color: bannerColor,
+            textTransform: 'uppercase',
+          },
+          outcomeText
+        ),
+        h(
+          'div',
+          {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+          },
+          [
+            h(
+              'div',
+              {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                flex: 1,
+              },
+              [
+                h(
+                  'div',
+                  { fontSize: '16px', fontWeight: 800, color: '#1b222c' },
+                  replay.username
+                ),
+                h(
+                  'div',
+                  {
+                    fontSize: '54px',
+                    fontWeight: 900,
+                    color: isWin ? '#1f934c' : '#1264e1',
+                    lineHeight: 1.05,
+                  },
+                  String(replay.score)
+                ),
+                h(
+                  'div',
+                  { fontSize: '13px', fontWeight: 700, color: '#627084' },
+                  `${replay.right}R / ${replay.wrong}W`
+                ),
+              ]
+            ),
+            h(
+              'div',
+              {
+                fontSize: '18px',
+                fontWeight: 900,
+                color: '#627084',
+                padding: '0 10px',
+              },
+              'VS'
+            ),
+            h(
+              'div',
+              {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                flex: 1,
+              },
+              [
+                h(
+                  'div',
+                  { fontSize: '16px', fontWeight: 800, color: '#1b222c' },
+                  opp.username
+                ),
+                h(
+                  'div',
+                  {
+                    fontSize: '54px',
+                    fontWeight: 900,
+                    color: diff < 0 ? '#1f934c' : '#627084',
+                    lineHeight: 1.05,
+                  },
+                  String(opp.score)
+                ),
+                h(
+                  'div',
+                  { fontSize: '13px', fontWeight: 700, color: '#627084' },
+                  `${opp.right}R / ${opp.wrong}W`
+                ),
+              ]
+            ),
+          ]
+        ),
+      ]
+    );
+  } else {
+    scoreCenterBox = h(
+      'div',
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f6ff',
+        border: '2px solid #1264e1',
+        borderRadius: '18px',
+        padding: '20px',
+      },
+      [
+        h(
+          'div',
+          {
+            fontSize: '15px',
+            fontWeight: 800,
+            color: '#1264e1',
+            textTransform: 'uppercase',
+          },
+          'Final Score'
+        ),
+        h(
+          'div',
+          {
+            fontSize: '74px',
+            fontWeight: 900,
+            color: '#1264e1',
+            lineHeight: 1.05,
+          },
+          String(replay.score)
+        ),
+      ]
+    );
+  }
+
   return h(
     'div',
     {
@@ -235,11 +417,11 @@ function renderReplayCard(replay) {
                   h(
                     'span',
                     {
-                      fontSize: '28px',
+                      fontSize: '26px',
                       fontWeight: 900,
                       color: '#1264e1',
                     },
-                    '▶ Game Replay'
+                    isRace ? 'Ghost Race Replay' : 'Game Replay'
                   ),
                   h(
                     'span',
@@ -258,12 +440,12 @@ function renderReplayCard(replay) {
               h(
                 'div',
                 {
-                  fontSize: '40px',
+                  fontSize: isRace ? '32px' : '40px',
                   fontWeight: 900,
                   color: '#1b222c',
                   marginTop: '6px',
                 },
-                replay.username
+                isRace ? `${replay.username} vs ${opp.username}` : replay.username
               ),
               h(
                 'div',
@@ -276,41 +458,7 @@ function renderReplayCard(replay) {
               ),
             ]
           ),
-          h(
-            'div',
-            {
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#f0f6ff',
-              border: '2px solid #1264e1',
-              borderRadius: '18px',
-              padding: '20px',
-            },
-            [
-              h(
-                'div',
-                {
-                  fontSize: '15px',
-                  fontWeight: 800,
-                  color: '#1264e1',
-                  textTransform: 'uppercase',
-                },
-                'Final Score'
-              ),
-              h(
-                'div',
-                {
-                  fontSize: '74px',
-                  fontWeight: 900,
-                  color: '#1264e1',
-                  lineHeight: 1.05,
-                },
-                String(replay.score)
-              ),
-            ]
-          ),
+          scoreCenterBox,
           h(
             'div',
             {
