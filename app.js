@@ -1627,7 +1627,16 @@ function triggerCelebration(isNewHigh = false) {
   celebrationRafId = requestAnimationFrame(frame);
 }
 
+function enterAndroidImmersiveFullscreen() {
+  if (!/Android/i.test(navigator.userAgent)) return;
+  const docEl = document.documentElement;
+  if (!document.fullscreenElement && docEl.requestFullscreen) {
+    docEl.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  }
+}
+
 function startGame(practice = false) {
+  enterAndroidImmersiveFullscreen();
   stopCelebration();
   if (isReplaying) {
     stopReplay(false);
@@ -2310,6 +2319,12 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     handleDigitInput(e.key);
   }
+});
+
+// On Android, hide the bottom system navigation bar on tap (unless focusing a text/number input)
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.closest('input')) return;
+  enterAndroidImmersiveFullscreen();
 });
 
 // Initialize
