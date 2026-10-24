@@ -18,6 +18,16 @@ function h(type, style, children) {
   };
 }
 
+function svgEl(type, attrs, children) {
+  return {
+    type,
+    props: {
+      ...attrs,
+      ...(children !== undefined ? { children } : {}),
+    },
+  };
+}
+
 function formatConfigId(configId) {
   if (!configId || !configId.startsWith('cfg_')) {
     return '+ − (0..10, 0..10, 0..20)';
@@ -184,23 +194,23 @@ function renderRaceScoreChartBox(replay, opp) {
   const svgChildren = [];
   const yZero = getY(0).toFixed(1);
   svgChildren.push(
-    h('line', {
+    svgEl('line', {
       x1: '0',
       y1: String(topPad),
       x2: String(width),
       y2: String(topPad),
-      stroke: '#dbe2ea',
-      strokeWidth: '1',
-      strokeDasharray: '4 4',
+      stroke: '#cbd5e1',
+      'stroke-width': '1',
+      'stroke-dasharray': '4 4',
     }),
-    h('line', {
+    svgEl('line', {
       x1: '0',
       y1: yZero,
       x2: String(width),
       y2: yZero,
-      stroke: '#dbe2ea',
-      strokeWidth: '1',
-      strokeDasharray: '4 4',
+      stroke: '#cbd5e1',
+      'stroke-width': '1',
+      'stroke-dasharray': '4 4',
     })
   );
 
@@ -216,7 +226,7 @@ function renderRaceScoreChartBox(replay, opp) {
       const y1b = getY(s0.p2).toFixed(1);
       const y2b = getY(s1.p2).toFixed(1);
       svgChildren.push(
-        h('polygon', {
+        svgEl('polygon', {
           points: `${x1},${y1a} ${x2},${y2a} ${x2},${y2b} ${x1},${y1b}`,
           fill: avgDelta > 0 ? 'rgba(31, 147, 76, 0.22)' : 'rgba(227, 38, 54, 0.22)',
         })
@@ -229,37 +239,37 @@ function renderRaceScoreChartBox(replay, opp) {
   const lastSample = samples[samples.length - 1];
 
   svgChildren.push(
-    h('polyline', {
+    svgEl('polyline', {
       fill: 'none',
       stroke: '#f59e0b',
-      strokeWidth: '3',
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
+      'stroke-width': '3',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
       points: p2Pts,
     }),
-    h('polyline', {
+    svgEl('polyline', {
       fill: 'none',
       stroke: '#1264e1',
-      strokeWidth: '3.5',
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
+      'stroke-width': '3.5',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
       points: p1Pts,
     }),
-    h('circle', {
+    svgEl('circle', {
       cx: getX(lastSample.t).toFixed(1),
       cy: getY(lastSample.p2).toFixed(1),
       r: '4.5',
       fill: '#f59e0b',
       stroke: '#ffffff',
-      strokeWidth: '1.5',
+      'stroke-width': '1.5',
     }),
-    h('circle', {
+    svgEl('circle', {
       cx: getX(lastSample.t).toFixed(1),
       cy: getY(lastSample.p1).toFixed(1),
       r: '5',
       fill: '#1264e1',
       stroke: '#ffffff',
-      strokeWidth: '1.5',
+      'stroke-width': '1.5',
     })
   );
 
@@ -322,12 +332,13 @@ function renderRaceScoreChartBox(replay, opp) {
           ),
         ]
       ),
-      h(
+      svgEl(
         'svg',
         {
           width: '520',
           height: '96',
           viewBox: '0 0 520 96',
+          style: { width: '520px', height: '96px', display: 'flex' },
         },
         svgChildren
       ),
