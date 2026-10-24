@@ -184,29 +184,31 @@ function renderRaceScoreChartBox(replay, opp) {
     samples.push({ t, p1, p2, delta: p1 - p2 });
   }
 
-  const width = 520;
+  const svgW = 486;
+  const padX = 6;
+  const plotW = svgW - padX * 2;
   const topPad = 8;
   const bottomPad = 88;
   const plotH = bottomPad - topPad;
-  const getX = (ms) => (Math.min(Math.max(0, ms), totalDurationMs) / totalDurationMs) * width;
+  const getX = (ms) => padX + (Math.min(Math.max(0, ms), totalDurationMs) / totalDurationMs) * plotW;
   const getY = (s) => bottomPad - ((s - minScore) / Math.max(1, maxScore - minScore)) * plotH;
 
   const svgChildren = [];
   const yZero = getY(0).toFixed(1);
   svgChildren.push(
     svgEl('line', {
-      x1: '0',
+      x1: String(padX),
       y1: String(topPad),
-      x2: String(width),
+      x2: String(svgW - padX),
       y2: String(topPad),
       stroke: '#cbd5e1',
       'stroke-width': '1',
       'stroke-dasharray': '4 4',
     }),
     svgEl('line', {
-      x1: '0',
+      x1: String(padX),
       y1: yZero,
-      x2: String(width),
+      x2: String(svgW - padX),
       y2: yZero,
       stroke: '#cbd5e1',
       'stroke-width': '1',
@@ -335,10 +337,10 @@ function renderRaceScoreChartBox(replay, opp) {
       svgEl(
         'svg',
         {
-          width: '520',
+          width: String(svgW),
           height: '96',
-          viewBox: '0 0 520 96',
-          style: { width: '520px', height: '96px', display: 'flex' },
+          viewBox: `0 0 ${svgW} 96`,
+          style: { width: `${svgW}px`, height: '96px', display: 'flex' },
         },
         svgChildren
       ),
@@ -349,7 +351,7 @@ function renderRaceScoreChartBox(replay, opp) {
 function renderReplayCard(replay) {
   const opp = replay.opponent;
   const isRace = Boolean(opp && Array.isArray(opp.questions) && opp.questions.length > 0);
-  const sampleQuestions = replay.questions.slice(0, isRace ? 5 : 9);
+  const sampleQuestions = replay.questions.slice(0, isRace ? 6 : 9);
 
   const statBox = (label, value, color = '#1b222c') =>
     h(
