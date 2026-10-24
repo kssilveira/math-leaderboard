@@ -41,6 +41,10 @@ Mobile-friendly 1-minute math game with shared game configurations, multi-user s
   - Each game configuration has its own global leaderboard in Firebase Realtime Database using standard competition ranking (tied scores share the same rank).
   - Shows the Top 10 users (with score, right/wrong breakdown, and `▶` replay button) and the current user's rank and best score.
   - `api/og.js` and `middleware.js` on Vercel serve dynamic Open Graph preview images for both the live leaderboard and shared `?replay=...` links while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
+- **Installable Phone App (PWA)**:
+  - Includes a Web App Manifest (`manifest.json`), home-screen icons, safe-area inset padding, and an offline-capable Service Worker (`sw.js`).
+  - **iPhone / iPad (Safari)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap **Share** → **Add to Home Screen**.
+  - **Android (Chrome)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap **Install App** (or **⋮ → Add to Home screen**).
 
 ## Running Locally
 
