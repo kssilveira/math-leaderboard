@@ -25,6 +25,17 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
+  <script>
+    (function () {
+      try {
+        var s = localStorage.getItem('math_theme_v1');
+        var t = (s === 'dark' || s === 'light')
+          ? s
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (_) {}
+    })();
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -40,6 +51,13 @@
         >📲 Install</button>
       </div>
       <div class="user-actions">
+        <button
+          id="theme-toggle-btn"
+          class="icon-btn theme-btn"
+          type="button"
+          title="Switch to dark mode"
+          aria-label="Toggle dark mode"
+        >🌙</button>
         <button
           id="sound-toggle-btn"
           class="icon-btn sound-btn"

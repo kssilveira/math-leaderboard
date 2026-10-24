@@ -8,7 +8,8 @@ const STORAGE_KEYS = {
   gameHistory: 'math_game_history_v1',
   questionStats: 'math_question_stats_v1',
   reviewExpanded: 'math_review_expanded_v1',
-  soundEnabled: 'math_sound_enabled_v1'
+  soundEnabled: 'math_sound_enabled_v1',
+  theme: 'math_theme_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -56,6 +57,7 @@ let currentStreak = 0;
 let audioCtx = null;
 
 // DOM Elements
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const soundToggleBtn = document.getElementById('sound-toggle-btn');
 const usernameInput = document.getElementById('username-input');
 const userListEl = document.getElementById('user-list');
@@ -157,6 +159,56 @@ const installHintText = document.getElementById('install-hint-text');
 const installHintClose = document.getElementById('install-hint-close');
 let celebrationRafId = null;
 let deferredInstallPrompt = null;
+
+// --- Theme (Light / Dark Mode) ---
+
+function getResolvedTheme() {
+  const saved = localStorage.getItem(STORAGE_KEYS.theme);
+  if (saved === 'dark' || saved === 'light') return saved;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
+function applyTheme(theme) {
+  const isDark = theme === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', isDark ? '#0f141f' : '#f5f7fa');
+  }
+  if (themeToggleBtn) {
+    themeToggleBtn.textContent = isDark ? '☀️' : '🌙';
+    themeToggleBtn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+    themeToggleBtn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    themeToggleBtn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+  }
+}
+
+function toggleTheme() {
+  const nextTheme = getResolvedTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(STORAGE_KEYS.theme, nextTheme);
+  applyTheme(nextTheme);
+  playKeyClickSound();
+}
+
+function initTheme() {
+  applyTheme(getResolvedTheme());
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => {
+      const saved = localStorage.getItem(STORAGE_KEYS.theme);
+      if (saved !== 'dark' && saved !== 'light') {
+        applyTheme(mq.matches ? 'dark' : 'light');
+      }
+    };
+    if (mq.addEventListener) {
+      mq.addEventListener('change', onChange);
+    } else if (mq.addListener) {
+      mq.addListener(onChange);
+    }
+  }
+}
 
 // --- Sound Effects (Web Audio API) & Haptics ---
 
@@ -1258,16 +1310,16 @@ function renderHistoryChart(sessions) {
   // Y-axis labels and horizontal grid lines
   yTicks.forEach((tick) => {
     const y = getY(tick).toFixed(1);
-    svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="hsl(214, 20%, 86%)" stroke-dasharray="3 3" stroke-width="1" />`;
-    svg += `<text x="${padLeft - 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">${tick}</text>`;
+    svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1" />`;
+    svg += `<text x="${padLeft - 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="var(--text-muted)">${tick}</text>`;
   });
 
   // X-axis labels (#1 .. #N)
   if (n === 1) {
-    svg += `<text x="${getX(0).toFixed(1)}" y="${height - 5}" text-anchor="middle" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#1</text>`;
+    svg += `<text x="${getX(0).toFixed(1)}" y="${height - 5}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-muted)">#1</text>`;
   } else {
-    svg += `<text x="${getX(0).toFixed(1)}" y="${height - 5}" text-anchor="start" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#1</text>`;
-    svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="hsl(215, 15%, 45%)">#${n}</text>`;
+    svg += `<text x="${getX(0).toFixed(1)}" y="${height - 5}" text-anchor="start" font-size="10" font-weight="600" fill="var(--text-muted)">#1</text>`;
+    svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="var(--text-muted)">#${n}</text>`;
   }
 
   const series = [
@@ -1284,7 +1336,7 @@ function renderHistoryChart(sessions) {
     pointsData.forEach((item, idx) => {
       const cx = getX(idx).toFixed(1);
       const cy = getY(item[s.key]).toFixed(1);
-      svg += `<circle cx="${cx}" cy="${cy}" r="${s.radius}" fill="${s.color}" stroke="#fff" stroke-width="1" />`;
+      svg += `<circle cx="${cx}" cy="${cy}" r="${s.radius}" fill="${s.color}" stroke="var(--surface)" stroke-width="1" />`;
     });
   });
 
@@ -2816,6 +2868,9 @@ usernameInput.addEventListener('keydown', (e) => {
   }
 });
 
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', toggleTheme);
+}
 if (soundToggleBtn) {
   soundToggleBtn.addEventListener('click', toggleSound);
 }
@@ -3103,6 +3158,7 @@ function initInstallPrompt() {
 }
 
 // Initialize
+initTheme();
 updateSoundToggleUI();
 initUsers();
 initInstallPrompt();
