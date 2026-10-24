@@ -909,9 +909,8 @@ html, body {
 
 .race-hud-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 5px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -920,6 +919,14 @@ html, body {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   box-shadow: var(--shadow);
+}
+
+.race-hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
 }
 
 .race-vs-text {
@@ -949,6 +956,85 @@ html, body {
 .race-diff-badge.tied {
   background: var(--surface-subtle);
   color: var(--text-muted);
+}
+
+.race-opp-eq {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding-top: 5px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.82rem;
+}
+
+.race-opp-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-opp-step {
+  font-size: 0.71rem;
+  font-weight: 700;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.race-opp-math {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.race-opp-op {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.race-opp-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 800;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.race-opp-slot.empty {
+  color: hsl(222, 60%, 62%);
+}
+
+.race-opp-slot.wrong {
+  border-color: var(--wrong);
+  background: var(--wrong-bg);
+  color: var(--wrong);
+}
+
+.race-opp-slot.right {
+  border-color: var(--right);
+  background: hsl(145, 70%, 92%);
+  color: var(--right);
 }
 
 /* Equation Card */

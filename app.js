@@ -138,6 +138,13 @@ const replayTimelineThumb = document.getElementById('replay-timeline-thumb');
 const raceHudBar = document.getElementById('race-hud-bar');
 const raceVsText = document.getElementById('race-vs-text');
 const raceDiffBadge = document.getElementById('race-diff-badge');
+const raceOppEq = document.getElementById('race-opp-eq');
+const raceOppName = document.getElementById('race-opp-name');
+const raceOppStep = document.getElementById('race-opp-step');
+const raceOppSlot0 = document.getElementById('race-opp-slot-0');
+const raceOppSlot1 = document.getElementById('race-opp-slot-1');
+const raceOppSlot2 = document.getElementById('race-opp-slot-2');
+const raceOppOp = document.getElementById('race-opp-op');
 const celebrationCanvas = document.getElementById('celebration-canvas');
 const installAppBtn = document.getElementById('install-app-btn');
 const installHint = document.getElementById('install-hint');
@@ -1489,12 +1496,14 @@ function getOpponentStatsAt(timeline, elapsedMs) {
   const clampedMs = Math.min(Math.max(0, elapsedMs), totalDurationMs);
   let rCount = 0;
   let wCount = 0;
+  let activeSeg = segments[segments.length - 1] || null;
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     if (clampedMs >= seg.endMs) {
       rCount += seg.question.right > 0 ? 1 : 0;
       wCount += seg.question.wrong || 0;
     } else {
+      activeSeg = seg;
       seg.events.forEach((ev) => {
         if (clampedMs >= ev.triggerMs) {
           if (ev.isRight) rCount += 1;
@@ -1504,7 +1513,68 @@ function getOpponentStatsAt(timeline, elapsedMs) {
       break;
     }
   }
-  return { right: rCount, wrong: wCount, score: rCount - wCount };
+
+  let activeTyped = '';
+  let activeWrong = false;
+  if (activeSeg) {
+    activeSeg.events.forEach((ev) => {
+      if (clampedMs >= ev.triggerMs && clampedMs < ev.clearMs) {
+        activeTyped = ev.value;
+        activeWrong = !ev.isRight;
+      } else if (clampedMs >= ev.triggerMs && ev.isRight) {
+        activeTyped = ev.value;
+        activeWrong = false;
+      }
+    });
+  }
+
+  return {
+    right: rCount,
+    wrong: wCount,
+    score: rCount - wCount,
+    activeSeg,
+    activeTyped,
+    activeWrong,
+    totalQuestions: segments.length,
+    isFinished: clampedMs >= totalDurationMs
+  };
+}
+
+function renderOpponentQuestion(oppName, oppStats) {
+  if (!raceOppEq || !oppStats || !oppStats.activeSeg) return;
+  const q = oppStats.activeSeg.question;
+  if (raceOppName) {
+    raceOppName.textContent = `👀 ${oppName}`;
+  }
+  if (raceOppStep) {
+    raceOppStep.textContent = oppStats.isFinished
+      ? `Done (${oppStats.totalQuestions} Qs)`
+      : `Q ${oppStats.activeSeg.index + 1}/${oppStats.totalQuestions}`;
+  }
+  if (raceOppOp) {
+    raceOppOp.textContent = q.op === '-' ? '−' : q.op;
+  }
+  const oppSlots = [raceOppSlot0, raceOppSlot1, raceOppSlot2];
+  oppSlots.forEach((slotEl, idx) => {
+    if (!slotEl) return;
+    slotEl.className = 'race-opp-item';
+    if (idx === q.missingIndex) {
+      slotEl.classList.add('race-opp-slot');
+      if (oppStats.activeTyped === '') {
+        slotEl.classList.add('empty');
+        slotEl.textContent = '?';
+      } else {
+        slotEl.textContent = oppStats.activeTyped;
+        if (oppStats.activeWrong) {
+          slotEl.classList.add('wrong');
+        } else {
+          slotEl.classList.add('right');
+        }
+      }
+    } else {
+      slotEl.textContent = q.nums[idx];
+    }
+  });
 }
 
 function updateRaceHud() {
@@ -1784,6 +1854,7 @@ function startGame(practice = false, raceTargetSession = null) {
   if (replayPanel) replayPanel.classList.add('hidden');
   if (replayResultBanner) replayResultBanner.classList.add('hidden');
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !isRaceMode);
+  if (raceOppEq) raceOppEq.classList.add('hidden');
   keypad.classList.remove('hidden');
   quitBtn.textContent = isRaceMode ? 'End Race' : isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
@@ -1828,6 +1899,7 @@ async function finishGame(saveScore) {
   isRaceMode = false;
   raceSessionData = null;
   if (raceHudBar) raceHudBar.classList.add('hidden');
+  if (raceOppEq) raceOppEq.classList.add('hidden');
 
   if (currentQuestionRecord && currentQuestionRecord.wrong > 0) {
     currentQuestionRecord.durationMs = Date.now() - questionStartTime;
@@ -2307,6 +2379,7 @@ function renderReplayStateAt(elapsedMs) {
         'race-diff-badge ' + (diff > 0 ? 'ahead' : diff < 0 ? 'behind' : 'tied');
       raceDiffBadge.textContent = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Tied';
     }
+    renderOpponentQuestion(oppName, oppStats);
   }
 
   if (activeSeg) {
@@ -2412,6 +2485,7 @@ function startReplay(session) {
   if (questionLastPerf) questionLastPerf.classList.add('hidden');
   keypad.classList.add('hidden');
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !hasOpponent);
+  if (raceOppEq) raceOppEq.classList.toggle('hidden', !hasOpponent);
   if (replayResultBanner) {
     const playerName = session.username || 'Player';
     const rightVal = typeof session.right === 'number' ? session.right : 0;
@@ -2486,6 +2560,7 @@ function stopReplay(returnHome = true) {
     replayResultBanner.classList.remove('new-high-score');
   }
   if (raceHudBar) raceHudBar.classList.add('hidden');
+  if (raceOppEq) raceOppEq.classList.add('hidden');
   if (replayPlayBtn) replayPlayBtn.classList.add('hidden');
   if (replayPanel) replayPanel.classList.add('hidden');
   keypad.classList.remove('hidden');

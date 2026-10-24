@@ -246,8 +246,23 @@
       </div>
 
       <div id="race-hud-bar" class="race-hud-bar hidden" aria-live="off">
-        <span id="race-vs-text" class="race-vs-text">⚔️ You: 0 vs Opponent: 0</span>
-        <span id="race-diff-badge" class="race-diff-badge tied">Tied</span>
+        <div class="race-hud-top">
+          <span id="race-vs-text" class="race-vs-text">⚔️ You: 0 vs Opponent: 0</span>
+          <span id="race-diff-badge" class="race-diff-badge tied">Tied</span>
+        </div>
+        <div id="race-opp-eq" class="race-opp-eq hidden">
+          <span class="race-opp-label">
+            <span id="race-opp-name">Opponent</span>
+            <span id="race-opp-step" class="race-opp-step">Q 1</span>
+          </span>
+          <span class="race-opp-math">
+            <span id="race-opp-slot-0" class="race-opp-item">0</span>
+            <span id="race-opp-op" class="race-opp-op">+</span>
+            <span id="race-opp-slot-1" class="race-opp-item">0</span>
+            <span class="race-opp-op">=</span>
+            <span id="race-opp-slot-2" class="race-opp-item">0</span>
+          </span>
+        </div>
       </div>
 
       <div class="equation-wrap">
