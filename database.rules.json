@@ -1,0 +1,23 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "configs": {
+      ".read": true,
+      "$configId": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['id', 'ops', 'min1', 'max1', 'min2', 'max2', 'min3', 'max3']) && newData.child('id').isString() && newData.child('id').val() === $configId && $configId.length <= 64 && newData.child('min1').isNumber() && newData.child('max1').isNumber() && newData.child('min1').val() >= -999 && newData.child('max1').val() <= 999 && newData.child('min1').val() <= newData.child('max1').val() && newData.child('min2').isNumber() && newData.child('max2').isNumber() && newData.child('min2').val() >= -999 && newData.child('max2').val() <= 999 && newData.child('min2').val() <= newData.child('max2').val() && newData.child('min3').isNumber() && newData.child('max3').isNumber() && newData.child('min3').val() >= -999 && newData.child('max3').val() <= 999 && newData.child('min3').val() <= newData.child('max3').val()"
+      }
+    },
+    "leaderboards": {
+      ".read": true,
+      "$configId": {
+        ".read": true,
+        "$userId": {
+          ".write": "newData.exists() && (!data.exists() || newData.child('score').val() >= data.child('score').val())",
+          ".validate": "newData.hasChildren(['userId', 'username', 'score', 'right', 'wrong', 'durationMs', 'updatedAt']) && newData.child('userId').isString() && newData.child('userId').val() === $userId && $userId.length <= 40 && newData.child('username').isString() && newData.child('username').val().length >= 1 && newData.child('username').val().length <= 20 && newData.child('score').isNumber() && newData.child('score').val() > 0 && newData.child('score').val() <= 200 && newData.child('right').isNumber() && newData.child('right').val() >= 1 && newData.child('right').val() <= 200 && newData.child('wrong').isNumber() && newData.child('wrong').val() >= 0 && newData.child('wrong').val() <= 200 && newData.child('score').val() === newData.child('right').val() - newData.child('wrong').val() && newData.child('durationMs').isNumber() && newData.child('durationMs').val() >= 500 && newData.child('durationMs').val() <= 70000 && newData.child('updatedAt').isNumber()"
+        }
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   userId: 'math_user_id',
   username: 'math_username',
   activeConfigId: 'math_active_config_id',
+  localConfigs: 'math_local_configs_v1',
   gameHistory: 'math_game_history_v1',
   questionStats: 'math_question_stats_v1',
   reviewExpanded: 'math_review_expanded_v1',
@@ -14,6 +15,13 @@ const STORAGE_KEYS = {
 
 const GAME_DURATION_SECONDS = 60;
 const ALL_OPS = ['+', '-', '×', '÷'];
+const MAX_LOCAL_USERS = 8;
+const MAX_LOCAL_CONFIGS = 12;
+const MAX_GLOBAL_CONFIGS = 20;
+const CONFIG_MIN_BOUND = -999;
+const CONFIG_MAX_BOUND = 999;
+const MAX_VALID_SCORE = 200;
+const MIN_AVG_QUESTION_MS = 250;
 
 // State
 let users = []; // [{ userId: string, username: string }]
@@ -409,6 +417,9 @@ function renderUserList() {
     btn.addEventListener('click', () => switchUser(u.userId));
     userListEl.appendChild(btn);
   });
+  if (addUserBtn) {
+    addUserBtn.classList.toggle('hidden', users.length >= MAX_LOCAL_USERS);
+  }
 }
 
 function initUsers() {
@@ -455,7 +466,7 @@ async function switchUser(targetUserId) {
 }
 
 async function addUser() {
-  if (isPlaying) return;
+  if (isPlaying || users.length >= MAX_LOCAL_USERS) return;
   const newUser = {
     userId: generateId('u_'),
     username: generateRandomUsername()
@@ -520,6 +531,27 @@ async function saveUsername(newName) {
 }
 
 // --- Shared Game Configurations & Leaderboards (Firebase) ---
+
+function clampConfigBound(val) {
+  const n = Math.trunc(Number(val) || 0);
+  return Math.max(CONFIG_MIN_BOUND, Math.min(CONFIG_MAX_BOUND, n));
+}
+
+function getLocalConfigs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.localConfigs);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveLocalConfig(cfg) {
+  const list = getLocalConfigs().filter(c => c && c.id && c.id !== cfg.id);
+  list.unshift(cfg);
+  localStorage.setItem(STORAGE_KEYS.localConfigs, JSON.stringify(list.slice(0, MAX_LOCAL_CONFIGS)));
+}
 
 function getConfigId(cfg) {
   const opNames = { '+': 'add', '-': 'sub', '×': 'mul', '÷': 'div' };
@@ -631,27 +663,22 @@ async function createNewConfigFromDraft() {
 
   const base = {
     ops: ALL_OPS.filter(op => draftConfig.ops.includes(op)),
-    min1: draftConfig.min1,
-    max1: draftConfig.max1,
-    min2: draftConfig.min2,
-    max2: draftConfig.max2,
-    min3: draftConfig.min3,
-    max3: draftConfig.max3
+    min1: clampConfigBound(draftConfig.min1),
+    max1: clampConfigBound(draftConfig.max1),
+    min2: clampConfigBound(draftConfig.min2),
+    max2: clampConfigBound(draftConfig.max2),
+    min3: clampConfigBound(draftConfig.min3),
+    max3: clampConfigBound(draftConfig.max3)
   };
   const newCfg = {
     id: getConfigId(base),
     ...base
   };
 
-  // Reuse existing config if it already exists, otherwise save to Firebase
-  const alreadyExists = configs.some(c => c.id === newCfg.id);
-  if (!alreadyExists) {
+  // Save locally first; only publish to Firebase once a game is completed with a positive score
+  saveLocalConfig(newCfg);
+  if (!configs.some(c => c.id === newCfg.id)) {
     configs.push(newCfg);
-    await fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(newCfg.id)}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newCfg)
-    });
   }
 
   activeConfigId = newCfg.id;
@@ -659,7 +686,9 @@ async function createNewConfigFromDraft() {
   closeNewConfigPanel();
   lastResult.classList.add('hidden');
 
-  await syncFromFirebase();
+  renderConfigsUI();
+  renderLeaderboard();
+  renderReview();
 }
 
 function toggleDraftOperator(op) {
@@ -677,7 +706,7 @@ function updateDraftRangeInputs() {
   if (!draftConfig) return;
   const parseVal = (inputEl, fallback) => {
     const parsed = parseInt(inputEl.value, 10);
-    return Number.isNaN(parsed) ? fallback : parsed;
+    return Number.isNaN(parsed) ? fallback : clampConfigBound(parsed);
   };
 
   draftConfig.min1 = parseVal(min1Input, draftConfig.min1);
@@ -707,6 +736,28 @@ async function switchConfig(targetConfigId) {
   await syncFromFirebase();
 }
 
+function isPlausibleLeaderboardSession(score, sessionData) {
+  if (typeof score !== 'number' || score <= 0 || score > MAX_VALID_SCORE) return false;
+  if (!sessionData) return true;
+  const qs = Array.isArray(sessionData.questions) ? sessionData.questions : [];
+  if (qs.length > 240) return false;
+  if (qs.length >= 5) {
+    const totalMs = qs.reduce((sum, q) => sum + (Number(q.durationMs) || 0), 0);
+    if (totalMs / qs.length < MIN_AVG_QUESTION_MS) return false;
+  }
+  return true;
+}
+
+async function ensureConfigPublishedInFirebase(configId) {
+  const cfg = configs.find(c => c.id === configId) || getLocalConfigs().find(c => c.id === configId);
+  if (!cfg) return;
+  await fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(cfg.id)}.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg)
+  }).catch(() => {});
+}
+
 async function syncFromFirebase() {
   try {
     const [configsRes, leaderboardsRes] = await Promise.all([
@@ -721,20 +772,33 @@ async function syncFromFirebase() {
 
     const defaultCfg = createDefaultConfig();
     const byId = new Map();
+    byId.set(defaultCfg.id, defaultCfg);
+
+    const normalizeCfgObj = (c) => {
+      if (!c || !Array.isArray(c.ops)) return null;
+      const normalized = {
+        ops: ALL_OPS.filter(op => c.ops.includes(op)),
+        min1: clampConfigBound(c.min1),
+        max1: clampConfigBound(c.max1),
+        min2: clampConfigBound(c.min2),
+        max2: clampConfigBound(c.max2),
+        min3: clampConfigBound(c.min3),
+        max3: clampConfigBound(c.max3)
+      };
+      if (getValidSamplers(normalized).length === 0) return null;
+      normalized.id = getConfigId(normalized);
+      return normalized;
+    };
+
+    getLocalConfigs().forEach((c) => {
+      const norm = normalizeCfgObj(c);
+      if (norm) byId.set(norm.id, norm);
+    });
 
     if (cloudConfigs && typeof cloudConfigs === 'object') {
       Object.entries(cloudConfigs).forEach(([key, c]) => {
-        if (c && Array.isArray(c.ops) && getValidSamplers(c).length > 0) {
-          const normalized = {
-            ops: ALL_OPS.filter(op => c.ops.includes(op)),
-            min1: c.min1,
-            max1: c.max1,
-            min2: c.min2,
-            max2: c.max2,
-            min3: c.min3,
-            max3: c.max3
-          };
-          normalized.id = getConfigId(normalized);
+        const normalized = normalizeCfgObj(c);
+        if (normalized) {
           byId.set(normalized.id, normalized);
 
           // Migrate any legacy non-canonical config key in Firebase
@@ -752,7 +816,6 @@ async function syncFromFirebase() {
 
     // Ensure the default config always exists in Firebase under its canonical key
     if (!cloudConfigs || !cloudConfigs[defaultCfg.id]) {
-      byId.set(defaultCfg.id, defaultCfg);
       fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(defaultCfg.id)}.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -765,6 +828,15 @@ async function syncFromFirebase() {
     sortConfigsByLeaderboardSize();
 
     const savedConfigId = activeConfigId || localStorage.getItem(STORAGE_KEYS.activeConfigId);
+    const localIds = new Set(getLocalConfigs().map(c => c.id));
+    configs = configs.filter(
+      (c, idx) =>
+        c.id === defaultCfg.id ||
+        c.id === savedConfigId ||
+        localIds.has(c.id) ||
+        (getLeaderboardSize(c.id) > 0 && idx < MAX_GLOBAL_CONFIGS)
+    );
+
     const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
     activeConfigId = activeCfg.id;
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
@@ -848,7 +920,7 @@ async function backfillLocalBestToLeaderboard() {
     if (!uId || !cfgId) return;
 
     const bestLocal = getBestLocalSession(uId, cfgId);
-    if (!bestLocal) return;
+    if (!bestLocal || !isPlausibleLeaderboardSession(bestLocal.score, bestLocal)) return;
 
     const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][uId];
     const hasExisting = existing && typeof existing.score === 'number';
@@ -887,11 +959,13 @@ async function backfillLocalBestToLeaderboard() {
 
     const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(uId)}.json`;
     uploads.push(
-      fetch(userUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record)
-      }).catch(() => {})
+      ensureConfigPublishedInFirebase(cfgId).then(() =>
+        fetch(userUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        }).catch(() => {})
+      )
     );
   });
 
@@ -901,11 +975,16 @@ async function backfillLocalBestToLeaderboard() {
 }
 
 async function submitScoreToLeaderboard(score, sessionData) {
+  if (!isPlausibleLeaderboardSession(score, sessionData)) {
+    return;
+  }
   const configId = activeConfigId;
   const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`;
 
-  const existingRes = await fetch(userUrl);
-  const existing = existingRes.ok ? await existingRes.json() : null;
+  await ensureConfigPublishedInFirebase(configId);
+
+  const existingRes = await fetch(userUrl).catch(() => null);
+  const existing = existingRes && existingRes.ok ? await existingRes.json() : null;
   const hasExisting = existing && typeof existing.score === 'number';
   const isNewHighScore = !hasExisting || score > existing.score;
   const bestScore = hasExisting ? Math.max(existing.score, score) : score;
@@ -941,7 +1020,7 @@ async function submitScoreToLeaderboard(score, sessionData) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(record)
-  });
+  }).catch(() => {});
 
   await syncFromFirebase();
 }
@@ -956,7 +1035,7 @@ async function updateUsernameInFirebase(targetUserId, newUsername) {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: newUsername })
-        });
+        }).catch(() => {});
       }
     })
   );
@@ -969,7 +1048,7 @@ async function deleteUserFromFirebase(targetUserId) {
     configIds.map(async (cfgId) => {
       if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
         const url = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`;
-        await fetch(url, { method: 'DELETE' });
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
       }
     })
   );
@@ -2214,7 +2293,9 @@ async function finishGame(saveScore) {
       triggerCelebration(false);
     } else {
       const cachedEntry = leaderboardsMap[activeConfigId] && leaderboardsMap[activeConfigId][userId];
-      const isInitialNewHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score;
+      const isInitialNewHigh =
+        finalScore > 0 &&
+        (!cachedEntry || typeof cachedEntry.score !== 'number' || finalScore > cachedEntry.score);
       lastResult.classList.toggle('new-high-score', isInitialNewHigh);
       lastScoreLabel.textContent = isInitialNewHigh ? '★ New High Score!' : 'Last Score';
       lastScoreValue.textContent = finalScore;
