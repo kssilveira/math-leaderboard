@@ -3,6 +3,10 @@
 Mobile-friendly 1-minute math game with shared game configurations, multi-user support, practice mode, interactive replays, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
+- **Android App (Google Play Closed Testing)**:
+  1. **Join Tester Group**: **https://groups.google.com/g/1-min-math-testers**
+  2. **Join on Android**: **https://play.google.com/store/apps/details?id=io.github.kssilveira.twa**
+  3. **Join on the Web**: **https://play.google.com/apps/testing/io.github.kssilveira.twa**
 - **Share URL** (live Open Graph previews + redirect to GitHub Pages): **https://math-leaderboard.vercel.app/**
 
   [![Root OG Image](https://math-leaderboard.vercel.app/api/og)](https://math-leaderboard.vercel.app)

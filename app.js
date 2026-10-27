@@ -3309,12 +3309,7 @@ function updateInstallBtnVisibility() {
     if (installHint) installHint.classList.add('hidden');
     return;
   }
-  const isMobileBrowser = /(Android|iPhone|iPad|iPod)/i.test(navigator.userAgent);
-  if (deferredInstallPrompt || isMobileBrowser) {
-    installAppBtn.classList.remove('hidden');
-  } else {
-    installAppBtn.classList.add('hidden');
-  }
+  installAppBtn.classList.remove('hidden');
 }
 
 function initInstallPrompt() {
@@ -3332,22 +3327,16 @@ function initInstallPrompt() {
   });
 
   if (installAppBtn) {
-    installAppBtn.addEventListener('click', async () => {
-      if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        const choice = await deferredInstallPrompt.userChoice.catch(() => null);
-        deferredInstallPrompt = null;
-        if (choice && choice.outcome === 'accepted') {
-          updateInstallBtnVisibility();
-        }
-        return;
-      }
-
+    installAppBtn.addEventListener('click', () => {
       if (!installHint || !installHintText) return;
       const isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-      installHintText.textContent = isIOS
-        ? 'To install: tap Share (⍐) in Safari, then tap "Add to Home Screen" ➕.'
-        : 'To install: tap the browser menu (⋮) and select "Add to Home screen" or "Install app".';
+      if (isIOS) {
+        installHintText.innerHTML =
+          'iOS: tap Share (⍐) in Safari → "Add to Home Screen" ➕. · Android Beta: <a href="https://groups.google.com/g/1-min-math-testers" target="_blank" rel="noopener noreferrer">Join Tester Group</a>';
+      } else {
+        installHintText.innerHTML =
+          'Test the Android app: 1) Join <a href="https://groups.google.com/g/1-min-math-testers" target="_blank" rel="noopener noreferrer">Google Group</a> · 2) <a href="https://play.google.com/store/apps/details?id=io.github.kssilveira.twa" target="_blank" rel="noopener noreferrer">Join on Android</a> or <a href="https://play.google.com/apps/testing/io.github.kssilveira.twa" target="_blank" rel="noopener noreferrer">Join on the web</a>.';
+      }
       installHint.classList.toggle('hidden');
     });
   }
