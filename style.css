@@ -1384,3 +1384,19 @@ html, body {
 .replay-log-list .review-row:active {
   opacity: 0.8;
 }
+
+.app-footer {
+  text-align: center;
+  padding: 4px 0 8px;
+  font-size: 0.76rem;
+}
+
+.app-footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Privacy Policy — 1-Minute Math</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('math_theme_v1');
+        var dark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <style>
+    .policy-page {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .policy-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      box-shadow: var(--shadow);
+    }
+    .policy-card h1 {
+      font-size: 1.4rem;
+      margin: 0 0 6px;
+    }
+    .policy-meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+    .policy-card h2 {
+      font-size: 1.05rem;
+      margin: 20px 0 8px;
+    }
+    .policy-card p,
+    .policy-card ul {
+      font-size: 0.92rem;
+      margin: 8px 0;
+    }
+    .policy-card ul {
+      padding-left: 20px;
+    }
+    .policy-card li {
+      margin: 4px 0;
+    }
+    .policy-card a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .policy-card a:hover {
+      text-decoration: underline;
+    }
+    .policy-back {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="policy-page">
+    <a class="policy-back" href="./">← Back to 1-Minute Math</a>
+    <article class="policy-card">
+      <h1>Privacy Policy for 1-Minute Math</h1>
+      <div class="policy-meta">Effective Date: October 27, 2026</div>
+
+      <p>
+        This Privacy Policy explains how <strong>1-Minute Math</strong> ("1-Min Math", the web application at
+        <a href="https://kssilveira.github.io/math-leaderboard/">https://kssilveira.github.io/math-leaderboard/</a>
+        and the Android application <code>io.github.kssilveira.twa</code>) handles user and device data.
+      </p>
+
+      <h2>1. Information Stored Locally on Your Device</h2>
+      <p>1-Minute Math stores the following data locally on your device using browser <code>localStorage</code>:</p>
+      <ul>
+        <li>Chosen player display names (pseudonyms/usernames) created on your device</li>
+        <li>Past game scores, per-question accuracy, and response time history used for Practice Mode and Progress charts</li>
+        <li>App preferences such as selected game configuration, dark/light theme, and sound/haptic settings</li>
+      </ul>
+      <p>This local data remains on your device and can be deleted at any time by removing a user profile in the app or clearing your browser/app storage.</p>
+
+      <h2>2. Information Shared Publicly (Global Leaderboards &amp; Replays)</h2>
+      <p>When you complete a ranked 1-minute game or create a custom game configuration while online:</p>
+      <ul>
+        <li>Your chosen display name (username), score, right/wrong answer counts, and the sequence of math questions, answers, and response durations for your best game are transmitted over HTTPS and stored in <strong>Google Firebase Realtime Database</strong>.</li>
+        <li>This leaderboard and replay data is publicly visible to other players of 1-Minute Math so that global rankings and game replays can be viewed and raced against.</li>
+        <li>If you share a replay link (<code>?replay=...</code>), the replay link itself encodes your chosen display name, score, and question log in the URL.</li>
+      </ul>
+      <p><strong>Please do not use sensitive personal information (such as your full legal name, email address, or phone number) as your leaderboard display name.</strong></p>
+
+      <h2>3. Personal &amp; Sensitive Device Data We Do Not Collect</h2>
+      <p>1-Minute Math does <strong>not</strong> collect, access, or request:</p>
+      <ul>
+        <li>Account registration, passwords, email addresses, or phone numbers</li>
+        <li>Precise or coarse device location data</li>
+        <li>Contacts, photos, camera, microphone, or local files</li>
+        <li>Advertising identifiers or behavioral tracking cookies</li>
+      </ul>
+      <p>We do not sell user data to third parties or display third-party behavioral advertising.</p>
+
+      <h2>4. Third-Party Services</h2>
+      <p>The app uses the following infrastructure providers to operate:</p>
+      <ul>
+        <li><strong>GitHub Pages</strong> (hosting static application files over HTTPS)</li>
+        <li><strong>Google Firebase Realtime Database</strong> (storing public global leaderboard scores and shared game configurations over HTTPS)</li>
+        <li><strong>Vercel</strong> (generating dynamic Open Graph preview images when links are shared)</li>
+      </ul>
+
+      <h2>5. Data Retention &amp; Deletion Requests</h2>
+      <ul>
+        <li><strong>Local device data</strong>: You can delete any local player profile at any time using the delete (<code>✕</code>) button next to the username in the app, or by clearing app storage in your device settings.</li>
+        <li><strong>Global leaderboard data</strong>: If you would like a public leaderboard entry removed from the Firebase database, please open a request at <a href="https://github.com/kssilveira/math-leaderboard/issues">https://github.com/kssilveira/math-leaderboard/issues</a> or contact the developer via email below with the display name and game configuration to remove.</li>
+      </ul>
+
+      <h2>6. Children's Privacy</h2>
+      <p>1-Minute Math does not knowingly collect personal information from children. All gameplay works without accounts or personal identifiers.</p>
+
+      <h2>7. Contact Us</h2>
+      <p>
+        If you have any questions or requests regarding this Privacy Policy, please contact:<br>
+        <strong>Kaue Silveira</strong> — <a href="mailto:silveira.kaue@gmail.com">silveira.kaue@gmail.com</a><br>
+        GitHub Repository: <a href="https://github.com/kssilveira/math-leaderboard">https://github.com/kssilveira/math-leaderboard</a>
+      </p>
+    </article>
+  </main>
+</body>
+</html>
