@@ -1407,6 +1407,22 @@ html, body {
   opacity: 0.6;
 }
 
+.footer-android-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  .footer-android-links,
+  .install-pill-btn,
+  .install-hint {
+    display: none !important;
+  }
+}
+
 .app-footer a {
   color: var(--text-muted);
   text-decoration: none;

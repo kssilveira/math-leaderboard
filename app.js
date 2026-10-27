@@ -3295,16 +3295,31 @@ document.addEventListener('click', (e) => {
 // --- PWA Install Prompt ---
 
 function isStandaloneApp() {
+  if (document.referrer && document.referrer.includes('android-app://')) {
+    try {
+      sessionStorage.setItem('math_twa_session', '1');
+    } catch (_) {}
+    return true;
+  }
+  try {
+    if (sessionStorage.getItem('math_twa_session') === '1') {
+      return true;
+    }
+  } catch (_) {}
   return (
-    window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches ||
-    window.navigator.standalone === true ||
-    document.referrer.includes('android-app://')
+    window.matchMedia('(display-mode: fullscreen), (display-mode: standalone), (display-mode: minimal-ui)').matches ||
+    window.navigator.standalone === true
   );
 }
 
 function updateInstallBtnVisibility() {
+  const standalone = isStandaloneApp();
+  const footerAndroidLinks = document.getElementById('footer-android-links');
+  if (footerAndroidLinks) {
+    footerAndroidLinks.classList.toggle('hidden', standalone);
+  }
   if (!installAppBtn) return;
-  if (isPlaying || isReplaying || isStandaloneApp()) {
+  if (isPlaying || isReplaying || standalone) {
     installAppBtn.classList.add('hidden');
     if (installHint) installHint.classList.add('hidden');
     return;
@@ -3314,6 +3329,13 @@ function updateInstallBtnVisibility() {
 
 function initInstallPrompt() {
   updateInstallBtnVisibility();
+
+  const displayModeMql = window.matchMedia(
+    '(display-mode: fullscreen), (display-mode: standalone), (display-mode: minimal-ui)'
+  );
+  if (displayModeMql && displayModeMql.addEventListener) {
+    displayModeMql.addEventListener('change', updateInstallBtnVisibility);
+  }
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
