@@ -165,7 +165,7 @@ html, body {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
-  width: 112px;
+  width: clamp(84px, 26vw, 112px);
   text-align: right;
   padding-right: 4px;
   outline: none;
