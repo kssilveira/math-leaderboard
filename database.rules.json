@@ -2,6 +2,13 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "userSecrets": {
+      ".read": false,
+      "$userId": {
+        ".write": "!data.exists() || (newData.exists() && newData.child('token').val() === data.child('token').val())",
+        ".validate": "newData.hasChildren(['token', 'proof']) && newData.child('token').isString() && newData.child('token').val().length >= 16 && newData.child('token').val().length <= 64 && newData.child('proof').isString() && newData.child('proof').val().length <= 128"
+      }
+    },
     "configs": {
       ".read": true,
       "$configId": {
@@ -14,7 +21,7 @@
       "$configId": {
         ".read": true,
         "$userId": {
-          ".write": "newData.exists() && (!data.exists() || newData.child('score').val() >= data.child('score').val())",
+          ".write": "newData.parent().parent().parent().child('userSecrets').child($userId).exists() && newData.parent().parent().parent().child('userSecrets').child($userId).child('proof').val() !== root.child('userSecrets').child($userId).child('proof').val() && ((newData.exists() && newData.parent().parent().parent().child('userSecrets').child($userId).child('proof').val() === newData.parent().parent().parent().child('userSecrets').child($userId).child('token').val() + '_' + newData.child('updatedAt').val() && (!data.exists() || newData.child('score').val() >= data.child('score').val())) || (!newData.exists() && newData.parent().parent().parent().child('userSecrets').child($userId).child('proof').val().beginsWith(newData.parent().parent().parent().child('userSecrets').child($userId).child('token').val() + '_delete_')))",
           ".validate": "newData.hasChildren(['userId', 'username', 'score', 'right', 'wrong', 'durationMs', 'updatedAt']) && newData.child('userId').isString() && newData.child('userId').val() === $userId && $userId.length <= 40 && newData.child('username').isString() && newData.child('username').val().length >= 1 && newData.child('username').val().length <= 20 && newData.child('score').isNumber() && newData.child('score').val() > 0 && newData.child('score').val() <= 200 && newData.child('right').isNumber() && newData.child('right').val() >= 1 && newData.child('right').val() <= 200 && newData.child('wrong').isNumber() && newData.child('wrong').val() >= 0 && newData.child('wrong').val() <= 200 && newData.child('score').val() === newData.child('right').val() - newData.child('wrong').val() && newData.child('durationMs').isNumber() && newData.child('durationMs').val() >= 500 && newData.child('durationMs').val() <= 70000 && newData.child('updatedAt').isNumber()"
         }
       }

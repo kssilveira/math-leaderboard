@@ -422,6 +422,31 @@ function renderUserList() {
   }
 }
 
+function getUserSecret(targetUserId) {
+  const userObj = users.find(u => u.userId === targetUserId);
+  if (userObj) {
+    if (!userObj.secret || typeof userObj.secret !== 'string' || userObj.secret.length < 16) {
+      userObj.secret = generateId('sec_');
+      saveUsersToStorage();
+    }
+    return userObj.secret;
+  }
+  const mapKey = 'math_user_secrets_v1';
+  let secretMap = {};
+  try {
+    secretMap = JSON.parse(localStorage.getItem(mapKey) || '{}') || {};
+  } catch (_) {
+    secretMap = {};
+  }
+  if (!secretMap[targetUserId] || secretMap[targetUserId].length < 16) {
+    secretMap[targetUserId] = generateId('sec_');
+    try {
+      localStorage.setItem(mapKey, JSON.stringify(secretMap));
+    } catch (_) {}
+  }
+  return secretMap[targetUserId];
+}
+
 function initUsers() {
   const rawUsers = localStorage.getItem(STORAGE_KEYS.users);
   if (rawUsers) {
@@ -435,8 +460,14 @@ function initUsers() {
   if (!Array.isArray(users) || users.length === 0) {
     const existingId = localStorage.getItem(STORAGE_KEYS.userId) || generateId('u_');
     const existingName = localStorage.getItem(STORAGE_KEYS.username) || generateRandomUsername();
-    users = [{ userId: existingId, username: existingName }];
+    users = [{ userId: existingId, username: existingName, secret: generateId('sec_') }];
   }
+
+  users.forEach((u) => {
+    if (!u.secret || typeof u.secret !== 'string' || u.secret.length < 16) {
+      u.secret = generateId('sec_');
+    }
+  });
 
   const savedActiveId = localStorage.getItem(STORAGE_KEYS.userId);
   const activeUser = users.find(u => u.userId === savedActiveId) || users[0];
@@ -469,7 +500,8 @@ async function addUser() {
   if (isPlaying || users.length >= MAX_LOCAL_USERS) return;
   const newUser = {
     userId: generateId('u_'),
-    username: generateRandomUsername()
+    username: generateRandomUsername(),
+    secret: generateId('sec_')
   };
   users.push(newUser);
   userId = newUser.userId;
@@ -488,12 +520,14 @@ async function deleteCurrentUser() {
   if (!window.confirm(`Delete user "${username}" and their scores?`)) return;
 
   const deletedUserId = userId;
+  const deletedUserSecret = getUserSecret(deletedUserId);
   users = users.filter(u => u.userId !== deletedUserId);
 
   if (users.length === 0) {
     users.push({
       userId: generateId('u_'),
-      username: generateRandomUsername()
+      username: generateRandomUsername(),
+      secret: generateId('sec_')
     });
   }
 
@@ -507,7 +541,7 @@ async function deleteCurrentUser() {
   deleteUserReviewFromStorage(deletedUserId);
   renderReview();
 
-  await deleteUserFromFirebase(deletedUserId);
+  await deleteUserFromFirebase(deletedUserId, deletedUserSecret);
 }
 
 async function saveUsername(newName) {
@@ -900,7 +934,39 @@ function getBestLocalSession(targetUserId, targetConfigId) {
   return best;
 }
 
+async function writeProtectedLeaderboardEntry(cfgId, uId, record) {
+  const token = getUserSecret(uId);
+  const payload = {
+    [`userSecrets/${uId}`]: {
+      token,
+      proof: `${token}_${record.updatedAt}`
+    },
+    [`leaderboards/${cfgId}/${uId}`]: record
+  };
+  await fetch(`${FIREBASE_DB_URL}/.json`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+}
+
+async function claimLocalUsersInFirebase() {
+  for (const u of users) {
+    if (!u || !u.userId) continue;
+    const token = getUserSecret(u.userId);
+    await fetch(`${FIREBASE_DB_URL}/userSecrets/${encodeURIComponent(u.userId)}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        proof: `${token}_claim_${Date.now()}`
+      })
+    }).catch(() => {});
+  }
+}
+
 async function backfillLocalBestToLeaderboard() {
+  await claimLocalUsersInFirebase();
   const historyMap = getGameHistoryMap();
   const pairs = new Set();
 
@@ -938,6 +1004,9 @@ async function backfillLocalBestToLeaderboard() {
     const resolvedUsername = (userObj && userObj.username) || (existing && existing.username) || username || 'Player';
     const bestScore = hasExisting ? Math.max(existing.score, bestLocal.score) : bestLocal.score;
     const normalizedQuestions = localHasQuestions ? bestLocal.questions.map(normalizeQuestionRecord) : [];
+    const baseUpdatedAt = (hasExisting && bestLocal.score <= existing.score && existing.updatedAt)
+      ? existing.updatedAt + 1
+      : (bestLocal.playedAt || Date.now());
 
     const record = {
       userId: uId,
@@ -947,9 +1016,7 @@ async function backfillLocalBestToLeaderboard() {
       wrong: typeof bestLocal.wrong === 'number' ? bestLocal.wrong : 0,
       durationMs: typeof bestLocal.durationMs === 'number' ? bestLocal.durationMs : GAME_DURATION_SECONDS * 1000,
       questions: normalizedQuestions,
-      updatedAt: (hasExisting && bestLocal.score <= existing.score && existing.updatedAt)
-        ? existing.updatedAt
-        : (bestLocal.playedAt || Date.now())
+      updatedAt: baseUpdatedAt
     };
 
     if (!leaderboardsMap[cfgId]) {
@@ -957,20 +1024,14 @@ async function backfillLocalBestToLeaderboard() {
     }
     leaderboardsMap[cfgId][uId] = record;
 
-    const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(uId)}.json`;
-    uploads.push(
-      ensureConfigPublishedInFirebase(cfgId).then(() =>
-        fetch(userUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(record)
-        }).catch(() => {})
-      )
-    );
+    uploads.push(async () => {
+      await ensureConfigPublishedInFirebase(cfgId);
+      await writeProtectedLeaderboardEntry(cfgId, uId, record);
+    });
   });
 
-  if (uploads.length > 0) {
-    await Promise.all(uploads);
+  for (const runUpload of uploads) {
+    await runUpload();
   }
 }
 
@@ -1003,6 +1064,10 @@ async function submitScoreToLeaderboard(score, sessionData) {
     ? sourceSession.questions.map(normalizeQuestionRecord)
     : [];
 
+  const nextUpdatedAt = isNewHighScore
+    ? Date.now()
+    : ((existing && existing.updatedAt ? existing.updatedAt : Date.now()) + 1);
+
   const record = {
     userId,
     username,
@@ -1013,45 +1078,56 @@ async function submitScoreToLeaderboard(score, sessionData) {
       ? sourceSession.durationMs
       : GAME_DURATION_SECONDS * 1000,
     questions: normalizedQuestions,
-    updatedAt: isNewHighScore ? Date.now() : (existing.updatedAt || Date.now())
+    updatedAt: nextUpdatedAt
   };
 
-  await fetch(userUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(record)
-  }).catch(() => {});
+  if (isNewHighScore || useSessionQuestions) {
+    await writeProtectedLeaderboardEntry(configId, userId, record);
+  }
 
   await syncFromFirebase();
 }
 
 async function updateUsernameInFirebase(targetUserId, newUsername) {
   const configIds = Object.keys(leaderboardsMap);
-  await Promise.all(
-    configIds.map(async (cfgId) => {
-      if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
-        const url = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`;
-        await fetch(url, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: newUsername })
-        }).catch(() => {});
-      }
-    })
-  );
+  for (const cfgId of configIds) {
+    const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId];
+    if (existing) {
+      const updatedRecord = {
+        ...existing,
+        userId: targetUserId,
+        username: newUsername,
+        updatedAt: (existing.updatedAt || Date.now()) + 1
+      };
+      await writeProtectedLeaderboardEntry(cfgId, targetUserId, updatedRecord);
+    }
+  }
   await syncFromFirebase();
 }
 
-async function deleteUserFromFirebase(targetUserId) {
+async function deleteUserFromFirebase(targetUserId, knownSecret) {
   const configIds = Object.keys(leaderboardsMap);
-  await Promise.all(
-    configIds.map(async (cfgId) => {
-      if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
-        const url = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`;
-        await fetch(url, { method: 'DELETE' }).catch(() => {});
-      }
-    })
-  );
+  const token = knownSecret || getUserSecret(targetUserId);
+  const patchBody = {
+    [`userSecrets/${targetUserId}`]: {
+      token,
+      proof: `${token}_delete_${Date.now()}`
+    }
+  };
+  let hasEntries = false;
+  configIds.forEach((cfgId) => {
+    if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
+      patchBody[`leaderboards/${cfgId}/${targetUserId}`] = null;
+      hasEntries = true;
+    }
+  });
+  if (hasEntries) {
+    await fetch(`${FIREBASE_DB_URL}/.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchBody)
+    }).catch(() => {});
+  }
   await syncFromFirebase();
 }
 
