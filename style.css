@@ -687,14 +687,46 @@ html, body {
 
 .my-rank-bar {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 5px;
   background: var(--surface-subtle);
   padding: 7px 11px;
   border-radius: 10px;
   font-size: 0.85rem;
+}
+
+.my-rank-main {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.my-rank-jump.clickable {
+  cursor: pointer;
+}
+
+.my-rank-jump.clickable:hover strong {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.next-rank-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.next-rank-text strong {
+  color: var(--text);
+  font-weight: 700;
 }
 
 .my-best-group {
@@ -734,7 +766,8 @@ html, body {
 
 .leaderboard-row {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: minmax(36px, auto) 1fr auto;
+  gap: 6px;
   align-items: center;
   padding: 6px 10px;
   border-radius: 8px;
@@ -778,6 +811,77 @@ html, body {
   padding: 16px 0;
   color: var(--text-muted);
   font-size: 0.88rem;
+}
+
+.leaderboard-pinned-me {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.leaderboard-pinned-sep {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1;
+  padding: 1px 0;
+  user-select: none;
+}
+
+.leaderboard-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.page-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.page-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.page-ellipsis {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0 2px;
 }
 
 /* Review Section */

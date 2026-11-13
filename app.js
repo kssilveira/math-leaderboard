@@ -22,6 +22,7 @@ const CONFIG_MIN_BOUND = -999;
 const CONFIG_MAX_BOUND = 999;
 const MAX_VALID_SCORE = 200;
 const MIN_AVG_QUESTION_MS = 250;
+const LEADERBOARD_PAGE_SIZE = 10;
 
 // State
 let users = []; // [{ userId: string, username: string }]
@@ -32,6 +33,7 @@ let configs = []; // [{ id, ops, min1, max1, min2, max2, min3, max3 }]
 let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
 let activeConfigId = '';
 let draftConfig = null;
+let leaderboardPage = 1;
 
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
@@ -99,13 +101,19 @@ const lastScoreDetail = document.getElementById('last-score-detail');
 const replayLastBtn = document.getElementById('replay-last-btn');
 const raceLastBtn = document.getElementById('race-last-btn');
 const shareLastBtn = document.getElementById('share-last-btn');
+const myRankJump = document.getElementById('my-rank-jump');
 const myRankValue = document.getElementById('my-rank-value');
 const myBestValue = document.getElementById('my-best-value');
 const myBestActions = document.getElementById('my-best-actions');
+const nextRankRow = document.getElementById('next-rank-row');
+const nextRankText = document.getElementById('next-rank-text');
+const nextRankActions = document.getElementById('next-rank-actions');
 const replayBestBtn = document.getElementById('replay-best-btn');
 const raceBestBtn = document.getElementById('race-best-btn');
 const shareBestBtn = document.getElementById('share-best-btn');
 const leaderboardList = document.getElementById('leaderboard-list');
+const leaderboardPinnedMe = document.getElementById('leaderboard-pinned-me');
+const leaderboardPagination = document.getElementById('leaderboard-pagination');
 const reviewCard = document.getElementById('review-card');
 const reviewToggleBtn = document.getElementById('review-toggle-btn');
 const reviewChevron = document.getElementById('review-chevron');
@@ -761,6 +769,7 @@ async function switchConfig(targetConfigId) {
   if (!target || target.id === activeConfigId) return;
 
   activeConfigId = target.id;
+  leaderboardPage = 1;
   localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
   closeNewConfigPanel();
   lastResult.classList.add('hidden');
@@ -1167,6 +1176,116 @@ function getMyBestReplaySession() {
   return null;
 }
 
+function buildEntryReplaySession(entry) {
+  if (!entry || !Array.isArray(entry.questions) || entry.questions.length === 0) {
+    return null;
+  }
+  return {
+    username: entry.username,
+    configId: activeConfigId,
+    score: entry.score,
+    right: entry.right,
+    wrong: entry.wrong,
+    durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
+    questions: entry.questions.map(normalizeQuestionRecord)
+  };
+}
+
+function appendEntryActionButtons(container, entry) {
+  const replaySession = buildEntryReplaySession(entry);
+  if (!replaySession) return;
+
+  const replayBtn = document.createElement('button');
+  replayBtn.type = 'button';
+  replayBtn.className = 'inline-btn';
+  replayBtn.textContent = '▶';
+  replayBtn.title = `Replay ${entry.username}'s best game`;
+  replayBtn.setAttribute('aria-label', `Replay ${entry.username}'s best game`);
+  replayBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startReplay(replaySession);
+  });
+
+  const raceBtn = document.createElement('button');
+  raceBtn.type = 'button';
+  raceBtn.className = 'inline-btn';
+  raceBtn.textContent = '⚔️';
+  raceBtn.title = `Race against ${entry.username}'s best game`;
+  raceBtn.setAttribute('aria-label', `Race against ${entry.username}'s best game`);
+  raceBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startRace(replaySession);
+  });
+
+  const shareBtn = document.createElement('button');
+  shareBtn.type = 'button';
+  shareBtn.className = 'inline-btn';
+  shareBtn.textContent = '🔗';
+  shareBtn.title = `Copy share link for ${entry.username}'s best game`;
+  shareBtn.setAttribute('aria-label', `Copy share link for ${entry.username}'s best game`);
+  shareBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyReplayLink(replaySession, shareBtn);
+  });
+
+  container.append(replayBtn, raceBtn, shareBtn);
+}
+
+function createLeaderboardRowEl(entry, extraLabel = '') {
+  const li = document.createElement('li');
+  const isMe = entry.userId === userId;
+  li.className = 'leaderboard-row' + (isMe ? ' is-me' : '');
+
+  const rankSpan = document.createElement('span');
+  rankSpan.className = 'rank-num';
+  rankSpan.textContent = `#${entry.rank}`;
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'player-name';
+  nameSpan.textContent = entry.username + (isMe ? ' (you)' : '') + (extraLabel ? ` · ${extraLabel}` : '');
+
+  const rightGroup = document.createElement('span');
+  rightGroup.className = 'player-right-group';
+
+  appendEntryActionButtons(rightGroup, entry);
+
+  const scoreSpan = document.createElement('span');
+  scoreSpan.className = 'player-score';
+  scoreSpan.textContent = entry.score;
+  rightGroup.appendChild(scoreSpan);
+
+  li.append(rankSpan, nameSpan, rightGroup);
+  return li;
+}
+
+function getPageButtonNumbers(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  } else if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 1);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 3);
+  }
+  const sorted = Array.from(pages)
+    .filter(p => p >= 1 && p <= totalPages)
+    .sort((a, b) => a - b);
+
+  const result = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) {
+      result.push('...');
+    }
+    result.push(sorted[i]);
+  }
+  return result;
+}
+
 function renderLeaderboard() {
   const boardObj = leaderboardsMap[activeConfigId] || {};
   const entries = sortLeaderboard(Object.values(boardObj));
@@ -1178,90 +1297,208 @@ function renderLeaderboard() {
     return { ...entry, rank: currentRank };
   });
 
-  const top10 = rankedEntries.slice(0, 10);
-  const myEntry = rankedEntries.find(e => e.userId === userId);
+  const totalEntries = rankedEntries.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / LEADERBOARD_PAGE_SIZE));
+  leaderboardPage = Math.max(1, Math.min(totalPages, leaderboardPage));
+
+  const myIndex = rankedEntries.findIndex(e => e.userId === userId);
+  const myEntry = myIndex >= 0 ? rankedEntries[myIndex] : null;
+  const myPage = myIndex >= 0 ? Math.floor(myIndex / LEADERBOARD_PAGE_SIZE) + 1 : 1;
   const myBestSession = getMyBestReplaySession();
 
   if (myEntry) {
-    myRankValue.textContent = `#${myEntry.rank} of ${rankedEntries.length}`;
+    myRankValue.textContent = `#${myEntry.rank} of ${totalEntries}`;
     myBestValue.textContent = myEntry.score;
+    if (myRankJump) {
+      const canJump = totalPages > 1 && leaderboardPage !== myPage;
+      myRankJump.classList.toggle('clickable', totalPages > 1);
+      myRankJump.title = canJump ? `Jump to your page (Page ${myPage})` : '';
+      myRankJump.onclick = totalPages > 1
+        ? () => {
+            leaderboardPage = myPage;
+            renderLeaderboard();
+          }
+        : null;
+    }
   } else {
-    myRankValue.textContent = 'Unranked';
+    myRankValue.textContent = totalEntries > 0 ? `Unranked (of ${totalEntries})` : 'Unranked';
     myBestValue.textContent = myBestSession ? myBestSession.score : '—';
+    if (myRankJump) {
+      myRankJump.classList.remove('clickable');
+      myRankJump.title = '';
+      myRankJump.onclick = null;
+    }
   }
 
   if (myBestActions) {
     myBestActions.classList.toggle('hidden', !myBestSession);
   }
 
-  if (top10.length === 0) {
+  // Next score to move up
+  if (nextRankRow && nextRankText && nextRankActions) {
+    nextRankActions.innerHTML = '';
+    nextRankActions.classList.add('hidden');
+    if (myEntry) {
+      const nextUpEntry = [...rankedEntries].reverse().find(e => e.score > myEntry.score);
+      if (nextUpEntry) {
+        const diffTie = nextUpEntry.score - myEntry.score;
+        const diffPass = diffTie + 1;
+        nextRankText.innerHTML = '';
+        const prefix = document.createTextNode('↑ Next: ');
+        const strongTarget = document.createElement('strong');
+        strongTarget.textContent = `#${nextUpEntry.rank} ${nextUpEntry.username} (${nextUpEntry.score})`;
+        const suffix = document.createTextNode(` · +${diffTie} to tie, +${diffPass} to pass`);
+        nextRankText.append(prefix, strongTarget, suffix);
+        appendEntryActionButtons(nextRankActions, nextUpEntry);
+        if (nextRankActions.childNodes.length > 0) {
+          nextRankActions.classList.remove('hidden');
+        }
+        nextRankRow.classList.remove('hidden');
+      } else {
+        const coLeaders = rankedEntries.filter(e => e.score === myEntry.score && e.userId !== userId);
+        if (coLeaders.length > 0) {
+          nextRankText.textContent = `🏆 Tied #1 with ${coLeaders[0].username} · Score ${myEntry.score + 1} (+1) for sole #1`;
+          appendEntryActionButtons(nextRankActions, coLeaders[0]);
+          if (nextRankActions.childNodes.length > 0) {
+            nextRankActions.classList.remove('hidden');
+          }
+        } else {
+          const runnerUp = rankedEntries.find(e => e.score < myEntry.score);
+          nextRankText.textContent = runnerUp
+            ? `🏆 #1 Leader (+${myEntry.score - runnerUp.score} ahead of #${runnerUp.rank} ${runnerUp.username})`
+            : '🏆 #1 Leader';
+        }
+        nextRankRow.classList.remove('hidden');
+      }
+    } else if (totalEntries > 0) {
+      const entryToCatch = rankedEntries[totalEntries - 1];
+      nextRankText.textContent = `↑ Score 1+ to rank · ${entryToCatch.score} ties #${entryToCatch.rank} ${entryToCatch.username}`;
+      appendEntryActionButtons(nextRankActions, entryToCatch);
+      if (nextRankActions.childNodes.length > 0) {
+        nextRankActions.classList.remove('hidden');
+      }
+      nextRankRow.classList.remove('hidden');
+    } else {
+      nextRankRow.classList.add('hidden');
+    }
+  }
+
+  if (totalEntries === 0) {
     leaderboardList.innerHTML = '<li class="empty-row">No scores yet. Be the first!</li>';
+    if (leaderboardPinnedMe) leaderboardPinnedMe.classList.add('hidden');
+    if (leaderboardPagination) leaderboardPagination.classList.add('hidden');
     return;
   }
 
+  const startIdx = (leaderboardPage - 1) * LEADERBOARD_PAGE_SIZE;
+  const pageEntries = rankedEntries.slice(startIdx, startIdx + LEADERBOARD_PAGE_SIZE);
+
   leaderboardList.innerHTML = '';
-  top10.forEach((entry) => {
-    const li = document.createElement('li');
-    const isMe = entry.userId === userId;
-    li.className = 'leaderboard-row' + (isMe ? ' is-me' : '');
-
-    const rankSpan = document.createElement('span');
-    rankSpan.className = 'rank-num';
-    rankSpan.textContent = `#${entry.rank}`;
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'player-name';
-    nameSpan.textContent = entry.username + (isMe ? ' (you)' : '');
-
-    const rightGroup = document.createElement('span');
-    rightGroup.className = 'player-right-group';
-
-    if (Array.isArray(entry.questions) && entry.questions.length > 0) {
-      const replaySession = {
-        username: entry.username,
-        configId: activeConfigId,
-        score: entry.score,
-        right: entry.right,
-        wrong: entry.wrong,
-        durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
-        questions: entry.questions.map(normalizeQuestionRecord)
-      };
-
-      const replayBtn = document.createElement('button');
-      replayBtn.type = 'button';
-      replayBtn.className = 'inline-btn';
-      replayBtn.textContent = '▶';
-      replayBtn.title = `Replay ${entry.username}'s best game`;
-      replayBtn.setAttribute('aria-label', `Replay ${entry.username}'s best game`);
-      replayBtn.addEventListener('click', () => startReplay(replaySession));
-
-      const raceBtn = document.createElement('button');
-      raceBtn.type = 'button';
-      raceBtn.className = 'inline-btn';
-      raceBtn.textContent = '⚔️';
-      raceBtn.title = `Race against ${entry.username}'s best game`;
-      raceBtn.setAttribute('aria-label', `Race against ${entry.username}'s best game`);
-      raceBtn.addEventListener('click', () => startRace(replaySession));
-
-      const shareBtn = document.createElement('button');
-      shareBtn.type = 'button';
-      shareBtn.className = 'inline-btn';
-      shareBtn.textContent = '🔗';
-      shareBtn.title = `Copy share link for ${entry.username}'s best game`;
-      shareBtn.setAttribute('aria-label', `Copy share link for ${entry.username}'s best game`);
-      shareBtn.addEventListener('click', () => copyReplayLink(replaySession, shareBtn));
-
-      rightGroup.append(replayBtn, raceBtn, shareBtn);
-    }
-
-    const scoreSpan = document.createElement('span');
-    scoreSpan.className = 'player-score';
-    scoreSpan.textContent = entry.score;
-    rightGroup.appendChild(scoreSpan);
-
-    li.append(rankSpan, nameSpan, rightGroup);
-    leaderboardList.appendChild(li);
+  pageEntries.forEach((entry) => {
+    leaderboardList.appendChild(createLeaderboardRowEl(entry));
   });
+
+  // Pinned current user row when viewing a page that doesn't contain them
+  if (leaderboardPinnedMe) {
+    leaderboardPinnedMe.innerHTML = '';
+    if (myEntry && myPage !== leaderboardPage) {
+      const sep = document.createElement('div');
+      sep.className = 'leaderboard-pinned-sep';
+      sep.textContent = '⋯';
+      const pinnedRow = createLeaderboardRowEl(myEntry, `Page ${myPage}`);
+      pinnedRow.style.cursor = 'pointer';
+      pinnedRow.title = `Jump to Page ${myPage}`;
+      pinnedRow.addEventListener('click', () => {
+        leaderboardPage = myPage;
+        renderLeaderboard();
+      });
+      leaderboardPinnedMe.append(sep, pinnedRow);
+      leaderboardPinnedMe.classList.remove('hidden');
+    } else {
+      leaderboardPinnedMe.classList.add('hidden');
+    }
+  }
+
+  // Pagination & Jump to Page controls
+  if (leaderboardPagination) {
+    leaderboardPagination.innerHTML = '';
+    if (totalPages > 1) {
+      const navGroup = document.createElement('div');
+      navGroup.className = 'page-nav-group';
+
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.className = 'page-btn';
+      prevBtn.textContent = '‹';
+      prevBtn.title = 'Previous page';
+      prevBtn.setAttribute('aria-label', 'Previous page');
+      prevBtn.disabled = leaderboardPage <= 1;
+      prevBtn.addEventListener('click', () => {
+        if (leaderboardPage > 1) {
+          leaderboardPage -= 1;
+          renderLeaderboard();
+        }
+      });
+      navGroup.appendChild(prevBtn);
+
+      const pageTokens = getPageButtonNumbers(leaderboardPage, totalPages);
+      pageTokens.forEach((token) => {
+        if (token === '...') {
+          const dots = document.createElement('span');
+          dots.className = 'page-ellipsis';
+          dots.textContent = '…';
+          navGroup.appendChild(dots);
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'page-btn' + (token === leaderboardPage ? ' active' : '');
+          btn.textContent = String(token);
+          btn.setAttribute('aria-label', `Page ${token}`);
+          if (token === leaderboardPage) {
+            btn.setAttribute('aria-current', 'page');
+          }
+          btn.addEventListener('click', () => {
+            leaderboardPage = token;
+            renderLeaderboard();
+          });
+          navGroup.appendChild(btn);
+        }
+      });
+
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.className = 'page-btn';
+      nextBtn.textContent = '›';
+      nextBtn.title = 'Next page';
+      nextBtn.setAttribute('aria-label', 'Next page');
+      nextBtn.disabled = leaderboardPage >= totalPages;
+      nextBtn.addEventListener('click', () => {
+        if (leaderboardPage < totalPages) {
+          leaderboardPage += 1;
+          renderLeaderboard();
+        }
+      });
+      navGroup.appendChild(nextBtn);
+
+      leaderboardPagination.appendChild(navGroup);
+
+      if (myEntry && myPage !== leaderboardPage) {
+        const myPageBtn = document.createElement('button');
+        myPageBtn.type = 'button';
+        myPageBtn.className = 'page-btn';
+        myPageBtn.textContent = `🎯 My Rank (P${myPage})`;
+        myPageBtn.addEventListener('click', () => {
+          leaderboardPage = myPage;
+          renderLeaderboard();
+        });
+        leaderboardPagination.appendChild(myPageBtn);
+      }
+
+      leaderboardPagination.classList.remove('hidden');
+    } else {
+      leaderboardPagination.classList.add('hidden');
+    }
+  }
 }
 
 // --- Local Storage Game Review & Per-Question Performance (Per User & Config) ---
