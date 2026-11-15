@@ -4,8 +4,9 @@ export const config = {
   runtime: 'edge',
 };
 
-const FIREBASE_LB_URL =
-  'https://math-leaderboard-122f4-default-rtdb.europe-west1.firebasedatabase.app/leaderboards/cfg_add-sub_0_10_0_10_0_20.json';
+const FIREBASE_BASE_URL =
+  'https://math-leaderboard-122f4-default-rtdb.europe-west1.firebasedatabase.app';
+const DEFAULT_CONFIG_ID = 'cfg_add-sub_0_10_0_10_0_20';
 const ALL_OPS = ['+', '-', '×', '÷'];
 
 function h(type, style, children) {
@@ -802,9 +803,37 @@ function renderReplayCard(replay) {
   );
 }
 
-async function fetchTop10Leaderboard() {
+const QUIZ_PREVIEW_SAMPLES = {
+  cfg_geo_flag_country: { prompt: '🇧🇷', choices: ['Brazil', 'Argentina'] },
+  cfg_geo_country_flag: { prompt: 'Brazil', choices: ['🇧🇷', '🇦🇷'] },
+  cfg_geo_country_capital: { prompt: 'Brazil', choices: ['Brasília', 'Buenos Aires'] },
+  cfg_geo_capital_country: { prompt: 'Brasília', choices: ['Brazil', 'Argentina'] },
+  cfg_geo_flag_capital: { prompt: '🇧🇷', choices: ['Brasília', 'Buenos Aires'] },
+  cfg_geo_capital_flag: { prompt: 'Brasília', choices: ['🇧🇷', '🇦🇷'] },
+  cfg_lang_pt_en: { prompt: 'sempre', choices: ['always', 'never'] },
+  cfg_lang_es_en: { prompt: 'siempre', choices: ['always', 'never'] },
+  cfg_lang_fr_en: { prompt: 'toujours', choices: ['always', 'never'] },
+  cfg_lang_de_en: { prompt: 'immer', choices: ['always', 'never'] },
+  cfg_lang_en_pt: { prompt: 'always', choices: ['sempre', 'nunca'] },
+  cfg_lang_en_es: { prompt: 'always', choices: ['siempre', 'nunca'] },
+  cfg_lang_en_fr: { prompt: 'always', choices: ['toujours', 'jamais'] },
+  cfg_lang_en_de: { prompt: 'always', choices: ['immer', 'nie'] },
+  cfg_lang_emoji_en: { prompt: '🚀', choices: ['rocket', 'airplane'] },
+  cfg_lang_en_emoji: { prompt: 'rocket', choices: ['🚀', '✈️'] },
+  cfg_lang_synonym: { prompt: 'ancient', choices: ['old', 'modern'] },
+  cfg_lang_antonym: { prompt: 'expand', choices: ['shrink', 'grow'] },
+  cfg_lang_idiom_meaning: { prompt: 'break the ice', choices: ['start a conversation', 'delay a decision'] },
+  cfg_lang_meaning_idiom: { prompt: 'start a conversation', choices: ['break the ice', 'call it a day'] },
+  cfg_chem_symbol_name: { prompt: 'Au', choices: ['Gold', 'Silver'] },
+  cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
+};
+
+async function fetchTop10Leaderboard(configId = DEFAULT_CONFIG_ID) {
   try {
-    const res = await fetch(FIREBASE_LB_URL);
+    const safeCfgId = configId || DEFAULT_CONFIG_ID;
+    const res = await fetch(
+      `${FIREBASE_BASE_URL}/leaderboards/${encodeURIComponent(safeCfgId)}.json`
+    );
     const raw = res.ok ? await res.json() : {};
     const entries = Object.values(raw || {}).filter(
       (e) => e && typeof e.score === 'number'
@@ -829,42 +858,407 @@ async function fetchTop10Leaderboard() {
   }
 }
 
-function renderLeaderboardCard(top10) {
-  const rows = top10.map((item, idx) =>
+async function fetchUserProfileStats(userId, fallbackName = 'Player') {
+  try {
+    const res = await fetch(`${FIREBASE_BASE_URL}/leaderboards.json`);
+    const allBoards = res.ok ? await res.json() : {};
+    const performances = [];
+    let resolvedUsername = fallbackName || 'Player';
+
+    Object.entries(allBoards || {}).forEach(([cfgId, boardObj]) => {
+      if (!boardObj || typeof boardObj !== 'object') return;
+      const entries = Object.values(boardObj).filter(
+        (e) => e && typeof e.score === 'number'
+      );
+      if (entries.length === 0) return;
+      entries.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.updatedAt || 0) - (b.updatedAt || 0);
+      });
+      let currentRank = 1;
+      const ranked = entries.map((e, idx) => {
+        if (idx > 0 && e.score < entries[idx - 1].score) {
+          currentRank = idx + 1;
+        }
+        return { ...e, rank: currentRank };
+      });
+      const myEntry = ranked.find((e) => e.userId === userId);
+      if (myEntry) {
+        if (myEntry.username) resolvedUsername = String(myEntry.username);
+        performances.push({
+          cfgId,
+          label: formatConfigId(cfgId),
+          rank: myEntry.rank,
+          totalPlayers: ranked.length,
+          score: myEntry.score,
+          right: typeof myEntry.right === 'number' ? myEntry.right : myEntry.score,
+          wrong: typeof myEntry.wrong === 'number' ? myEntry.wrong : 0,
+        });
+      }
+    });
+
+    performances.sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      if (b.score !== a.score) return b.score - a.score;
+      return b.totalPlayers - a.totalPlayers;
+    });
+
+    const firstPlaceCount = performances.filter((p) => p.rank === 1).length;
+    const bestRank =
+      performances.length > 0
+        ? Math.min(...performances.map((p) => p.rank))
+        : null;
+    const topScore =
+      performances.length > 0
+        ? Math.max(...performances.map((p) => p.score))
+        : 0;
+
+    return {
+      userId,
+      username: resolvedUsername,
+      gamesRanked: performances.length,
+      firstPlaceCount,
+      bestRank,
+      topScore,
+      performances: performances.slice(0, 8),
+    };
+  } catch (_) {
+    return {
+      userId,
+      username: fallbackName || 'Player',
+      gamesRanked: 0,
+      firstPlaceCount: 0,
+      bestRank: null,
+      topScore: 0,
+      performances: [],
+    };
+  }
+}
+
+function renderUserProfileCard(profile) {
+  const statCard = (label, val, highlight = false) =>
     h(
       'div',
       {
+        flex: 1,
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: idx === 0 ? '#e8f1fd' : '#f8fafc',
-        color: idx === 0 ? '#1264e1' : '#1b222c',
-        borderRadius: '10px',
-        padding: '8px 14px',
-        fontSize: '18px',
-        fontWeight: idx === 0 ? 800 : 600,
+        justifyContent: 'center',
+        backgroundColor: '#ffffff',
+        border: '1px solid #dbe2ea',
+        borderRadius: '16px',
+        padding: '14px 12px',
       },
       [
         h(
-          'div',
-          { display: 'flex', alignItems: 'center', gap: '14px' },
-          [
-            h(
-              'span',
-              {
-                color: idx === 0 ? '#1264e1' : '#627084',
-                fontWeight: 800,
-                minWidth: '38px',
-              },
-              `#${item.rank}`
-            ),
-            h('span', {}, item.username),
-          ]
+          'span',
+          {
+            fontSize: '12px',
+            fontWeight: 800,
+            color: '#627084',
+            textTransform: 'uppercase',
+            marginBottom: '4px',
+          },
+          label
         ),
-        h('span', { fontWeight: 800 }, String(item.score)),
+        h(
+          'span',
+          {
+            fontSize: '28px',
+            fontWeight: 900,
+            color: highlight ? '#1264e1' : '#1b222c',
+          },
+          String(val)
+        ),
       ]
-    )
+    );
+
+  const perfRows =
+    profile.performances.length > 0
+      ? profile.performances.map((p) =>
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: p.rank === 1 ? '#e8f1fd' : '#f8fafc',
+              color: p.rank === 1 ? '#1264e1' : '#1b222c',
+              borderRadius: '10px',
+              padding: '9px 14px',
+              fontSize: '17px',
+              fontWeight: 700,
+            },
+            [
+              h(
+                'div',
+                { display: 'flex', alignItems: 'center', gap: '12px' },
+                [
+                  h(
+                    'span',
+                    {
+                      color: p.rank === 1 ? '#d97706' : '#1264e1',
+                      fontWeight: 900,
+                      minWidth: '82px',
+                    },
+                    p.rank === 1
+                      ? `🏆 #1/${p.totalPlayers}`
+                      : `#${p.rank}/${p.totalPlayers}`
+                  ),
+                  h('span', { color: '#1b222c' }, p.label),
+                ]
+              ),
+              h(
+                'div',
+                { display: 'flex', alignItems: 'center', gap: '10px' },
+                [
+                  h(
+                    'span',
+                    { fontSize: '14px', color: '#627084', fontWeight: 700 },
+                    `${p.right}✓ ${p.wrong}✗`
+                  ),
+                  h(
+                    'span',
+                    { fontSize: '20px', fontWeight: 900, color: '#1264e1', minWidth: '34px', textAlign: 'right' },
+                    String(p.score)
+                  ),
+                ]
+              ),
+            ]
+          )
+        )
+      : [
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              color: '#627084',
+              fontSize: '18px',
+              fontWeight: 700,
+            },
+            'No leaderboard scores recorded yet'
+          ),
+        ];
+
+  return h(
+    'div',
+    {
+      width: '1200px',
+      height: '630px',
+      display: 'flex',
+      padding: '34px 44px',
+      backgroundColor: '#eef3f9',
+      fontFamily: 'sans-serif',
+      gap: '34px',
+    },
+    [
+      // Left Column: Player Summary
+      h(
+        'div',
+        {
+          width: '450px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '14px',
+        },
+        [
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            },
+            [
+              h(
+                'span',
+                { fontSize: '34px', fontWeight: 900, color: '#1b222c' },
+                '1-Min Quiz'
+              ),
+              h(
+                'span',
+                {
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  color: '#ffffff',
+                  backgroundColor: '#1264e1',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                },
+                'PLAYER PROFILE'
+              ),
+            ]
+          ),
+          h(
+            'div',
+            {
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#ecfdf3',
+              border: '3px solid #16a34a',
+              borderRadius: '20px',
+              padding: '26px 20px',
+              gap: '6px',
+            },
+            [
+              h(
+                'span',
+                {
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  color: '#15803d',
+                  textTransform: 'uppercase',
+                },
+                profile.firstPlaceCount > 0
+                  ? `🏆 ${profile.firstPlaceCount} × #1 Global Leader`
+                  : 'Global Quiz Competitor'
+              ),
+              h(
+                'span',
+                { fontSize: '52px', fontWeight: 900, color: '#15803d' },
+                profile.username
+              ),
+              h(
+                'span',
+                { fontSize: '17px', fontWeight: 700, color: '#475569' },
+                'Math · Geography · Language · Chemistry'
+              ),
+            ]
+          ),
+          h('div', { display: 'flex', gap: '12px' }, [
+            statCard('Games Ranked', profile.gamesRanked, true),
+            statCard('🏆 #1 Ranks', profile.firstPlaceCount, true),
+          ]),
+          h('div', { display: 'flex', gap: '12px' }, [
+            statCard(
+              'Best Rank',
+              profile.bestRank !== null ? `#${profile.bestRank}` : '—'
+            ),
+            statCard('Top Score', profile.topScore > 0 ? profile.topScore : '—'),
+          ]),
+        ]
+      ),
+      // Right Column: Performances Table
+      h(
+        'div',
+        {
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#ffffff',
+          border: '1px solid #dbe2ea',
+          borderRadius: '22px',
+          padding: '24px 28px',
+          justifyContent: 'space-between',
+        },
+        [
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '10px',
+            },
+            [
+              h(
+                'span',
+                { fontSize: '23px', fontWeight: 800, color: '#1b222c' },
+                'Performances by Rank & Score'
+              ),
+              h(
+                'span',
+                {
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: '#1264e1',
+                  backgroundColor: '#e8f1fd',
+                  padding: '5px 12px',
+                  borderRadius: '999px',
+                },
+                `${profile.gamesRanked} Ranked`
+              ),
+            ]
+          ),
+          h(
+            'div',
+            {
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '7px',
+              flex: 1,
+            },
+            perfRows
+          ),
+        ]
+      ),
+    ]
   );
+}
+
+function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
+  const safeCfgId = configId || DEFAULT_CONFIG_ID;
+  const cfgLabel = formatConfigId(safeCfgId);
+  const quizSample = QUIZ_PREVIEW_SAMPLES[safeCfgId] || null;
+  const rows =
+    top10.length > 0
+      ? top10.map((item, idx) =>
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: idx === 0 ? '#e8f1fd' : '#f8fafc',
+              color: idx === 0 ? '#1264e1' : '#1b222c',
+              borderRadius: '10px',
+              padding: '8px 14px',
+              fontSize: '18px',
+              fontWeight: idx === 0 ? 800 : 600,
+            },
+            [
+              h(
+                'div',
+                { display: 'flex', alignItems: 'center', gap: '14px' },
+                [
+                  h(
+                    'span',
+                    {
+                      color: idx === 0 ? '#1264e1' : '#627084',
+                      fontWeight: 800,
+                      minWidth: '38px',
+                    },
+                    `#${item.rank}`
+                  ),
+                  h('span', {}, item.username),
+                ]
+              ),
+              h('span', { fontWeight: 800 }, String(item.score)),
+            ]
+          )
+        )
+      : [
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              color: '#627084',
+              fontSize: '18px',
+              fontWeight: 700,
+            },
+            'No scores yet — be the first to rank #1!'
+          ),
+        ];
 
   const keyCell = (digit, hidden = false) =>
     h(
@@ -884,6 +1278,147 @@ function renderLeaderboardCard(top10) {
       },
       hidden ? '' : String(digit)
     );
+
+  const leftGameplayNodes = quizSample
+    ? [
+        h(
+          'div',
+          {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #dbe2ea',
+            borderRadius: '18px',
+            padding: '32px 20px',
+            color: '#1b222c',
+          },
+          [
+            h(
+              'span',
+              {
+                fontSize: '15px',
+                fontWeight: 800,
+                color: '#627084',
+                textTransform: 'uppercase',
+              },
+              cfgLabel
+            ),
+            h(
+              'span',
+              { fontSize: '54px', fontWeight: 900, color: '#1b222c' },
+              quizSample.prompt
+            ),
+          ]
+        ),
+        h(
+          'div',
+          { display: 'flex', gap: '14px', flex: 1 },
+          [
+            h(
+              'div',
+              {
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#e8f1fd',
+                border: '3px solid #1264e1',
+                borderRadius: '18px',
+                fontSize: '28px',
+                fontWeight: 800,
+                color: '#1264e1',
+                padding: '20px',
+                textAlign: 'center',
+              },
+              quizSample.choices[0]
+            ),
+            h(
+              'div',
+              {
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#ffffff',
+                border: '2px solid #dbe2ea',
+                borderRadius: '18px',
+                fontSize: '28px',
+                fontWeight: 800,
+                color: '#1b222c',
+                padding: '20px',
+                textAlign: 'center',
+              },
+              quizSample.choices[1]
+            ),
+          ]
+        ),
+      ]
+    : [
+        h(
+          'div',
+          {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '16px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #dbe2ea',
+            borderRadius: '18px',
+            padding: '22px 20px',
+            fontSize: '46px',
+            fontWeight: 900,
+            color: '#1b222c',
+          },
+          [
+            h('span', {}, '8 + '),
+            h(
+              'span',
+              {
+                color: '#1264e1',
+                backgroundColor: '#e8f1fd',
+                border: '3px solid #1264e1',
+                borderRadius: '14px',
+                padding: '4px 22px',
+              },
+              '?'
+            ),
+            h('span', {}, ' = 15'),
+          ]
+        ),
+        h(
+          'div',
+          {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          },
+          [
+            h('div', { display: 'flex', gap: '8px' }, [
+              keyCell(1),
+              keyCell(2),
+              keyCell(3),
+            ]),
+            h('div', { display: 'flex', gap: '8px' }, [
+              keyCell(4),
+              keyCell(5),
+              keyCell(6),
+            ]),
+            h('div', { display: 'flex', gap: '8px' }, [
+              keyCell(7),
+              keyCell(8),
+              keyCell(9),
+            ]),
+            h('div', { display: 'flex', gap: '8px' }, [
+              keyCell('', true),
+              keyCell(0),
+              keyCell('', true),
+            ]),
+          ]
+        ),
+      ];
 
   return h(
     'div',
@@ -918,7 +1453,7 @@ function renderLeaderboardCard(top10) {
               h(
                 'span',
                 { fontSize: '34px', fontWeight: 900, color: '#1b222c' },
-                '1-Min Math'
+                '1-Min Quiz'
               ),
               h(
                 'span',
@@ -930,7 +1465,7 @@ function renderLeaderboardCard(top10) {
                   padding: '6px 14px',
                   borderRadius: '999px',
                 },
-                '+ − (0..10, 0..10, 0..20)'
+                cfgLabel
               ),
             ]
           ),
@@ -1039,69 +1574,7 @@ function renderLeaderboardCard(top10) {
               ),
             ]
           ),
-          // Equation Card
-          h(
-            'div',
-            {
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '16px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #dbe2ea',
-              borderRadius: '18px',
-              padding: '22px 20px',
-              fontSize: '46px',
-              fontWeight: 900,
-              color: '#1b222c',
-            },
-            [
-              h('span', {}, '8 + '),
-              h(
-                'span',
-                {
-                  color: '#1264e1',
-                  backgroundColor: '#e8f1fd',
-                  border: '3px solid #1264e1',
-                  borderRadius: '14px',
-                  padding: '4px 22px',
-                },
-                '?'
-              ),
-              h('span', {}, ' = 15'),
-            ]
-          ),
-          // Keypad
-          h(
-            'div',
-            {
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            },
-            [
-              h('div', { display: 'flex', gap: '8px' }, [
-                keyCell(1),
-                keyCell(2),
-                keyCell(3),
-              ]),
-              h('div', { display: 'flex', gap: '8px' }, [
-                keyCell(4),
-                keyCell(5),
-                keyCell(6),
-              ]),
-              h('div', { display: 'flex', gap: '8px' }, [
-                keyCell(7),
-                keyCell(8),
-                keyCell(9),
-              ]),
-              h('div', { display: 'flex', gap: '8px' }, [
-                keyCell('', true),
-                keyCell(0),
-                keyCell('', true),
-              ]),
-            ]
-          ),
+          ...leftGameplayNodes,
         ]
       ),
       h(
@@ -1141,7 +1614,7 @@ function renderLeaderboardCard(top10) {
                   padding: '5px 12px',
                   borderRadius: '999px',
                 },
-                'Top 10'
+                cfgLabel
               ),
             ]
           ),
@@ -1164,6 +1637,9 @@ function renderLeaderboardCard(top10) {
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const replayParam = searchParams.get('replay');
+  const userParam = searchParams.get('user');
+  const uParam = searchParams.get('u');
+  const configParam = searchParams.get('config');
 
   if (replayParam) {
     const decoded = decodeReplay(replayParam);
@@ -1178,8 +1654,20 @@ export default async function handler(req) {
     }
   }
 
-  const top10 = await fetchTop10Leaderboard();
-  return new ImageResponse(renderLeaderboardCard(top10), {
+  if (userParam) {
+    const profile = await fetchUserProfileStats(userParam, uParam || 'Player');
+    return new ImageResponse(renderUserProfileCard(profile), {
+      width: 1200,
+      height: 630,
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    });
+  }
+
+  const targetCfgId = configParam || DEFAULT_CONFIG_ID;
+  const top10 = await fetchTop10Leaderboard(targetCfgId);
+  return new ImageResponse(renderLeaderboardCard(top10, targetCfgId), {
     width: 1200,
     height: 630,
     headers: {

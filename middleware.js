@@ -50,14 +50,59 @@ function decodeReplaySummary(encoded) {
   }
 }
 
+const QUIZ_CONFIG_LABELS = {
+  cfg_geo_flag_country: 'Flag → Country',
+  cfg_geo_country_flag: 'Country → Flag',
+  cfg_geo_country_capital: 'Country → Capital',
+  cfg_geo_capital_country: 'Capital → Country',
+  cfg_geo_flag_capital: 'Flag → Capital',
+  cfg_geo_capital_flag: 'Capital → Flag',
+  cfg_lang_pt_en: '🇧🇷 Portuguese → English',
+  cfg_lang_es_en: '🇪🇸 Spanish → English',
+  cfg_lang_fr_en: '🇫🇷 French → English',
+  cfg_lang_de_en: '🇩🇪 German → English',
+  cfg_lang_en_pt: 'English → 🇧🇷 Portuguese',
+  cfg_lang_en_es: 'English → 🇪🇸 Spanish',
+  cfg_lang_en_fr: 'English → 🇫🇷 French',
+  cfg_lang_en_de: 'English → 🇩🇪 German',
+  cfg_lang_emoji_en: '😀 Emoji → English',
+  cfg_lang_en_emoji: 'English → 😀 Emoji',
+  cfg_lang_synonym: 'Word → Synonym',
+  cfg_lang_antonym: 'Word → Antonym',
+  cfg_lang_idiom_meaning: 'Idiom → Meaning',
+  cfg_lang_meaning_idiom: 'Meaning → Idiom',
+  cfg_chem_symbol_name: 'Symbol → Element',
+  cfg_chem_name_symbol: 'Element → Symbol',
+};
+
+function formatConfigId(configId) {
+  if (configId && QUIZ_CONFIG_LABELS[configId]) {
+    return QUIZ_CONFIG_LABELS[configId];
+  }
+  if (!configId || !configId.startsWith('cfg_')) {
+    return '+ − (0..10, 0..10, 0..20)';
+  }
+  const parts = configId.slice(4).split('_');
+  if (parts.length < 7) return configId;
+  const opMap = { add: '+', sub: '−', mul: '×', div: '÷' };
+  const ops = parts[0]
+    .split('-')
+    .map((k) => opMap[k] || k)
+    .join(' ');
+  return `${ops} (${parts[1]}..${parts[2]}, ${parts[3]}..${parts[4]}, ${parts[5]}..${parts[6]})`;
+}
+
 export default async function middleware(request) {
   const url = new URL(request.url);
   const replayParam = url.searchParams.get('replay');
+  const configParam = url.searchParams.get('config');
+  const userParam = url.searchParams.get('user');
+  const uParam = url.searchParams.get('u');
   const origin = url.origin;
 
   let ogTitle = '1-Minute Quiz — Global Leaderboard';
   let ogDesc =
-    '1-minute mobile quiz game (Math, Geography & Language) with replays, ghost races, and global leaderboards.';
+    '1-minute mobile quiz game (Math, Geography, Language & Chemistry) with replays, ghost races, and global leaderboards.';
   let ogImage = `${origin}/api/og`;
   let targetUrl = CANONICAL_APP_URL + url.search;
 
@@ -69,18 +114,31 @@ export default async function middleware(request) {
         const opp = summary.opponent;
         const diff = summary.score - opp.score;
         if (diff > 0) {
-          ogTitle = `${summary.username} beat ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Math!`;
+          ogTitle = `${summary.username} beat ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
         } else if (diff === 0) {
-          ogTitle = `${summary.username} tied with ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Math!`;
+          ogTitle = `${summary.username} tied with ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
         } else {
-          ogTitle = `${summary.username} vs ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Math!`;
+          ogTitle = `${summary.username} vs ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
         }
         ogDesc = `Watch Ghost Race replay: ${summary.username} (${summary.right} right · ${summary.wrong} wrong) vs ${opp.username} (${opp.right} right · ${opp.wrong} wrong).`;
       } else {
-        ogTitle = `${summary.username} scored ${summary.score} in 1-Min Math!`;
+        ogTitle = `${summary.username} scored ${summary.score} in 1-Min Quiz!`;
         ogDesc = `Watch replay: ${summary.right} right · ${summary.wrong} wrong · ${summary.avgSec}s avg per question.`;
       }
     }
+  } else if (userParam) {
+    const playerName = uParam || 'Player';
+    ogTitle = `${playerName}'s Ranks & Scores — 1-Minute Quiz`;
+    ogDesc = `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language & Chemistry.`;
+    const imgParams = new URLSearchParams();
+    imgParams.set('user', userParam);
+    if (uParam) imgParams.set('u', uParam);
+    ogImage = `${origin}/api/og?${imgParams.toString()}`;
+  } else if (configParam) {
+    const cfgLabel = formatConfigId(configParam);
+    ogTitle = `1-Minute Quiz — ${cfgLabel} Leaderboard`;
+    ogDesc = `Compete on the ${cfgLabel} 60-second global leaderboard in 1-Minute Quiz!`;
+    ogImage = `${origin}/api/og?config=${encodeURIComponent(configParam)}`;
   }
 
   const html = `<!DOCTYPE html>

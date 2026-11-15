@@ -213,6 +213,9 @@
             <button type="button" id="overview-sort-score-btn" class="pill-btn" role="tab" aria-selected="false">
               📈 By Score
             </button>
+            <button type="button" id="overview-share-user-btn" class="pill-btn" title="Open &amp; share your user profile page">
+              🔗 Share My Page
+            </button>
           </div>
 
           <ol id="overview-list" class="review-list overview-list"></ol>
@@ -257,12 +260,18 @@
       <section class="leaderboard-card" aria-labelledby="leaderboard-heading">
         <div class="leaderboard-header">
           <h2 id="leaderboard-heading">Leaderboard</h2>
-          <span id="leaderboard-config-badge" class="badge">Top 10</span>
+          <span class="leaderboard-header-right">
+            <span id="leaderboard-config-badge" class="badge">Top 10</span>
+            <button id="share-config-btn" class="inline-btn" type="button" title="Copy share link for this game leaderboard" aria-label="Copy share link for this game leaderboard">🔗</button>
+          </span>
         </div>
 
         <div id="my-rank-bar" class="my-rank-bar">
           <div class="my-rank-main">
-            <span id="my-rank-jump" class="my-rank-jump">Your Rank: <strong id="my-rank-value">—</strong></span>
+            <span class="my-rank-left-group">
+              <span id="my-rank-jump" class="my-rank-jump">Your Rank: <strong id="my-rank-value">—</strong></span>
+              <button id="open-my-profile-btn" class="inline-btn" type="button" title="Open your user profile page">👤 Page</button>
+            </span>
             <span class="my-best-group">
               <span>Best: <strong id="my-best-value">—</strong></span>
               <span id="my-best-actions" class="inline-actions hidden">
@@ -296,6 +305,40 @@
         </span>
         <a href="privacy.html">Privacy Policy</a>
       </footer>
+    </section>
+
+    <!-- USER PROFILE VIEW -->
+    <section id="user-view" class="view" aria-live="polite">
+      <div class="result-banner user-profile-banner">
+        <div id="user-page-label" class="result-score-label">Player Profile</div>
+        <div id="user-page-name" class="result-score-value user-page-name">Player</div>
+        <div id="user-page-stats" class="result-score-detail">0 games ranked</div>
+        <div class="result-actions">
+          <button id="close-user-page-btn" class="mini-action-btn" type="button">← Leaderboards</button>
+          <button id="share-user-page-btn" class="mini-action-btn" type="button">🔗 Share User Page</button>
+        </div>
+      </div>
+
+      <section class="leaderboard-card">
+        <div class="leaderboard-header">
+          <h2 id="user-page-heading">Performances Across Games</h2>
+          <span id="user-page-count-badge" class="badge">0 games</span>
+        </div>
+
+        <div class="review-tabs" role="tablist" aria-label="Sort user performances">
+          <button type="button" id="user-sort-rank-btn" class="pill-btn active" role="tab" aria-selected="true">
+            🏆 By Rank
+          </button>
+          <button type="button" id="user-sort-score-btn" class="pill-btn" role="tab" aria-selected="false">
+            📈 By Score
+          </button>
+          <button type="button" id="user-sort-next-btn" class="pill-btn" role="tab" aria-selected="false">
+            🎯 Play Next
+          </button>
+        </div>
+
+        <ol id="user-page-list" class="review-list user-page-list"></ol>
+      </section>
     </section>
 
     <!-- GAME VIEW -->

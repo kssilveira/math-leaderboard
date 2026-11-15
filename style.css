@@ -821,6 +821,18 @@ html, body {
   font-weight: 700;
 }
 
+.leaderboard-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.my-rank-left-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .badge {
   font-size: 0.72rem;
   font-weight: 700;
@@ -938,6 +950,35 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.player-name.clickable {
+  cursor: pointer;
+}
+
+.player-name.clickable:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.user-page-name {
+  font-size: 1.75rem;
+}
+
+.user-page-list {
+  max-height: none;
+}
+
+.user-page-list .overview-row {
+  grid-template-columns: 1fr auto;
+  padding: 7px 10px;
+}
+
+.user-row-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .player-score {

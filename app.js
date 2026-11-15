@@ -68,6 +68,9 @@ let currentQuestionRecord = null;
 let currentGameQuestions = [];
 let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
 let overviewSortMode = 'next'; // 'next' | 'rank' | 'score'
+let userPageSortMode = 'rank'; // 'rank' | 'score' | 'next'
+let viewedUserId = null;
+let viewedUsername = '';
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
 let isOverviewExpanded = localStorage.getItem(STORAGE_KEYS.overviewExpanded) === '1';
 let isConfigsExpanded = localStorage.getItem(STORAGE_KEYS.configsExpanded) === '1';
@@ -101,9 +104,23 @@ const min3Input = document.getElementById('min3-input');
 const max3Input = document.getElementById('max3-input');
 const configErrorEl = document.getElementById('config-error');
 const leaderboardConfigBadge = document.getElementById('leaderboard-config-badge');
+const shareConfigBtn = document.getElementById('share-config-btn');
 
 const homeView = document.getElementById('home-view');
+const userView = document.getElementById('user-view');
 const gameView = document.getElementById('game-view');
+const openMyProfileBtn = document.getElementById('open-my-profile-btn');
+const overviewShareUserBtn = document.getElementById('overview-share-user-btn');
+const userPageLabel = document.getElementById('user-page-label');
+const userPageName = document.getElementById('user-page-name');
+const userPageStats = document.getElementById('user-page-stats');
+const userPageCountBadge = document.getElementById('user-page-count-badge');
+const closeUserPageBtn = document.getElementById('close-user-page-btn');
+const shareUserPageBtn = document.getElementById('share-user-page-btn');
+const userSortRankBtn = document.getElementById('user-sort-rank-btn');
+const userSortScoreBtn = document.getElementById('user-sort-score-btn');
+const userSortNextBtn = document.getElementById('user-sort-next-btn');
+const userPageList = document.getElementById('user-page-list');
 const playBtn = document.getElementById('play-btn');
 const practiceBtn = document.getElementById('practice-btn');
 const quitBtn = document.getElementById('quit-btn');
@@ -751,6 +768,7 @@ function getUserConfigPerformance(targetUserId, cfgId) {
     totalPlayers,
     rank,
     bestScore,
+    entry: myEntry,
     nextRank,
     pointsToTieNext,
     isSoleLeader
@@ -1479,23 +1497,23 @@ function getMyBestReplaySession() {
   return null;
 }
 
-function buildEntryReplaySession(entry) {
+function buildEntryReplaySession(entry, targetConfigId = activeConfigId) {
   if (!entry || !Array.isArray(entry.questions) || entry.questions.length === 0) {
     return null;
   }
   return {
     username: entry.username,
-    configId: activeConfigId,
+    configId: targetConfigId,
     score: entry.score,
     right: entry.right,
     wrong: entry.wrong,
     durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
-    questions: entry.questions.map(q => normalizeQuestionRecord(q, activeConfigId))
+    questions: entry.questions.map(q => normalizeQuestionRecord(q, targetConfigId))
   };
 }
 
-function appendEntryActionButtons(container, entry) {
-  const replaySession = buildEntryReplaySession(entry);
+function appendEntryActionButtons(container, entry, targetConfigId = activeConfigId) {
+  const replaySession = buildEntryReplaySession(entry, targetConfigId);
   if (!replaySession) return;
 
   const replayBtn = document.createElement('button');
@@ -1544,13 +1562,18 @@ function createLeaderboardRowEl(entry, extraLabel = '') {
   rankSpan.textContent = `#${entry.rank}`;
 
   const nameSpan = document.createElement('span');
-  nameSpan.className = 'player-name';
+  nameSpan.className = 'player-name clickable';
   nameSpan.textContent = entry.username + (isMe ? ' (you)' : '') + (extraLabel ? ` · ${extraLabel}` : '');
+  nameSpan.title = `View ${entry.username}'s profile & all scores`;
+  nameSpan.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openUserPage(entry.userId, entry.username);
+  });
 
   const rightGroup = document.createElement('span');
   rightGroup.className = 'player-right-group';
 
-  appendEntryActionButtons(rightGroup, entry);
+  appendEntryActionButtons(rightGroup, entry, activeConfigId);
 
   const scoreSpan = document.createElement('span');
   scoreSpan.className = 'player-score';
@@ -1804,6 +1827,233 @@ function renderLeaderboard() {
   }
 
   renderOverview();
+  if (viewedUserId && userView && userView.classList.contains('active')) {
+    renderUserPage();
+  }
+}
+
+function resolveUsernameForUserId(targetUserId, fallback = '') {
+  const localObj = users.find(u => u.userId === targetUserId);
+  if (localObj && localObj.username) return localObj.username;
+  const cfgIds = Object.keys(leaderboardsMap);
+  for (let i = 0; i < cfgIds.length; i++) {
+    const board = leaderboardsMap[cfgIds[i]];
+    if (board && board[targetUserId] && board[targetUserId].username) {
+      return board[targetUserId].username;
+    }
+  }
+  return fallback || 'Player';
+}
+
+function openUserPage(targetUserId, fallbackName = '') {
+  if (!targetUserId || !userView) return;
+  viewedUserId = targetUserId;
+  viewedUsername = resolveUsernameForUserId(targetUserId, fallbackName);
+  homeView.classList.remove('active');
+  gameView.classList.remove('active');
+  userView.classList.add('active');
+  const params = new URLSearchParams();
+  params.set('user', targetUserId);
+  if (viewedUsername) params.set('u', viewedUsername);
+  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  renderUserPage();
+}
+
+function closeUserPage(selectConfigId = null) {
+  viewedUserId = null;
+  if (userView) userView.classList.remove('active');
+  homeView.classList.add('active');
+  if (selectConfigId) {
+    const targetCfg = getConfigById(selectConfigId);
+    if (targetCfg) {
+      activeCategory = getConfigCategory(targetCfg);
+      activeConfigId = targetCfg.id;
+      leaderboardPage = 1;
+      localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+    }
+  }
+  if (window.location.search.includes('user=')) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+function renderUserPage() {
+  if (!userView || !viewedUserId || !userPageList) return;
+  const resolvedName = resolveUsernameForUserId(viewedUserId, viewedUsername);
+  viewedUsername = resolvedName;
+  const isMe = viewedUserId === userId;
+
+  if (userPageLabel) {
+    userPageLabel.textContent = isMe ? 'Your Player Profile' : 'Player Profile';
+  }
+  if (userPageName) {
+    userPageName.textContent = isMe ? `${resolvedName} (you)` : resolvedName;
+  }
+
+  if (userSortRankBtn) {
+    userSortRankBtn.classList.toggle('active', userPageSortMode === 'rank');
+    userSortRankBtn.setAttribute('aria-selected', userPageSortMode === 'rank' ? 'true' : 'false');
+  }
+  if (userSortScoreBtn) {
+    userSortScoreBtn.classList.toggle('active', userPageSortMode === 'score');
+    userSortScoreBtn.setAttribute('aria-selected', userPageSortMode === 'score' ? 'true' : 'false');
+  }
+  if (userSortNextBtn) {
+    userSortNextBtn.classList.toggle('active', userPageSortMode === 'next');
+    userSortNextBtn.setAttribute('aria-selected', userPageSortMode === 'next' ? 'true' : 'false');
+  }
+
+  const allItems = configs.map((cfg) => ({
+    cfg,
+    cat: getConfigCategory(cfg),
+    perf: getUserConfigPerformance(viewedUserId, cfg.id)
+  }));
+
+  const playedItems = allItems.filter(it => it.perf.bestScore !== null);
+  const firstCount = playedItems.filter(it => it.perf.rank === 1).length;
+  const bestRank = playedItems.reduce(
+    (minR, it) => (it.perf.rank !== null && it.perf.rank < minR ? it.perf.rank : minR),
+    Infinity
+  );
+  const topScore = playedItems.reduce(
+    (maxS, it) => (it.perf.bestScore !== null && it.perf.bestScore > maxS ? it.perf.bestScore : maxS),
+    0
+  );
+
+  if (userPageStats) {
+    const rankStr = bestRank < Infinity ? `Best rank: #${bestRank}` : 'Unranked';
+    userPageStats.textContent =
+      playedItems.length > 0
+        ? `${playedItems.length} games played · ${firstCount} × 🏆 #1 · ${rankStr} · Top score: ${topScore}`
+        : 'No games recorded yet';
+  }
+  if (userPageCountBadge) {
+    userPageCountBadge.textContent = `${playedItems.length} / ${allItems.length} games`;
+  }
+
+  const itemsToShow = [...allItems];
+  itemsToShow.sort((a, b) => {
+    const pa = a.perf;
+    const pb = b.perf;
+
+    if (userPageSortMode === 'score') {
+      const aPlayed = pa.bestScore !== null ? 0 : 1;
+      const bPlayed = pb.bestScore !== null ? 0 : 1;
+      if (aPlayed !== bPlayed) return aPlayed - bPlayed;
+      if (pa.bestScore !== null && pb.bestScore !== null && pb.bestScore !== pa.bestScore) {
+        return pb.bestScore - pa.bestScore;
+      }
+      return (pa.rank ?? 9999) - (pb.rank ?? 9999);
+    }
+
+    if (userPageSortMode === 'next') {
+      const getBucket = (p) => {
+        if (p.rank !== null && !p.isSoleLeader && p.pointsToTieNext !== null) return 0;
+        if (p.bestScore === null) return 1;
+        if (p.rank === null) return 2;
+        return 3;
+      };
+      const ba = getBucket(pa);
+      const bb = getBucket(pb);
+      if (ba !== bb) return ba - bb;
+      if (ba === 0) {
+        if (pa.pointsToTieNext !== pb.pointsToTieNext) {
+          return pa.pointsToTieNext - pb.pointsToTieNext;
+        }
+        return pb.rank - pa.rank;
+      }
+      if (ba === 1) return pb.totalPlayers - pa.totalPlayers;
+      return (pa.bestScore ?? 0) - (pb.bestScore ?? 0);
+    }
+
+    // Default: 'rank'
+    const aRanked = pa.rank !== null ? 0 : (pa.bestScore !== null ? 1 : 2);
+    const bRanked = pb.rank !== null ? 0 : (pb.bestScore !== null ? 1 : 2);
+    if (aRanked !== bRanked) return aRanked - bRanked;
+    if (pa.rank !== null && pb.rank !== null && pa.rank !== pb.rank) {
+      return pa.rank - pb.rank;
+    }
+    if ((pb.bestScore ?? -999) !== (pa.bestScore ?? -999)) {
+      return (pb.bestScore ?? -999) - (pa.bestScore ?? -999);
+    }
+    return pb.totalPlayers - pa.totalPlayers;
+  });
+
+  userPageList.innerHTML = '';
+  itemsToShow.forEach(({ cfg, cat, perf }) => {
+    const li = document.createElement('li');
+    li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
+    li.title = `Open ${formatConfigLabel(cfg)} leaderboard`;
+    li.addEventListener('click', () => {
+      closeUserPage(cfg.id);
+    });
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'overview-game-name';
+    const labelStr = formatConfigLabel(cfg);
+    const hasLeadingEmoji = /^[\u{1F1E6}-\u{1F6FF}]/u.test(labelStr);
+    nameSpan.textContent = hasLeadingEmoji ? labelStr : `${getCategoryIcon(cat)} ${labelStr}`;
+
+    const rankSpan = document.createElement('span');
+    rankSpan.className = 'overview-rank-info';
+    if (perf.rank !== null) {
+      const rText = document.createElement('span');
+      if (perf.rank === 1) {
+        rText.className = 'rank-leader';
+        rText.textContent = `🏆 #1 of ${perf.totalPlayers}`;
+      } else {
+        rText.textContent = `#${perf.rank} of ${perf.totalPlayers}`;
+      }
+      rankSpan.appendChild(rText);
+
+      if (!perf.isSoleLeader && perf.pointsToTieNext !== null && perf.nextRank !== null) {
+        const upHint = document.createElement('span');
+        upHint.className = 'rank-up-hint';
+        upHint.textContent =
+          perf.rank === 1
+            ? '+1 for sole #1'
+            : `↑ +${perf.pointsToTieNext} to #${perf.nextRank}`;
+        rankSpan.appendChild(upHint);
+      }
+    } else if (perf.totalPlayers > 0) {
+      rankSpan.textContent = `Unranked (${perf.totalPlayers}p)`;
+    } else {
+      rankSpan.textContent = 'Empty board';
+    }
+
+    const rightGroup = document.createElement('span');
+    rightGroup.className = 'overview-right-group';
+
+    if (perf.entry) {
+      appendEntryActionButtons(rightGroup, perf.entry, cfg.id);
+    }
+
+    const scoreSpan = document.createElement('span');
+    scoreSpan.className = 'overview-score';
+    scoreSpan.textContent = perf.bestScore !== null ? String(perf.bestScore) : '—';
+
+    const playNowBtn = document.createElement('button');
+    playNowBtn.type = 'button';
+    playNowBtn.className = 'inline-btn';
+    playNowBtn.textContent = 'Play';
+    playNowBtn.title = `Play ${labelStr}`;
+    playNowBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeUserPage(cfg.id);
+      startGame(false);
+    });
+
+    rightGroup.append(scoreSpan, playNowBtn);
+    const leftGroup = document.createElement('div');
+    leftGroup.className = 'user-row-left';
+    leftGroup.append(nameSpan, rankSpan);
+    li.append(leftGroup, rightGroup);
+    userPageList.appendChild(li);
+  });
 }
 
 function updateOverviewCollapseUI() {
@@ -3176,6 +3426,7 @@ function startGame(practice = false, raceTargetSession = null) {
   quitBtn.textContent = isRaceMode ? 'End Race' : isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
   updateInstallBtnVisibility();
+  if (userView) userView.classList.remove('active');
   homeView.classList.remove('active');
   gameView.classList.add('active');
 
@@ -3486,14 +3737,13 @@ function decodeReplayParam(encoded) {
   }
 }
 
-async function copyReplayLink(session, btnEl) {
-  if (!session || !Array.isArray(session.questions) || session.questions.length === 0) return;
-  const encoded = encodeReplayParam(session);
-  const baseUrl = window.location.hostname.endsWith('github.io')
+function getShareBaseUrl() {
+  return window.location.hostname.endsWith('github.io')
     ? 'https://math-leaderboard.vercel.app/'
     : `${window.location.origin}${window.location.pathname}`;
-  const url = `${baseUrl}?replay=${encoded}`;
+}
 
+async function copyUrlWithFeedback(url, btnEl) {
   let copied = false;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     try {
@@ -3530,11 +3780,62 @@ async function copyReplayLink(session, btnEl) {
   }
 }
 
+async function copyReplayLink(session, btnEl) {
+  if (!session || !Array.isArray(session.questions) || session.questions.length === 0) return;
+  const encoded = encodeReplayParam(session);
+  const url = `${getShareBaseUrl()}?replay=${encoded}`;
+  await copyUrlWithFeedback(url, btnEl);
+}
+
+async function copyConfigLink(configId, btnEl) {
+  const cfgId = configId || activeConfigId;
+  if (!cfgId) return;
+  const url = `${getShareBaseUrl()}?config=${encodeURIComponent(cfgId)}`;
+  await copyUrlWithFeedback(url, btnEl);
+}
+
+async function copyUserPageLink(targetUserId, targetUsername, btnEl) {
+  const uId = targetUserId || viewedUserId || userId;
+  if (!uId) return;
+  const uName = targetUsername || resolveUsernameForUserId(uId, username);
+  const params = new URLSearchParams();
+  params.set('user', uId);
+  if (uName) params.set('u', uName);
+  const url = `${getShareBaseUrl()}?${params.toString()}`;
+  await copyUrlWithFeedback(url, btnEl);
+}
+
 function checkUrlReplayOnLoad() {
   if (hasHandledInitialUrlReplay) return;
   const params = new URLSearchParams(window.location.search);
   const replayParam = params.get('replay');
-  if (!replayParam) return;
+  const configParam = params.get('config');
+  const userParam = params.get('user');
+
+  if (configParam) {
+    const targetCfg = getConfigById(configParam);
+    if (targetCfg) {
+      activeCategory = getConfigCategory(targetCfg);
+      activeConfigId = targetCfg.id;
+      leaderboardPage = 1;
+      localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+    }
+  }
+
+  if (userParam) {
+    hasHandledInitialUrlReplay = true;
+    openUserPage(userParam, params.get('u') || '');
+    return;
+  }
+
+  if (!replayParam) {
+    hasHandledInitialUrlReplay = true;
+    return;
+  }
 
   hasHandledInitialUrlReplay = true;
   const decoded = decodeReplayParam(replayParam);
@@ -4048,6 +4349,7 @@ function startReplay(session) {
 
   deleteUserBtn.classList.add('hidden');
   updateInstallBtnVisibility();
+  if (userView) userView.classList.remove('active');
   homeView.classList.remove('active');
   gameView.classList.add('active');
 
@@ -4315,6 +4617,49 @@ if (replayTimeline) {
       e.preventDefault();
       seekReplayTo(replayElapsedMs - stepMs);
     }
+  });
+}
+
+if (shareConfigBtn) {
+  shareConfigBtn.addEventListener('click', () => copyConfigLink(activeConfigId, shareConfigBtn));
+}
+
+if (openMyProfileBtn) {
+  openMyProfileBtn.addEventListener('click', () => openUserPage(userId, username));
+}
+
+if (overviewShareUserBtn) {
+  overviewShareUserBtn.addEventListener('click', () => openUserPage(userId, username));
+}
+
+if (closeUserPageBtn) {
+  closeUserPageBtn.addEventListener('click', () => closeUserPage(null));
+}
+
+if (shareUserPageBtn) {
+  shareUserPageBtn.addEventListener('click', () =>
+    copyUserPageLink(viewedUserId || userId, viewedUsername || username, shareUserPageBtn)
+  );
+}
+
+if (userSortRankBtn) {
+  userSortRankBtn.addEventListener('click', () => {
+    userPageSortMode = 'rank';
+    renderUserPage();
+  });
+}
+
+if (userSortScoreBtn) {
+  userSortScoreBtn.addEventListener('click', () => {
+    userPageSortMode = 'score';
+    renderUserPage();
+  });
+}
+
+if (userSortNextBtn) {
+  userSortNextBtn.addEventListener('click', () => {
+    userPageSortMode = 'next';
+    renderUserPage();
   });
 }
 
