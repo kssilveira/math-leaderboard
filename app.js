@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   gameHistory: 'math_game_history_v1',
   questionStats: 'math_question_stats_v1',
   reviewExpanded: 'math_review_expanded_v1',
+  configsExpanded: 'math_configs_expanded_v1',
   soundEnabled: 'math_sound_enabled_v1',
   theme: 'math_theme_v1'
 };
@@ -66,6 +67,7 @@ let currentQuestionRecord = null;
 let currentGameQuestions = [];
 let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
+let isConfigsExpanded = localStorage.getItem(STORAGE_KEYS.configsExpanded) === '1';
 let isSoundEnabled = localStorage.getItem(STORAGE_KEYS.soundEnabled) !== '0';
 let currentStreak = 0;
 let audioCtx = null;
@@ -80,7 +82,9 @@ const deleteUserBtn = document.getElementById('delete-user-btn');
 
 const categoryListEl = document.getElementById('category-list');
 const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll('[data-category]')) : [];
+const gameSwitcherRow = document.getElementById('game-switcher-row');
 const configListEl = document.getElementById('config-list');
+const expandConfigsBtn = document.getElementById('expand-configs-btn');
 const addConfigBtn = document.getElementById('add-config-btn');
 const newConfigPanel = document.getElementById('new-config-panel');
 const cancelConfigBtn = document.getElementById('cancel-config-btn');
@@ -728,8 +732,23 @@ function renderConfigsUI() {
 
   configListEl.innerHTML = '';
   const categoryConfigs = getConfigsForCategory(activeCategory);
+  const canExpand = categoryConfigs.length > 2;
 
-  categoryConfigs.forEach((cfg) => {
+  if (gameSwitcherRow) {
+    gameSwitcherRow.classList.toggle('expanded', canExpand && isConfigsExpanded);
+  }
+  if (expandConfigsBtn) {
+    expandConfigsBtn.classList.toggle('hidden', !canExpand);
+    expandConfigsBtn.setAttribute('aria-expanded', canExpand && isConfigsExpanded ? 'true' : 'false');
+    expandConfigsBtn.textContent = isConfigsExpanded ? '▴ Less' : `▾ All (${categoryConfigs.length})`;
+  }
+
+  const orderedConfigs =
+    !isConfigsExpanded && categoryConfigs.some(c => c.id === activeCfg.id)
+      ? [activeCfg, ...categoryConfigs.filter(c => c.id !== activeCfg.id)]
+      : categoryConfigs;
+
+  orderedConfigs.forEach((cfg) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'pill-btn' + (cfg.id === activeCfg.id ? ' active' : '');
@@ -739,6 +758,9 @@ function renderConfigsUI() {
     btn.addEventListener('click', () => switchConfig(cfg.id));
     configListEl.appendChild(btn);
   });
+  if (!isConfigsExpanded) {
+    configListEl.scrollLeft = 0;
+  }
 
   leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
 
@@ -3868,6 +3890,14 @@ deleteUserBtn.addEventListener('click', deleteCurrentUser);
 categoryBtns.forEach((btn) => {
   btn.addEventListener('click', () => switchCategory(btn.dataset.category));
 });
+
+if (expandConfigsBtn) {
+  expandConfigsBtn.addEventListener('click', () => {
+    isConfigsExpanded = !isConfigsExpanded;
+    localStorage.setItem(STORAGE_KEYS.configsExpanded, isConfigsExpanded ? '1' : '0');
+    renderConfigsUI();
+  });
+}
 
 addConfigBtn.addEventListener('click', () => {
   if (newConfigPanel.classList.contains('hidden')) {

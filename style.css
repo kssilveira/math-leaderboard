@@ -256,6 +256,68 @@ html, body {
   gap: 6px;
 }
 
+.game-switcher-row {
+  overflow-x: visible;
+  align-items: flex-start;
+}
+
+.game-switcher-row .switcher-label {
+  padding-top: 6px;
+}
+
+.game-switcher-row .pill-list {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.game-switcher-row .pill-list::-webkit-scrollbar {
+  display: none;
+}
+
+.game-switcher-row.expanded {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+}
+
+.game-switcher-row.expanded .pill-list {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  overflow-x: visible;
+  width: 100%;
+}
+
+.game-switcher-row.expanded .switcher-actions {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.game-switcher-row.expanded .pill-btn {
+  padding: 6px 8px;
+  font-size: 0.76rem;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.switcher-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.expand-pill-btn {
+  border-style: solid;
+  background: var(--surface);
+}
+
 .pill-btn {
   border: 1px solid var(--border);
   background: var(--surface);

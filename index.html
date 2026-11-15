@@ -115,10 +115,13 @@
       </div>
 
       <!-- Game Configurations Switcher & New Game Creator -->
-      <div class="switcher-row" aria-label="Game Configurations">
+      <div id="game-switcher-row" class="switcher-row game-switcher-row" aria-label="Game Configurations">
         <span class="switcher-label">Game</span>
         <div id="config-list" class="pill-list" role="tablist"></div>
-        <button id="add-config-btn" class="add-pill-btn" type="button">+ Game</button>
+        <div class="switcher-actions">
+          <button id="expand-configs-btn" class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all games">▾ All</button>
+          <button id="add-config-btn" class="add-pill-btn" type="button">+ Game</button>
+        </div>
       </div>
 
       <!-- New Game Creation Panel (shown only when adding a new game) -->

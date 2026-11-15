@@ -39,6 +39,12 @@ const QUIZ_CONFIG_LABELS = {
   cfg_lang_es_en: '🇪🇸 Spanish → English',
   cfg_lang_fr_en: '🇫🇷 French → English',
   cfg_lang_de_en: '🇩🇪 German → English',
+  cfg_lang_en_pt: 'English → 🇧🇷 Portuguese',
+  cfg_lang_en_es: 'English → 🇪🇸 Spanish',
+  cfg_lang_en_fr: 'English → 🇫🇷 French',
+  cfg_lang_en_de: 'English → 🇩🇪 German',
+  cfg_lang_emoji_en: '😀 Emoji → English',
+  cfg_lang_en_emoji: 'English → 😀 Emoji',
 };
 
 function formatConfigId(configId) {
