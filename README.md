@@ -35,7 +35,7 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - `🇧🇷 Portuguese → English`, `🇪🇸 Spanish → English`, `🇫🇷 French → English`, `🇩🇪 German → English` (1,000 most common words)
     - `English → 🇧🇷 Portuguese`, `English → 🇪🇸 Spanish`, `English → 🇫🇷 French`, `English → 🇩🇪 German` (1,000 most common words)
     - `😀 Emoji → English` and `English → 😀 Emoji` (top 1,000 most used emojis)
-    - `Word → Synonym`, `Word → Antonym`, `Idiom → Meaning`, and `Meaning → Idiom`
+    - `Word → Synonym` (300 synonym pairs), `Word → Antonym` (300 antonym pairs), `Idiom → Meaning` (200 idioms & phrasal verbs), and `Meaning → Idiom` (200 idioms & phrasal verbs)
   - **🧪 Chemistry (2 built-in configs — 118 Chemical Elements)**:
     - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
   - Within each category, game configurations are sorted by popularity (leaderboard size), with a **`▾ All (N)` / `▴ Less`** toggle to expand the list vertically across multiple rows instead of scrolling horizontally.
