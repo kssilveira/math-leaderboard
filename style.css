@@ -318,6 +318,89 @@ html, body {
   background: var(--surface);
 }
 
+.pill-meta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.82;
+  margin-left: 3px;
+}
+
+.overview-list {
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.overview-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  font-size: 0.81rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.overview-row:hover {
+  border-color: var(--primary-border);
+}
+
+.overview-row.is-active {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+}
+
+.overview-game-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-rank-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.overview-rank-info .rank-leader {
+  color: #d97706;
+}
+
+[data-theme="dark"] .overview-rank-info .rank-leader {
+  color: #fbbf24;
+}
+
+.overview-rank-info .rank-up-hint {
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+
+.overview-right-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-score {
+  font-weight: 800;
+  color: var(--text);
+  min-width: 22px;
+  text-align: right;
+}
+
 .pill-btn {
   border: 1px solid var(--border);
   background: var(--surface);

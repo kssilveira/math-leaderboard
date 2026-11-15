@@ -193,6 +193,32 @@
         </button>
       </div>
 
+      <section id="overview-card" class="leaderboard-card review-card" aria-labelledby="overview-heading">
+        <button id="overview-toggle-btn" class="leaderboard-header collapsible-header" type="button" aria-expanded="false" aria-controls="overview-body">
+          <span class="collapsible-title">
+            <span id="overview-chevron" class="chevron-icon" aria-hidden="true">▸</span>
+            <h2 id="overview-heading">My Ranks &amp; Scores</h2>
+          </span>
+          <span id="overview-summary-badge" class="badge">0 played</span>
+        </button>
+
+        <div id="overview-body" class="review-body hidden">
+          <div class="review-tabs" role="tablist" aria-label="Sort all games">
+            <button type="button" id="overview-sort-next-btn" class="pill-btn active" role="tab" aria-selected="true">
+              🎯 Play Next
+            </button>
+            <button type="button" id="overview-sort-rank-btn" class="pill-btn" role="tab" aria-selected="false">
+              🏆 By Rank
+            </button>
+            <button type="button" id="overview-sort-score-btn" class="pill-btn" role="tab" aria-selected="false">
+              📈 By Score
+            </button>
+          </div>
+
+          <ol id="overview-list" class="review-list overview-list"></ol>
+        </div>
+      </section>
+
       <section id="review-card" class="leaderboard-card review-card hidden" aria-labelledby="review-heading">
         <button id="review-toggle-btn" class="leaderboard-header collapsible-header" type="button" aria-expanded="false" aria-controls="review-body">
           <span class="collapsible-title">

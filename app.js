@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   gameHistory: 'math_game_history_v1',
   questionStats: 'math_question_stats_v1',
   reviewExpanded: 'math_review_expanded_v1',
+  overviewExpanded: 'math_overview_expanded_v1',
   configsExpanded: 'math_configs_expanded_v1',
   soundEnabled: 'math_sound_enabled_v1',
   theme: 'math_theme_v1'
@@ -66,7 +67,9 @@ let questionStartTime = 0;
 let currentQuestionRecord = null;
 let currentGameQuestions = [];
 let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
+let overviewSortMode = 'next'; // 'next' | 'rank' | 'score'
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
+let isOverviewExpanded = localStorage.getItem(STORAGE_KEYS.overviewExpanded) === '1';
 let isConfigsExpanded = localStorage.getItem(STORAGE_KEYS.configsExpanded) === '1';
 let isSoundEnabled = localStorage.getItem(STORAGE_KEYS.soundEnabled) !== '0';
 let currentStreak = 0;
@@ -124,6 +127,15 @@ const shareBestBtn = document.getElementById('share-best-btn');
 const leaderboardList = document.getElementById('leaderboard-list');
 const leaderboardPinnedMe = document.getElementById('leaderboard-pinned-me');
 const leaderboardPagination = document.getElementById('leaderboard-pagination');
+const overviewCard = document.getElementById('overview-card');
+const overviewToggleBtn = document.getElementById('overview-toggle-btn');
+const overviewChevron = document.getElementById('overview-chevron');
+const overviewBody = document.getElementById('overview-body');
+const overviewSummaryBadge = document.getElementById('overview-summary-badge');
+const overviewSortNextBtn = document.getElementById('overview-sort-next-btn');
+const overviewSortRankBtn = document.getElementById('overview-sort-rank-btn');
+const overviewSortScoreBtn = document.getElementById('overview-sort-score-btn');
+const overviewList = document.getElementById('overview-list');
 const reviewCard = document.getElementById('review-card');
 const reviewToggleBtn = document.getElementById('review-toggle-btn');
 const reviewChevron = document.getElementById('review-chevron');
@@ -684,6 +696,67 @@ function isConfigPlayable(cfg) {
   return getValidSamplers(cfg).length > 0;
 }
 
+function getCategoryIcon(cat) {
+  if (cat === 'geo') return '🌍';
+  if (cat === 'lang') return '💬';
+  if (cat === 'chem') return '🧪';
+  return '🧮';
+}
+
+function getUserConfigPerformance(targetUserId, cfgId) {
+  const boardObj = leaderboardsMap[cfgId] || {};
+  const entries = sortLeaderboard(Object.values(boardObj));
+  let currentRank = 1;
+  const rankedEntries = entries.map((entry, idx) => {
+    if (idx > 0 && entry.score < entries[idx - 1].score) {
+      currentRank = idx + 1;
+    }
+    return { ...entry, rank: currentRank };
+  });
+
+  const totalPlayers = rankedEntries.length;
+  const myEntry = rankedEntries.find(e => e.userId === targetUserId) || null;
+  const bestLocal = getBestLocalSession(targetUserId, cfgId);
+  const bestScore = myEntry
+    ? myEntry.score
+    : (bestLocal && typeof bestLocal.score === 'number' ? bestLocal.score : null);
+  const rank = myEntry ? myEntry.rank : null;
+
+  let nextRank = null;
+  let pointsToTieNext = null;
+  let isSoleLeader = false;
+
+  if (myEntry) {
+    const nextUp = [...rankedEntries].reverse().find(e => e.score > myEntry.score);
+    if (nextUp) {
+      nextRank = nextUp.rank;
+      pointsToTieNext = nextUp.score - myEntry.score;
+    } else {
+      const coLeaders = rankedEntries.filter(e => e.score === myEntry.score && e.userId !== targetUserId);
+      if (coLeaders.length > 0) {
+        nextRank = 1;
+        pointsToTieNext = 1;
+      } else {
+        isSoleLeader = true;
+      }
+    }
+  } else if (totalPlayers > 0) {
+    const lowest = rankedEntries[totalPlayers - 1];
+    nextRank = lowest.rank;
+    pointsToTieNext = Math.max(1, lowest.score - (bestScore !== null ? Math.max(0, bestScore) : 0));
+  }
+
+  return {
+    cfgId,
+    totalPlayers,
+    rank,
+    bestScore,
+    nextRank,
+    pointsToTieNext,
+    isSoleLeader
+  };
+}
+
 function getLeaderboardSize(configId) {
   const board = leaderboardsMap[configId];
   return board ? Object.keys(board).length : 0;
@@ -753,7 +826,21 @@ function renderConfigsUI() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'pill-btn' + (cfg.id === activeCfg.id ? ' active' : '');
-    btn.textContent = formatConfigLabel(cfg);
+    const labelText = document.createTextNode(formatConfigLabel(cfg));
+    btn.appendChild(labelText);
+
+    const perf = getUserConfigPerformance(userId, cfg.id);
+    if (perf.rank !== null || perf.bestScore !== null) {
+      const meta = document.createElement('span');
+      meta.className = 'pill-meta';
+      if (perf.rank !== null) {
+        meta.textContent = ` · #${perf.rank} (${perf.bestScore})`;
+      } else {
+        meta.textContent = ` · (${perf.bestScore})`;
+      }
+      btn.appendChild(meta);
+    }
+
     btn.setAttribute('role', 'tab');
     btn.setAttribute('aria-selected', cfg.id === activeCfg.id ? 'true' : 'false');
     btn.addEventListener('click', () => switchConfig(cfg.id));
@@ -1715,6 +1802,181 @@ function renderLeaderboard() {
       leaderboardPagination.classList.add('hidden');
     }
   }
+
+  renderOverview();
+}
+
+function updateOverviewCollapseUI() {
+  if (overviewBody) {
+    overviewBody.classList.toggle('hidden', !isOverviewExpanded);
+  }
+  if (overviewToggleBtn) {
+    overviewToggleBtn.setAttribute('aria-expanded', isOverviewExpanded ? 'true' : 'false');
+  }
+  if (overviewChevron) {
+    overviewChevron.textContent = isOverviewExpanded ? '▾' : '▸';
+  }
+}
+
+function renderOverview() {
+  if (!overviewCard || !overviewList) return;
+  updateOverviewCollapseUI();
+
+  if (overviewSortNextBtn) {
+    overviewSortNextBtn.classList.toggle('active', overviewSortMode === 'next');
+    overviewSortNextBtn.setAttribute('aria-selected', overviewSortMode === 'next' ? 'true' : 'false');
+  }
+  if (overviewSortRankBtn) {
+    overviewSortRankBtn.classList.toggle('active', overviewSortMode === 'rank');
+    overviewSortRankBtn.setAttribute('aria-selected', overviewSortMode === 'rank' ? 'true' : 'false');
+  }
+  if (overviewSortScoreBtn) {
+    overviewSortScoreBtn.classList.toggle('active', overviewSortMode === 'score');
+    overviewSortScoreBtn.setAttribute('aria-selected', overviewSortMode === 'score' ? 'true' : 'false');
+  }
+
+  const items = configs.map((cfg) => ({
+    cfg,
+    cat: getConfigCategory(cfg),
+    perf: getUserConfigPerformance(userId, cfg.id)
+  }));
+
+  const playedCount = items.filter(it => it.perf.bestScore !== null).length;
+  const firstPlaceCount = items.filter(it => it.perf.rank === 1).length;
+  if (overviewSummaryBadge) {
+    overviewSummaryBadge.textContent =
+      firstPlaceCount > 0
+        ? `${playedCount}/${items.length} played · ${firstPlaceCount} × 🏆#1`
+        : `${playedCount}/${items.length} played`;
+  }
+
+  items.sort((a, b) => {
+    const pa = a.perf;
+    const pb = b.perf;
+
+    if (overviewSortMode === 'rank') {
+      const aRanked = pa.rank !== null ? 0 : (pa.bestScore !== null ? 1 : 2);
+      const bRanked = pb.rank !== null ? 0 : (pb.bestScore !== null ? 1 : 2);
+      if (aRanked !== bRanked) return aRanked - bRanked;
+      if (pa.rank !== null && pb.rank !== null && pa.rank !== pb.rank) {
+        return pa.rank - pb.rank;
+      }
+      if ((pb.bestScore ?? -999) !== (pa.bestScore ?? -999)) {
+        return (pb.bestScore ?? -999) - (pa.bestScore ?? -999);
+      }
+      return pb.totalPlayers - pa.totalPlayers;
+    }
+
+    if (overviewSortMode === 'score') {
+      const aPlayed = pa.bestScore !== null ? 0 : 1;
+      const bPlayed = pb.bestScore !== null ? 0 : 1;
+      if (aPlayed !== bPlayed) return aPlayed - bPlayed;
+      if (pa.bestScore !== null && pb.bestScore !== null && pb.bestScore !== pa.bestScore) {
+        return pb.bestScore - pa.bestScore;
+      }
+      if ((pa.rank ?? 9999) !== (pb.rank ?? 9999)) {
+        return (pa.rank ?? 9999) - (pb.rank ?? 9999);
+      }
+      return pb.totalPlayers - pa.totalPlayers;
+    }
+
+    // Default: 'next' (🎯 Play Next: closest to ranking up first, then unplayed, then #1 leaders)
+    const getBucket = (p) => {
+      if (p.rank !== null && !p.isSoleLeader && p.pointsToTieNext !== null) return 0; // Can climb rank!
+      if (p.bestScore === null) return 1; // Unplayed
+      if (p.rank === null) return 2; // Played locally, not on board
+      return 3; // Already sole #1
+    };
+    const ba = getBucket(pa);
+    const bb = getBucket(pb);
+    if (ba !== bb) return ba - bb;
+    if (ba === 0) {
+      if (pa.pointsToTieNext !== pb.pointsToTieNext) {
+        return pa.pointsToTieNext - pb.pointsToTieNext;
+      }
+      return pb.rank - pa.rank;
+    }
+    if (ba === 1) {
+      return pb.totalPlayers - pa.totalPlayers;
+    }
+    return (pa.bestScore ?? 0) - (pb.bestScore ?? 0);
+  });
+
+  overviewList.innerHTML = '';
+  items.forEach(({ cfg, cat, perf }) => {
+    const li = document.createElement('li');
+    li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
+    li.title = 'Tap to view this leaderboard';
+    li.addEventListener('click', () => {
+      if (activeCategory !== cat) {
+        activeCategory = cat;
+        localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+      }
+      switchConfig(cfg.id);
+    });
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'overview-game-name';
+    const labelStr = formatConfigLabel(cfg);
+    const hasLeadingEmoji = /^[\u{1F1E6}-\u{1F6FF}]/u.test(labelStr);
+    nameSpan.textContent = hasLeadingEmoji ? labelStr : `${getCategoryIcon(cat)} ${labelStr}`;
+
+    const rankSpan = document.createElement('span');
+    rankSpan.className = 'overview-rank-info';
+    if (perf.rank !== null) {
+      const rText = document.createElement('span');
+      if (perf.rank === 1) {
+        rText.className = 'rank-leader';
+        rText.textContent = `🏆 #1 of ${perf.totalPlayers}`;
+      } else {
+        rText.textContent = `#${perf.rank} of ${perf.totalPlayers}`;
+      }
+      rankSpan.appendChild(rText);
+
+      if (!perf.isSoleLeader && perf.pointsToTieNext !== null && perf.nextRank !== null) {
+        const upHint = document.createElement('span');
+        upHint.className = 'rank-up-hint';
+        upHint.textContent =
+          perf.rank === 1
+            ? `+1 for sole #1`
+            : `↑ +${perf.pointsToTieNext} to #${perf.nextRank}`;
+        rankSpan.appendChild(upHint);
+      }
+    } else if (perf.totalPlayers > 0) {
+      rankSpan.textContent = `Unranked (${perf.totalPlayers}p)`;
+    } else {
+      rankSpan.textContent = 'Empty board';
+    }
+
+    const rightGroup = document.createElement('span');
+    rightGroup.className = 'overview-right-group';
+
+    const scoreSpan = document.createElement('span');
+    scoreSpan.className = 'overview-score';
+    scoreSpan.textContent = perf.bestScore !== null ? String(perf.bestScore) : '—';
+
+    const playNowBtn = document.createElement('button');
+    playNowBtn.type = 'button';
+    playNowBtn.className = 'inline-btn';
+    playNowBtn.textContent = 'Play';
+    playNowBtn.title = `Play ${labelStr}`;
+    playNowBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      activeCategory = cat;
+      activeConfigId = cfg.id;
+      leaderboardPage = 1;
+      localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+      startGame(false);
+    });
+
+    rightGroup.append(scoreSpan, playNowBtn);
+    li.append(nameSpan, rankSpan, rightGroup);
+    overviewList.appendChild(li);
+  });
 }
 
 // --- Local Storage Game Review & Per-Question Performance (Per User & Config) ---
@@ -4053,6 +4315,35 @@ if (replayTimeline) {
       e.preventDefault();
       seekReplayTo(replayElapsedMs - stepMs);
     }
+  });
+}
+
+if (overviewToggleBtn) {
+  overviewToggleBtn.addEventListener('click', () => {
+    isOverviewExpanded = !isOverviewExpanded;
+    localStorage.setItem(STORAGE_KEYS.overviewExpanded, isOverviewExpanded ? '1' : '0');
+    updateOverviewCollapseUI();
+  });
+}
+
+if (overviewSortNextBtn) {
+  overviewSortNextBtn.addEventListener('click', () => {
+    overviewSortMode = 'next';
+    renderOverview();
+  });
+}
+
+if (overviewSortRankBtn) {
+  overviewSortRankBtn.addEventListener('click', () => {
+    overviewSortMode = 'rank';
+    renderOverview();
+  });
+}
+
+if (overviewSortScoreBtn) {
+  overviewSortScoreBtn.addEventListener('click', () => {
+    overviewSortMode = 'score';
+    renderOverview();
   });
 }
 
