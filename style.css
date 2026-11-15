@@ -965,8 +965,10 @@ html, body {
   font-size: 1.75rem;
 }
 
-.user-page-list {
+.review-list.user-page-list {
+  flex: 1;
   max-height: none;
+  overflow-y: visible;
 }
 
 .user-page-list .overview-row {
