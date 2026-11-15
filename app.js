@@ -1852,10 +1852,6 @@ function openUserPage(targetUserId, fallbackName = '') {
   homeView.classList.remove('active');
   gameView.classList.remove('active');
   userView.classList.add('active');
-  const params = new URLSearchParams();
-  params.set('user', targetUserId);
-  if (viewedUsername) params.set('u', viewedUsername);
-  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
   renderUserPage();
 }
 
@@ -3824,11 +3820,15 @@ function checkUrlReplayOnLoad() {
       renderLeaderboard();
       renderReview();
     }
+    if (!replayParam && !userParam) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }
 
   if (userParam) {
     hasHandledInitialUrlReplay = true;
     openUserPage(userParam, params.get('u') || '');
+    window.history.replaceState({}, '', window.location.pathname);
     return;
   }
 
@@ -4884,7 +4884,8 @@ function initConfigs() {
   });
 
   configs = Array.from(byId.values());
-  const savedConfigId = localStorage.getItem(STORAGE_KEYS.activeConfigId);
+  const urlConfigParam = new URLSearchParams(window.location.search).get('config');
+  const savedConfigId = urlConfigParam || localStorage.getItem(STORAGE_KEYS.activeConfigId);
   const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
   activeConfigId = activeCfg.id;
   activeCategory = getConfigCategory(activeCfg);
