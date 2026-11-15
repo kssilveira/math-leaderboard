@@ -717,7 +717,7 @@ function getCategoryIcon(cat) {
   if (cat === 'geo') return '🌍';
   if (cat === 'lang') return '💬';
   if (cat === 'chem') return '🧪';
-  return '🧮';
+  return '🔢';
 }
 
 function getUserConfigPerformance(targetUserId, cfgId) {
@@ -1527,29 +1527,7 @@ function appendEntryActionButtons(container, entry, targetConfigId = activeConfi
     startReplay(replaySession);
   });
 
-  const raceBtn = document.createElement('button');
-  raceBtn.type = 'button';
-  raceBtn.className = 'inline-btn';
-  raceBtn.textContent = '⚔️';
-  raceBtn.title = `Race against ${entry.username}'s best game`;
-  raceBtn.setAttribute('aria-label', `Race against ${entry.username}'s best game`);
-  raceBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    startRace(replaySession);
-  });
-
-  const shareBtn = document.createElement('button');
-  shareBtn.type = 'button';
-  shareBtn.className = 'inline-btn';
-  shareBtn.textContent = '🔗';
-  shareBtn.title = `Copy share link for ${entry.username}'s best game`;
-  shareBtn.setAttribute('aria-label', `Copy share link for ${entry.username}'s best game`);
-  shareBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    copyReplayLink(replaySession, shareBtn);
-  });
-
-  container.append(replayBtn, raceBtn, shareBtn);
+  container.appendChild(replayBtn);
 }
 
 function createLeaderboardRowEl(entry, extraLabel = '') {
