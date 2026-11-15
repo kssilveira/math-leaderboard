@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="description" content="1-minute mobile math game with customizable game configurations and global leaderboards.">
+  <meta name="description" content="1-minute mobile quiz game (Math, Geography &amp; Language) with global leaderboards, replays, and ghost races.">
   <meta name="theme-color" content="#f5f7fa">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="1-Min Math">
+  <meta name="apple-mobile-web-app-title" content="1-Min Quiz">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="1-Minute Math — Global Leaderboard">
-  <meta property="og:description" content="1-minute mobile math game with customizable game configurations, replays, and global leaderboards.">
+  <meta property="og:title" content="1-Minute Quiz — Global Leaderboard">
+  <meta property="og:description" content="1-minute mobile quiz game (Math, Geography &amp; Language) with replays, ghost races, and global leaderboards.">
   <meta property="og:url" content="https://kssilveira.github.io/math-leaderboard/">
   <meta property="og:image" content="https://math-leaderboard.vercel.app/api/og">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="1-Minute Math — Global Leaderboard">
-  <meta name="twitter:description" content="1-minute mobile math game with customizable game configurations, replays, and global leaderboards.">
+  <meta name="twitter:title" content="1-Minute Quiz — Global Leaderboard">
+  <meta name="twitter:description" content="1-minute mobile quiz game (Math, Geography &amp; Language) with replays, ghost races, and global leaderboards.">
   <meta name="twitter:image" content="https://math-leaderboard.vercel.app/api/og">
-  <title>1-Minute Math</title>
+  <title>1-Minute Quiz</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
@@ -42,7 +42,7 @@
   <main class="app">
     <header class="topbar">
       <div class="brand-group">
-        <h1 class="logo">1-Min Math</h1>
+        <h1 class="logo">1-Min Quiz</h1>
         <button
           id="install-app-btn"
           class="install-pill-btn hidden"
@@ -102,6 +102,16 @@
         <span class="switcher-label">User</span>
         <div id="user-list" class="pill-list" role="tablist"></div>
         <button id="add-user-btn" class="add-pill-btn" type="button">+ User</button>
+      </div>
+
+      <!-- Category Switcher -->
+      <div class="switcher-row" aria-label="Quiz Categories">
+        <span class="switcher-label">Topic</span>
+        <div id="category-list" class="pill-list" role="tablist">
+          <button type="button" class="pill-btn active" data-category="math" role="tab" aria-selected="true">🧮 Math</button>
+          <button type="button" class="pill-btn" data-category="geo" role="tab" aria-selected="false">🌍 Geo</button>
+          <button type="button" class="pill-btn" data-category="lang" role="tab" aria-selected="false">💬 Lang</button>
+        </div>
       </div>
 
       <!-- Game Configurations Switcher & New Game Creator -->
@@ -302,24 +312,31 @@
             <span id="race-opp-name">Opponent</span>
             <span id="race-opp-step" class="race-opp-step">Q 1</span>
           </span>
-          <span class="race-opp-math">
+          <span id="race-opp-math" class="race-opp-math">
             <span id="race-opp-slot-0" class="race-opp-item">0</span>
             <span id="race-opp-op" class="race-opp-op">+</span>
             <span id="race-opp-slot-1" class="race-opp-item">0</span>
             <span class="race-opp-op">=</span>
             <span id="race-opp-slot-2" class="race-opp-item">0</span>
           </span>
+          <span id="race-opp-quiz" class="race-opp-quiz hidden"></span>
         </div>
       </div>
 
       <div class="equation-wrap">
         <div id="question-last-perf" class="question-last-perf hidden"></div>
         <div class="equation-card" id="equation-card">
-          <span id="slot-0" class="eq-item">0</span>
-          <span id="slot-op" class="eq-op">+</span>
-          <span id="slot-1" class="eq-item">0</span>
-          <span class="eq-op">=</span>
-          <span id="slot-2" class="eq-item">0</span>
+          <span id="math-eq-group" class="math-eq-group">
+            <span id="slot-0" class="eq-item">0</span>
+            <span id="slot-op" class="eq-op">+</span>
+            <span id="slot-1" class="eq-item">0</span>
+            <span class="eq-op">=</span>
+            <span id="slot-2" class="eq-item">0</span>
+          </span>
+          <div id="quiz-prompt-group" class="quiz-prompt-group hidden">
+            <span id="quiz-prompt-label" class="quiz-prompt-label"></span>
+            <span id="quiz-prompt-text" class="quiz-prompt-text"></span>
+          </div>
         </div>
       </div>
 
@@ -335,6 +352,11 @@
         <button type="button" class="key-btn" data-digit="9">9</button>
         <button type="button" id="minus-key" class="key-btn hidden" data-digit="-">−</button>
         <button type="button" class="key-btn key-zero" data-digit="0">0</button>
+      </div>
+
+      <div class="quiz-choices hidden" id="quiz-choices" role="group" aria-label="Answer choices">
+        <button type="button" id="quiz-choice-0" class="choice-btn" data-choice="0"></button>
+        <button type="button" id="quiz-choice-1" class="choice-btn" data-choice="1"></button>
       </div>
 
       <div id="replay-panel" class="replay-panel hidden">
@@ -385,6 +407,7 @@
 
   <canvas id="celebration-canvas" class="celebration-canvas hidden" aria-hidden="true"></canvas>
 
+  <script src="quiz-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

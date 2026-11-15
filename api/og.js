@@ -28,7 +28,23 @@ function svgEl(type, attrs, children) {
   };
 }
 
+const QUIZ_CONFIG_LABELS = {
+  cfg_geo_flag_country: 'Flag → Country',
+  cfg_geo_country_flag: 'Country → Flag',
+  cfg_geo_country_capital: 'Country → Capital',
+  cfg_geo_capital_country: 'Capital → Country',
+  cfg_geo_flag_capital: 'Flag → Capital',
+  cfg_geo_capital_flag: 'Capital → Flag',
+  cfg_lang_pt_en: '🇧🇷 Portuguese → English',
+  cfg_lang_es_en: '🇪🇸 Spanish → English',
+  cfg_lang_fr_en: '🇫🇷 French → English',
+  cfg_lang_de_en: '🇩🇪 German → English',
+};
+
 function formatConfigId(configId) {
+  if (configId && QUIZ_CONFIG_LABELS[configId]) {
+    return QUIZ_CONFIG_LABELS[configId];
+  }
   if (!configId || !configId.startsWith('cfg_')) {
     return '+ − (0..10, 0..10, 0..20)';
   }

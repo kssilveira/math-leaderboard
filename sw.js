@@ -1,9 +1,10 @@
-const CACHE_NAME = 'math-leaderboard-v19';
+const CACHE_NAME = 'math-leaderboard-v20';
 const APP_SHELL = [
   './',
   './index.html',
   './privacy.html',
   './style.css',
+  './quiz-data.js',
   './app.js',
   './manifest.json',
   './favicon.svg',

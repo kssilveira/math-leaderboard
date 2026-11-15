@@ -1,6 +1,6 @@
-# math-leaderboard
+# 1-Minute Quiz (Math, Geography & Language)
 
-Mobile-friendly 1-minute math game with shared game configurations, multi-user support, practice mode, interactive replays, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), and **Language** (1,000 most common words in Portuguese, Spanish, French, and German) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
 - **Android App (Google Play Closed Testing)**:
@@ -25,11 +25,15 @@ Mobile-friendly 1-minute math game with shared game configurations, multi-user s
   - Generates a random username saved in `localStorage`, editable anytime in the header.
   - Add (`+ User`), switch, and delete (`✕`) users so multiple people can play on the same device.
   - Users are shared across all game configurations and leaderboards.
-- **Shared Game Configurations**:
-  - Default game: `+ − (0..10, 0..10, 0..20)`.
-  - Create new game configurations (`+ Game`) with any subset of operators (`+`, `−`, `×`, `÷`) and integer `min`/`max` constraints on each of the 3 numbers (with division restricted to exact integers).
-  - Configurations are immutable after creation, shared globally across all users in Firebase, and sorted by the size of their leaderboards.
-  - Creating a configuration that already exists automatically selects the existing one.
+- **Three Categories (`🧮 Math`, `🌍 Geo`, `💬 Lang`) Sorted by Popularity**:
+  - **🧮 Math**:
+    - Default game: `+ − (0..10, 0..10, 0..20)`.
+    - Create new math configurations (`+ Game`) with any subset of operators (`+`, `−`, `×`, `÷`) and integer `min`/`max` constraints on each of the 3 numbers (with division restricted to exact integers).
+  - **🌍 Geography (6 built-in configs — 193 UN Member States)**:
+    - `Flag → Country`, `Country → Flag`, `Country → Capital`, `Capital → Country`, `Flag → Capital`, and `Capital → Flag` across all 193 United Nations member states, played with 2-choice answer buttons.
+  - **💬 Language (4 built-in configs — 1,000 Most Common Words)**:
+    - `🇧🇷 Portuguese → English`, `🇪🇸 Spanish → English`, `🇫🇷 French → English`, and `🇩🇪 German → English` across the 1,000 most common words in each language, played with 2-choice answer buttons.
+  - Within each category, game configurations are sorted by popularity (leaderboard size).
 - **1-Minute Math Game**:
   - Randomly hides one of the 3 numbers in the equation (`a op b = c`).
   - On-screen mobile keypad formatted with 3 digits per row (plus physical keyboard support).

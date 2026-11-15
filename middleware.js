@@ -55,9 +55,9 @@ export default async function middleware(request) {
   const replayParam = url.searchParams.get('replay');
   const origin = url.origin;
 
-  let ogTitle = '1-Minute Math — Global Leaderboard';
+  let ogTitle = '1-Minute Quiz — Global Leaderboard';
   let ogDesc =
-    '1-minute mobile math game with customizable game configurations, replays, and global leaderboards.';
+    '1-minute mobile quiz game (Math, Geography & Language) with replays, ghost races, and global leaderboards.';
   let ogImage = `${origin}/api/og`;
   let targetUrl = CANONICAL_APP_URL + url.search;
 

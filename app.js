@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   users: 'math_users_v1',
   userId: 'math_user_id',
   username: 'math_username',
+  activeCategory: 'math_active_category_v1',
   activeConfigId: 'math_active_config_id',
   localConfigs: 'math_local_configs_v1',
   gameHistory: 'math_game_history_v1',
@@ -15,6 +16,7 @@ const STORAGE_KEYS = {
 
 const GAME_DURATION_SECONDS = 60;
 const ALL_OPS = ['+', '-', '×', '÷'];
+const COMPACT_OPS = ['+', '-', '×', '÷', '?'];
 const MAX_LOCAL_USERS = 8;
 const MAX_LOCAL_CONFIGS = 12;
 const MAX_GLOBAL_CONFIGS = 20;
@@ -29,11 +31,13 @@ let users = []; // [{ userId: string, username: string }]
 let userId = '';
 let username = '';
 
-let configs = []; // [{ id, ops, min1, max1, min2, max2, min3, max3 }]
+let configs = []; // [{ id, category, type, ... }]
 let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
+let activeCategory = localStorage.getItem(STORAGE_KEYS.activeCategory) || 'math';
 let activeConfigId = '';
 let draftConfig = null;
 let leaderboardPage = 1;
+let quizChoiceLockTimeout = null;
 
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
@@ -74,6 +78,8 @@ const userListEl = document.getElementById('user-list');
 const addUserBtn = document.getElementById('add-user-btn');
 const deleteUserBtn = document.getElementById('delete-user-btn');
 
+const categoryListEl = document.getElementById('category-list');
+const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll('[data-category]')) : [];
 const configListEl = document.getElementById('config-list');
 const addConfigBtn = document.getElementById('add-config-btn');
 const newConfigPanel = document.getElementById('new-config-panel');
@@ -130,12 +136,19 @@ const scoreDisplay = document.getElementById('score-display');
 const rightDisplay = document.getElementById('right-display');
 const wrongDisplay = document.getElementById('wrong-display');
 const questionLastPerf = document.getElementById('question-last-perf');
+const mathEqGroup = document.getElementById('math-eq-group');
+const quizPromptGroup = document.getElementById('quiz-prompt-group');
+const quizPromptLabel = document.getElementById('quiz-prompt-label');
+const quizPromptText = document.getElementById('quiz-prompt-text');
 const slot0 = document.getElementById('slot-0');
 const slot1 = document.getElementById('slot-1');
 const slot2 = document.getElementById('slot-2');
 const slotOp = document.getElementById('slot-op');
 const keypad = document.getElementById('keypad');
 const minusKey = document.getElementById('minus-key');
+const quizChoicesEl = document.getElementById('quiz-choices');
+const quizChoice0Btn = document.getElementById('quiz-choice-0');
+const quizChoice1Btn = document.getElementById('quiz-choice-1');
 const replayPanel = document.getElementById('replay-panel');
 const replayResultBanner = document.getElementById('replay-result-banner');
 const replayBannerLabel = document.getElementById('replay-banner-label');
@@ -169,6 +182,8 @@ const raceDiffBadge = document.getElementById('race-diff-badge');
 const raceOppEq = document.getElementById('race-opp-eq');
 const raceOppName = document.getElementById('race-opp-name');
 const raceOppStep = document.getElementById('race-opp-step');
+const raceOppMath = document.getElementById('race-opp-math');
+const raceOppQuiz = document.getElementById('race-opp-quiz');
 const raceOppSlot0 = document.getElementById('race-opp-slot-0');
 const raceOppSlot1 = document.getElementById('race-opp-slot-1');
 const raceOppSlot2 = document.getElementById('race-opp-slot-2');
@@ -595,7 +610,40 @@ function saveLocalConfig(cfg) {
   localStorage.setItem(STORAGE_KEYS.localConfigs, JSON.stringify(list.slice(0, MAX_LOCAL_CONFIGS)));
 }
 
+function getBuiltinQuizConfigs() {
+  return typeof BUILTIN_QUIZ_CONFIGS !== 'undefined' && Array.isArray(BUILTIN_QUIZ_CONFIGS)
+    ? BUILTIN_QUIZ_CONFIGS
+    : [];
+}
+
+function getConfigCategory(cfg) {
+  if (!cfg) return 'math';
+  if (cfg.category) return cfg.category;
+  if (typeof cfg.id === 'string') {
+    if (cfg.id.startsWith('cfg_geo_')) return 'geo';
+    if (cfg.id.startsWith('cfg_lang_')) return 'lang';
+  }
+  return 'math';
+}
+
+function isQuizConfig(cfg) {
+  if (!cfg) return false;
+  const cat = getConfigCategory(cfg);
+  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang';
+}
+
+function getConfigById(cfgId) {
+  if (!cfgId) return null;
+  return (
+    configs.find(c => c.id === cfgId) ||
+    getBuiltinQuizConfigs().find(c => c.id === cfgId) ||
+    getLocalConfigs().find(c => c.id === cfgId) ||
+    null
+  );
+}
+
 function getConfigId(cfg) {
+  if (cfg && cfg.id && isQuizConfig(cfg)) return cfg.id;
   const opNames = { '+': 'add', '-': 'sub', '×': 'mul', '÷': 'div' };
   const opsKey = ALL_OPS.filter(op => cfg.ops.includes(op)).map(op => opNames[op]).join('-');
   return `cfg_${opsKey}_${cfg.min1}_${cfg.max1}_${cfg.min2}_${cfg.max2}_${cfg.min3}_${cfg.max3}`;
@@ -603,6 +651,8 @@ function getConfigId(cfg) {
 
 function createDefaultConfig() {
   const base = {
+    category: 'math',
+    type: 'math',
     ops: ['+', '-'],
     min1: 0,
     max1: 10,
@@ -615,8 +665,18 @@ function createDefaultConfig() {
 }
 
 function formatConfigLabel(cfg) {
-  const opsStr = cfg.ops.map(op => (op === '-' ? '−' : op)).join(' ');
+  if (!cfg) return '';
+  if (cfg.label) return cfg.label;
+  const opsStr = (cfg.ops || []).map(op => (op === '-' ? '−' : op)).join(' ');
   return `${opsStr} (${cfg.min1}..${cfg.max1}, ${cfg.min2}..${cfg.max2}, ${cfg.min3}..${cfg.max3})`;
+}
+
+function isConfigPlayable(cfg) {
+  if (!cfg) return false;
+  if (isQuizConfig(cfg)) {
+    return Array.isArray(cfg.items) && cfg.items.length >= 2;
+  }
+  return getValidSamplers(cfg).length > 0;
 }
 
 function getLeaderboardSize(configId) {
@@ -624,12 +684,23 @@ function getLeaderboardSize(configId) {
   return board ? Object.keys(board).length : 0;
 }
 
+function compareConfigsByPopularity(a, b) {
+  const sizeDiff = getLeaderboardSize(b.id) - getLeaderboardSize(a.id);
+  if (sizeDiff !== 0) return sizeDiff;
+  const builtins = getBuiltinQuizConfigs();
+  const aIdx = builtins.findIndex(c => c.id === a.id);
+  const bIdx = builtins.findIndex(c => c.id === b.id);
+  if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
+  return a.id.localeCompare(b.id);
+}
+
 function sortConfigsByLeaderboardSize() {
-  configs.sort((a, b) => {
-    const sizeDiff = getLeaderboardSize(b.id) - getLeaderboardSize(a.id);
-    if (sizeDiff !== 0) return sizeDiff;
-    return a.id.localeCompare(b.id);
-  });
+  configs.sort(compareConfigsByPopularity);
+}
+
+function getConfigsForCategory(cat) {
+  const filtered = configs.filter(c => getConfigCategory(c) === cat);
+  return filtered.sort(compareConfigsByPopularity);
 }
 
 function getActiveConfig() {
@@ -639,9 +710,26 @@ function getActiveConfig() {
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
   if (!activeCfg) return;
-  configListEl.innerHTML = '';
+  activeCategory = getConfigCategory(activeCfg);
+  localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
 
-  configs.forEach((cfg) => {
+  categoryBtns.forEach((btn) => {
+    const isCatActive = btn.dataset.category === activeCategory;
+    btn.classList.toggle('active', isCatActive);
+    btn.setAttribute('aria-selected', isCatActive ? 'true' : 'false');
+  });
+
+  if (addConfigBtn) {
+    addConfigBtn.classList.toggle('hidden', activeCategory !== 'math');
+  }
+  if (activeCategory !== 'math') {
+    closeNewConfigPanel();
+  }
+
+  configListEl.innerHTML = '';
+  const categoryConfigs = getConfigsForCategory(activeCategory);
+
+  categoryConfigs.forEach((cfg) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'pill-btn' + (cfg.id === activeCfg.id ? ' active' : '');
@@ -654,8 +742,33 @@ function renderConfigsUI() {
 
   leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
 
-  const allowsNegative = activeCfg.min1 < 0 || activeCfg.min2 < 0 || activeCfg.min3 < 0;
-  minusKey.classList.toggle('hidden', !allowsNegative);
+  if (!isQuizConfig(activeCfg)) {
+    const allowsNegative = activeCfg.min1 < 0 || activeCfg.min2 < 0 || activeCfg.min3 < 0;
+    minusKey.classList.toggle('hidden', !allowsNegative);
+  } else {
+    minusKey.classList.add('hidden');
+  }
+}
+
+async function switchCategory(targetCat) {
+  if (isPlaying) return;
+  if (!['math', 'geo', 'lang'].includes(targetCat)) return;
+  activeCategory = targetCat;
+  localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+  closeNewConfigPanel();
+  lastResult.classList.add('hidden');
+
+  const catConfigs = getConfigsForCategory(targetCat);
+  const currentCfg = getActiveConfig();
+  if ((!currentCfg || getConfigCategory(currentCfg) !== targetCat) && catConfigs.length > 0) {
+    activeConfigId = catConfigs[0].id;
+    leaderboardPage = 1;
+    localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+  }
+
+  renderConfigsUI();
+  renderLeaderboard();
+  renderReview();
 }
 
 function renderDraftConfigUI() {
@@ -678,8 +791,9 @@ function renderDraftConfigUI() {
 }
 
 function openNewConfigPanel() {
-  if (isPlaying) return;
-  const base = getActiveConfig() || createDefaultConfig();
+  if (isPlaying || activeCategory !== 'math') return;
+  const active = getActiveConfig();
+  const base = active && !isQuizConfig(active) ? active : createDefaultConfig();
   draftConfig = {
     ops: [...base.ops],
     min1: base.min1,
@@ -714,6 +828,8 @@ async function createNewConfigFromDraft() {
   };
   const newCfg = {
     id: getConfigId(base),
+    category: 'math',
+    type: 'math',
     ...base
   };
 
@@ -792,12 +908,22 @@ function isPlausibleLeaderboardSession(score, sessionData) {
 }
 
 async function ensureConfigPublishedInFirebase(configId) {
-  const cfg = configs.find(c => c.id === configId) || getLocalConfigs().find(c => c.id === configId);
-  if (!cfg) return;
+  const cfg = getConfigById(configId);
+  if (!cfg || isQuizConfig(cfg)) return;
+  const mathPayload = {
+    id: cfg.id,
+    ops: cfg.ops,
+    min1: cfg.min1,
+    max1: cfg.max1,
+    min2: cfg.min2,
+    max2: cfg.max2,
+    min3: cfg.min3,
+    max3: cfg.max3
+  };
   await fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(cfg.id)}.json`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cfg)
+    body: JSON.stringify(mathPayload)
   }).catch(() => {});
 }
 
@@ -817,9 +943,15 @@ async function syncFromFirebase() {
     const byId = new Map();
     byId.set(defaultCfg.id, defaultCfg);
 
+    getBuiltinQuizConfigs().forEach((qCfg) => {
+      byId.set(qCfg.id, qCfg);
+    });
+
     const normalizeCfgObj = (c) => {
       if (!c || !Array.isArray(c.ops)) return null;
       const normalized = {
+        category: 'math',
+        type: 'math',
         ops: ALL_OPS.filter(op => c.ops.includes(op)),
         min1: clampConfigBound(c.min1),
         max1: clampConfigBound(c.max1),
@@ -850,7 +982,16 @@ async function syncFromFirebase() {
             fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(normalized.id)}.json`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(normalized)
+              body: JSON.stringify({
+                id: normalized.id,
+                ops: normalized.ops,
+                min1: normalized.min1,
+                max1: normalized.max1,
+                min2: normalized.min2,
+                max2: normalized.max2,
+                min3: normalized.min3,
+                max3: normalized.max3
+              })
             }).catch(() => {});
           }
         }
@@ -859,11 +1000,7 @@ async function syncFromFirebase() {
 
     // Ensure the default config always exists in Firebase under its canonical key
     if (!cloudConfigs || !cloudConfigs[defaultCfg.id]) {
-      fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(defaultCfg.id)}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(defaultCfg)
-      }).catch(() => {});
+      ensureConfigPublishedInFirebase(defaultCfg.id);
     }
 
     configs = Array.from(byId.values());
@@ -872,17 +1009,23 @@ async function syncFromFirebase() {
 
     const savedConfigId = activeConfigId || localStorage.getItem(STORAGE_KEYS.activeConfigId);
     const localIds = new Set(getLocalConfigs().map(c => c.id));
-    configs = configs.filter(
-      (c, idx) =>
+    let mathCount = 0;
+    configs = configs.filter((c) => {
+      if (isQuizConfig(c)) return true;
+      const keep =
         c.id === defaultCfg.id ||
         c.id === savedConfigId ||
         localIds.has(c.id) ||
-        (getLeaderboardSize(c.id) > 0 && idx < MAX_GLOBAL_CONFIGS)
-    );
+        (getLeaderboardSize(c.id) > 0 && mathCount < MAX_GLOBAL_CONFIGS);
+      if (keep) mathCount += 1;
+      return keep;
+    });
 
     const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
     activeConfigId = activeCfg.id;
+    activeCategory = getConfigCategory(activeCfg);
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+    localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
 
     renderConfigsUI();
     renderLeaderboard();
@@ -893,8 +1036,56 @@ async function syncFromFirebase() {
   }
 }
 
-function normalizeQuestionRecord(q) {
+function normalizeQuestionRecord(q, targetConfigId = activeConfigId) {
   const nums = Array.isArray(q.nums) ? [...q.nums] : [0, 0, 0];
+  const op = q.op || '+';
+  const resolvedCfgId = typeof targetConfigId === 'string' && targetConfigId ? targetConfigId : activeConfigId;
+  const cfg = getConfigById(resolvedCfgId);
+
+  if (op === '?' || isQuizConfig(cfg)) {
+    const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
+    const qIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, Number(nums[0]) || 0)) : (Number(nums[0]) || 0);
+    let dIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, Number(nums[1]) || 0)) : (Number(nums[1]) || 0);
+    if (items.length > 1 && dIdx === qIdx) {
+      dIdx = (qIdx + 1) % items.length;
+    }
+    const choiceOrder = q.missingIndex === 1 ? 1 : 0;
+    const prompt = q.prompt !== undefined ? String(q.prompt) : (items[qIdx] ? items[qIdx][0] : '?');
+    const expected = (q.expected !== undefined && typeof q.expected === 'string' && q.expected !== String(qIdx))
+      ? q.expected
+      : (items[qIdx] ? items[qIdx][1] : String(q.expected ?? ''));
+    const distractor = q.distractor !== undefined
+      ? String(q.distractor)
+      : (items[dIdx] ? items[dIdx][1] : '');
+    const choices = Array.isArray(q.choices) && q.choices.length === 2
+      ? q.choices.map(String)
+      : (choiceOrder === 0 ? [expected, distractor] : [distractor, expected]);
+
+    const expectedStr = String(expected);
+    const answers = Array.isArray(q.answers) ? q.answers.map(String) : [];
+    const wrongAnswers = Array.isArray(q.wrongAnswers)
+      ? q.wrongAnswers.map(String)
+      : answers.filter(a => a !== expectedStr);
+    const right = typeof q.right === 'number' ? q.right : (answers.includes(expectedStr) ? 1 : 0);
+    const wrong = typeof q.wrong === 'number' ? q.wrong : wrongAnswers.length;
+    const durationMs = typeof q.durationMs === 'number' ? q.durationMs : 0;
+
+    return {
+      nums: [qIdx, dIdx, qIdx],
+      op: '?',
+      missingIndex: choiceOrder,
+      prompt,
+      expected: expectedStr,
+      distractor,
+      choices,
+      answers,
+      wrongAnswers,
+      right,
+      wrong,
+      durationMs
+    };
+  }
+
   const missingIndex = typeof q.missingIndex === 'number' ? q.missingIndex : 2;
   const expected = typeof q.expected === 'number' ? q.expected : nums[missingIndex];
   const expectedStr = String(expected);
@@ -908,7 +1099,7 @@ function normalizeQuestionRecord(q) {
 
   return {
     nums,
-    op: q.op || '+',
+    op,
     missingIndex,
     expected,
     answers,
@@ -1012,7 +1203,9 @@ async function backfillLocalBestToLeaderboard() {
     const userObj = users.find(u => u.userId === uId);
     const resolvedUsername = (userObj && userObj.username) || (existing && existing.username) || username || 'Player';
     const bestScore = hasExisting ? Math.max(existing.score, bestLocal.score) : bestLocal.score;
-    const normalizedQuestions = localHasQuestions ? bestLocal.questions.map(normalizeQuestionRecord) : [];
+    const normalizedQuestions = localHasQuestions
+      ? bestLocal.questions.map(q => normalizeQuestionRecord(q, cfgId))
+      : [];
     const baseUpdatedAt = (hasExisting && bestLocal.score <= existing.score && existing.updatedAt)
       ? existing.updatedAt + 1
       : (bestLocal.playedAt || Date.now());
@@ -1070,7 +1263,7 @@ async function submitScoreToLeaderboard(score, sessionData) {
     : (existingHasQuestions ? existing : (bestLocal || sessionData));
 
   const normalizedQuestions = sourceSession && Array.isArray(sourceSession.questions)
-    ? sourceSession.questions.map(normalizeQuestionRecord)
+    ? sourceSession.questions.map(q => normalizeQuestionRecord(q, configId))
     : [];
 
   const nextUpdatedAt = isNewHighScore
@@ -1158,7 +1351,7 @@ function getMyBestReplaySession() {
       right: myEntry.right,
       wrong: myEntry.wrong,
       durationMs: myEntry.durationMs || GAME_DURATION_SECONDS * 1000,
-      questions: myEntry.questions.map(normalizeQuestionRecord)
+      questions: myEntry.questions.map(q => normalizeQuestionRecord(q, activeConfigId))
     };
   }
   const bestLocal = getBestLocalSession(userId, activeConfigId);
@@ -1170,7 +1363,7 @@ function getMyBestReplaySession() {
       right: bestLocal.right,
       wrong: bestLocal.wrong,
       durationMs: bestLocal.durationMs || GAME_DURATION_SECONDS * 1000,
-      questions: bestLocal.questions.map(normalizeQuestionRecord)
+      questions: bestLocal.questions.map(q => normalizeQuestionRecord(q, activeConfigId))
     };
   }
   return null;
@@ -1187,7 +1380,7 @@ function buildEntryReplaySession(entry) {
     right: entry.right,
     wrong: entry.wrong,
     durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
-    questions: entry.questions.map(normalizeQuestionRecord)
+    questions: entry.questions.map(q => normalizeQuestionRecord(q, activeConfigId))
   };
 }
 
@@ -1504,7 +1697,34 @@ function renderLeaderboard() {
 // --- Local Storage Game Review & Per-Question Performance (Per User & Config) ---
 
 function getQuestionKeyFromRecord(q) {
+  if (q && q.op === '?') {
+    const qIdx = Array.isArray(q.nums) ? (Number(q.nums[0]) || 0) : 0;
+    return `quiz_${qIdx}`;
+  }
   return `${q.nums[0]}${q.op}${q.nums[1]}=${q.nums[2]}?${q.missingIndex}`;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
+  const q = normalizeQuestionRecord(rawQ, targetConfigId);
+  if (q.op === '?') {
+    return `${escapeHtml(q.prompt)} → <span class="review-q-slot">${escapeHtml(q.expected)}</span>`;
+  }
+  const opChar = q.op === '-' ? '−' : q.op;
+  const parts = q.nums.map((n, idx) => {
+    if (idx === q.missingIndex) {
+      return `<span class="review-q-slot">${n}</span>`;
+    }
+    return String(n);
+  });
+  return `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
 }
 
 function getGameHistoryMap() {
@@ -1548,25 +1768,29 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
       if (Array.isArray(session.questions)) {
         session.questions.forEach((q) => {
           if (q && Array.isArray(q.nums) && q.nums.length === 3) {
-            const qKey = getQuestionKeyFromRecord(q);
+            const normQ = normalizeQuestionRecord(q, targetConfigId);
+            const qKey = getQuestionKeyFromRecord(normQ);
             const existing = bucket[qKey];
             const prevCount = existing && typeof existing.count === 'number' && existing.count > 0 ? existing.count : 0;
             const prevTotalMs = existing && typeof existing.totalDurationMs === 'number'
               ? existing.totalDurationMs
               : (existing ? (existing.durationMs || 0) * prevCount : 0);
             const count = prevCount + 1;
-            const totalDurationMs = prevTotalMs + (q.durationMs || 0);
+            const totalDurationMs = prevTotalMs + (normQ.durationMs || 0);
             const avgDurationMs = Math.round(totalDurationMs / count);
 
             bucket[qKey] = {
               key: qKey,
-              nums: [...q.nums],
-              op: q.op,
-              missingIndex: q.missingIndex,
-              expected: q.expected,
-              answers: Array.isArray(q.answers) ? [...q.answers] : [],
-              right: q.right || 0,
-              wrong: q.wrong || 0,
+              nums: [...normQ.nums],
+              op: normQ.op,
+              missingIndex: normQ.missingIndex,
+              prompt: normQ.prompt,
+              expected: normQ.expected,
+              distractor: normQ.distractor,
+              choices: normQ.choices,
+              answers: Array.isArray(normQ.answers) ? [...normQ.answers] : [],
+              right: normQ.right || 0,
+              wrong: normQ.wrong || 0,
               count,
               totalDurationMs,
               durationMs: avgDurationMs,
@@ -1584,8 +1808,9 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
 
 function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
   if (!qRecord || !Array.isArray(qRecord.nums) || qRecord.nums.length !== 3) return;
+  const normQ = normalizeQuestionRecord(qRecord, targetConfigId);
   const { statsMap, compKey, bucket } = ensureQuestionStatsBucket(targetUserId, targetConfigId);
-  const qKey = getQuestionKeyFromRecord(qRecord);
+  const qKey = getQuestionKeyFromRecord(normQ);
   const existing = bucket[qKey];
   const prevCount = existing
     ? (typeof existing.count === 'number' && existing.count > 0 ? existing.count : 1)
@@ -1594,18 +1819,21 @@ function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
     ? (typeof existing.totalDurationMs === 'number' ? existing.totalDurationMs : (existing.durationMs || 0) * prevCount)
     : 0;
   const count = prevCount + 1;
-  const totalDurationMs = prevTotalMs + (qRecord.durationMs || 0);
+  const totalDurationMs = prevTotalMs + (normQ.durationMs || 0);
   const avgDurationMs = Math.round(totalDurationMs / count);
 
   bucket[qKey] = {
     key: qKey,
-    nums: [...qRecord.nums],
-    op: qRecord.op,
-    missingIndex: qRecord.missingIndex,
-    expected: qRecord.expected,
-    answers: Array.isArray(qRecord.answers) ? [...qRecord.answers] : [],
-    right: qRecord.right || 0,
-    wrong: qRecord.wrong || 0,
+    nums: [...normQ.nums],
+    op: normQ.op,
+    missingIndex: normQ.missingIndex,
+    prompt: normQ.prompt,
+    expected: normQ.expected,
+    distractor: normQ.distractor,
+    choices: normQ.choices,
+    answers: Array.isArray(normQ.answers) ? [...normQ.answers] : [],
+    right: normQ.right || 0,
+    wrong: normQ.wrong || 0,
     count,
     totalDurationMs,
     durationMs: avgDurationMs,
@@ -1807,23 +2035,17 @@ function renderReview() {
   }
 
   reviewList.innerHTML = '';
-  ordered.forEach((q) => {
+  ordered.forEach((rawQ) => {
+    const q = normalizeQuestionRecord(rawQ, activeConfigId);
     const li = document.createElement('li');
     li.className = 'review-row' + (q.wrong > 0 || q.right === 0 ? ' has-wrong' : '');
 
-    // 1. Equation with highlighted question slot
+    // 1. Question / Equation with highlighted answer slot
     const eqSpan = document.createElement('span');
     eqSpan.className = 'review-eq';
-    const opChar = q.op === '-' ? '−' : q.op;
-    const parts = q.nums.map((n, idx) => {
-      if (idx === q.missingIndex) {
-        return `<span class="review-q-slot">${n}</span>`;
-      }
-      return String(n);
-    });
-    eqSpan.innerHTML = `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
+    eqSpan.innerHTML = formatQuestionForReviewHtml(q, activeConfigId);
 
-    // 2. Typed answers (wrong attempts & right answer)
+    // 2. Typed/chosen answers (wrong attempts & right answer)
     const ansSpan = document.createElement('span');
     ansSpan.className = 'review-answers';
     const expectedStr = String(q.expected);
@@ -1973,9 +2195,66 @@ function getValidMissingIndices(a, op, b, c) {
   return [0, 1, 2];
 }
 
+function sampleQuizDistractorIndex(items, qIdx) {
+  const n = items.length;
+  if (n <= 1) return 0;
+  const targetAns = items[qIdx][1];
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const idx = randomInt(0, n - 1);
+    if (idx !== qIdx && items[idx][1] !== targetAns) {
+      return idx;
+    }
+  }
+  return (qIdx + 1) % n;
+}
+
+function buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, lastPerf = null) {
+  const items = cfg.items;
+  const [prompt, expected] = items[qIdx];
+  const distractor = items[dIdx][1];
+  const choices = choiceOrder === 0 ? [expected, distractor] : [distractor, expected];
+  const key = `quiz_${qIdx}`;
+  return {
+    nums: [qIdx, dIdx, qIdx],
+    op: '?',
+    missingIndex: choiceOrder,
+    prompt,
+    answer: expected,
+    distractor,
+    choices,
+    key,
+    lastPerf
+  };
+}
+
 function generateRandomQuestion() {
   const cfg = getActiveConfig();
   if (!cfg) return null;
+
+  if (isQuizConfig(cfg)) {
+    const items = Array.isArray(cfg.items) ? cfg.items : [];
+    if (items.length < 2) return null;
+    const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
+    let candidate = null;
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const qIdx = randomInt(0, items.length - 1);
+      const key = `quiz_${qIdx}`;
+      if (!currentQuestion || key !== currentQuestion.key || attempt === 24) {
+        const dIdx = sampleQuizDistractorIndex(items, qIdx);
+        const choiceOrder = randomInt(0, 1);
+        candidate = buildQuizQuestionFromIndices(
+          cfg,
+          qIdx,
+          dIdx,
+          choiceOrder,
+          bucket[key] ? { ...bucket[key] } : null
+        );
+        break;
+      }
+    }
+    return candidate;
+  }
+
   const samplers = getValidSamplers(cfg);
   if (samplers.length === 0) return null;
 
@@ -2018,6 +2297,14 @@ function generatePracticeQuestion() {
   }
 
   const picked = candidates[0];
+  const cfg = getActiveConfig();
+  if (cfg && isQuizConfig(cfg) && Array.isArray(cfg.items) && cfg.items.length >= 2) {
+    const qIdx = Math.max(0, Math.min(cfg.items.length - 1, Number(picked.nums && picked.nums[0]) || 0));
+    const dIdx = sampleQuizDistractorIndex(cfg.items, qIdx);
+    const choiceOrder = randomInt(0, 1);
+    return buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, { ...picked });
+  }
+
   return {
     nums: [...picked.nums],
     op: picked.op,
@@ -2032,7 +2319,19 @@ function generateRaceQuestion() {
   if (raceSessionData && raceSessionData.questionIndex < raceSessionData.session.questions.length) {
     const rawQ = raceSessionData.session.questions[raceSessionData.questionIndex];
     raceSessionData.questionIndex += 1;
-    const q = normalizeQuestionRecord(rawQ);
+    const q = normalizeQuestionRecord(rawQ, activeConfigId);
+    if (q.op === '?') {
+      return {
+        nums: [...q.nums],
+        op: '?',
+        missingIndex: q.missingIndex,
+        prompt: q.prompt,
+        answer: q.expected,
+        distractor: q.distractor,
+        choices: q.choices,
+        key: getQuestionKeyFromRecord(q)
+      };
+    }
     return {
       nums: [...q.nums],
       op: q.op,
@@ -2051,8 +2350,8 @@ function generateQuestion() {
 
 function renderQuestion() {
   if (!currentQuestion) return;
-  const slots = [slot0, slot1, slot2];
-  slotOp.textContent = currentQuestion.op === '-' ? '−' : currentQuestion.op;
+  const activeCfg = getActiveConfig();
+  const isQuiz = currentQuestion.op === '?' || isQuizConfig(activeCfg);
 
   if (questionLastPerf) {
     if (isPracticeMode && currentQuestion.lastPerf) {
@@ -2076,6 +2375,42 @@ function renderQuestion() {
       questionLastPerf.classList.add('hidden');
     }
   }
+
+  if (isQuiz) {
+    if (mathEqGroup) mathEqGroup.classList.add('hidden');
+    if (quizPromptGroup) quizPromptGroup.classList.remove('hidden');
+    if (quizPromptLabel) {
+      quizPromptLabel.textContent = formatConfigLabel(activeCfg);
+    }
+    if (quizPromptText) {
+      quizPromptText.textContent = currentQuestion.prompt || '';
+      quizPromptText.classList.toggle('is-flag', Boolean(activeCfg && activeCfg.isFlagPrompt));
+    }
+    if (quizChoice0Btn && quizChoice1Btn) {
+      const choices = currentQuestion.choices || ['', ''];
+      const isFlagChoice = Boolean(activeCfg && activeCfg.isFlagChoice);
+      [quizChoice0Btn, quizChoice1Btn].forEach((btn, idx) => {
+        const cText = String(choices[idx] ?? '');
+        btn.textContent = cText;
+        btn.classList.toggle('is-flag', isFlagChoice);
+        btn.classList.remove('wrong', 'right');
+        if (typedAnswer !== '') {
+          if (cText === typedAnswer) {
+            btn.classList.add(isWrong ? 'wrong' : 'right');
+          } else if (isWrong && !isReplaying && cText === String(currentQuestion.answer)) {
+            btn.classList.add('right');
+          }
+        }
+      });
+    }
+    return;
+  }
+
+  if (mathEqGroup) mathEqGroup.classList.remove('hidden');
+  if (quizPromptGroup) quizPromptGroup.classList.add('hidden');
+
+  const slots = [slot0, slot1, slot2];
+  slotOp.textContent = currentQuestion.op === '-' ? '−' : currentQuestion.op;
 
   slots.forEach((slotEl, idx) => {
     slotEl.className = 'eq-item';
@@ -2148,7 +2483,7 @@ function getOpponentStatsAt(timeline, elapsedMs) {
 
 function renderOpponentQuestion(oppName, oppStats) {
   if (!raceOppEq || !oppStats || !oppStats.activeSeg) return;
-  const q = oppStats.activeSeg.question;
+  const q = normalizeQuestionRecord(oppStats.activeSeg.question, activeConfigId);
   if (raceOppName) {
     raceOppName.textContent = `👀 ${oppName}`;
   }
@@ -2157,6 +2492,22 @@ function renderOpponentQuestion(oppName, oppStats) {
       ? `Done (${oppStats.totalQuestions} Qs)`
       : `Q ${oppStats.activeSeg.index + 1}/${oppStats.totalQuestions}`;
   }
+  if (q.op === '?') {
+    if (raceOppMath) raceOppMath.classList.add('hidden');
+    if (raceOppQuiz) {
+      raceOppQuiz.classList.remove('hidden');
+      const slotClass =
+        'race-opp-slot' +
+        (oppStats.activeTyped === '' ? ' empty' : oppStats.activeWrong ? ' wrong' : ' right');
+      const ansText = oppStats.activeTyped === '' ? '?' : oppStats.activeTyped;
+      raceOppQuiz.innerHTML = `${escapeHtml(q.prompt)} → <span class="${slotClass}">${escapeHtml(ansText)}</span>`;
+    }
+    return;
+  }
+
+  if (raceOppMath) raceOppMath.classList.remove('hidden');
+  if (raceOppQuiz) raceOppQuiz.classList.add('hidden');
+
   if (raceOppOp) {
     raceOppOp.textContent = q.op === '-' ? '−' : q.op;
   }
@@ -2220,6 +2571,10 @@ function updateHud() {
 }
 
 function nextQuestion() {
+  if (quizChoiceLockTimeout) {
+    clearTimeout(quizChoiceLockTimeout);
+    quizChoiceLockTimeout = null;
+  }
   currentQuestion = generateQuestion();
   typedAnswer = '';
   isWrong = false;
@@ -2229,7 +2584,10 @@ function nextQuestion() {
         nums: [...currentQuestion.nums],
         op: currentQuestion.op,
         missingIndex: currentQuestion.missingIndex,
+        prompt: currentQuestion.prompt,
         expected: currentQuestion.answer,
+        distractor: currentQuestion.distractor,
+        choices: currentQuestion.choices ? [...currentQuestion.choices] : undefined,
         answers: [],
         wrongAnswers: [],
         right: 0,
@@ -2240,8 +2598,61 @@ function nextQuestion() {
   renderQuestion();
 }
 
+function handleChoiceInput(choiceIdx) {
+  if (!isPlaying || isReplaying || !currentQuestion || currentQuestion.op !== '?') return;
+  if (quizChoiceLockTimeout) return;
+  const choices = currentQuestion.choices || [];
+  if (choiceIdx < 0 || choiceIdx >= choices.length) return;
+
+  playKeyClickSound();
+  const chosenText = String(choices[choiceIdx]);
+  const expectedStr = String(currentQuestion.answer);
+
+  if (chosenText === expectedStr) {
+    rightCount += 1;
+    currentStreak += 1;
+    playRightSound(currentStreak);
+    if (currentQuestionRecord) {
+      currentQuestionRecord.answers.push(chosenText);
+      currentQuestionRecord.right = 1;
+      currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+      currentGameQuestions.push(currentQuestionRecord);
+      updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
+      currentQuestionRecord = null;
+    }
+    updateHud();
+    nextQuestion();
+    return;
+  }
+
+  // Wrong choice on 2-choice question: deduct 1 point, flash wrong/right briefly, and move to next question
+  wrongCount += 1;
+  currentStreak = 0;
+  typedAnswer = chosenText;
+  isWrong = true;
+  playWrongSound();
+  if (currentQuestionRecord) {
+    currentQuestionRecord.answers.push(chosenText);
+    currentQuestionRecord.wrongAnswers.push(chosenText);
+    currentQuestionRecord.wrong = 1;
+    currentQuestionRecord.right = 0;
+    currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+    currentGameQuestions.push(currentQuestionRecord);
+    updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
+    currentQuestionRecord = null;
+  }
+  updateHud();
+  renderQuestion();
+  quizChoiceLockTimeout = setTimeout(() => {
+    quizChoiceLockTimeout = null;
+    if (isPlaying && !isReplaying) {
+      nextQuestion();
+    }
+  }, 190);
+}
+
 function handleDigitInput(digitStr) {
-  if (!isPlaying || isReplaying || !currentQuestion) return;
+  if (!isPlaying || isReplaying || !currentQuestion || currentQuestion.op === '?') return;
 
   playKeyClickSound();
 
@@ -2444,7 +2855,8 @@ function startGame(practice = false, raceTargetSession = null) {
   }
 
   const activeCfg = getActiveConfig();
-  if (!activeCfg || getValidSamplers(activeCfg).length === 0) return;
+  if (!isConfigPlayable(activeCfg)) return;
+  const isQuiz = isQuizConfig(activeCfg);
 
   isPlaying = true;
   isRaceMode = Boolean(raceTargetSession && Array.isArray(raceTargetSession.questions) && raceTargetSession.questions.length > 0);
@@ -2471,7 +2883,11 @@ function startGame(practice = false, raceTargetSession = null) {
   if (replayResultBanner) replayResultBanner.classList.add('hidden');
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !isRaceMode);
   if (raceOppEq) raceOppEq.classList.add('hidden');
-  keypad.classList.remove('hidden');
+  keypad.classList.toggle('hidden', isQuiz);
+  if (quizChoicesEl) {
+    quizChoicesEl.classList.remove('replay-compact');
+    quizChoicesEl.classList.toggle('hidden', !isQuiz);
+  }
   quitBtn.textContent = isRaceMode ? 'End Race' : isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
   updateInstallBtnVisibility();
@@ -2506,6 +2922,10 @@ function startRace(targetSession) {
 async function finishGame(saveScore) {
   clearInterval(timerInterval);
   timerInterval = null;
+  if (quizChoiceLockTimeout) {
+    clearTimeout(quizChoiceLockTimeout);
+    quizChoiceLockTimeout = null;
+  }
   if (raceRafId) {
     cancelAnimationFrame(raceRafId);
     raceRafId = null;
@@ -2529,7 +2949,7 @@ async function finishGame(saveScore) {
 
   const finalScore = rightCount - wrongCount;
   const gameDurationMs = Date.now() - gameStartTime;
-  const normalizedQuestions = currentGameQuestions.map(normalizeQuestionRecord);
+  const normalizedQuestions = currentGameQuestions.map(q => normalizeQuestionRecord(q, activeConfigId));
 
   deleteUserBtn.classList.remove('hidden');
   updateInstallBtnVisibility();
@@ -2550,7 +2970,7 @@ async function finishGame(saveScore) {
         right: oppRight,
         wrong: oppWrong,
         durationMs: finishedRaceSession.durationMs || GAME_DURATION_SECONDS * 1000,
-        questions: (finishedRaceSession.questions || []).map(normalizeQuestionRecord)
+        questions: (finishedRaceSession.questions || []).map(q => normalizeQuestionRecord(q, activeConfigId))
       };
     }
 
@@ -2622,10 +3042,10 @@ async function finishGame(saveScore) {
 
 // --- Replay & Share Feature ---
 
-function encodeCompactQuestionsList(questionsList) {
+function encodeCompactQuestionsList(questionsList, targetConfigId = activeConfigId) {
   return (questionsList || []).map((rawQ) => {
-    const q = normalizeQuestionRecord(rawQ);
-    const opIdx = Math.max(0, ALL_OPS.indexOf(q.op));
+    const q = normalizeQuestionRecord(rawQ, targetConfigId);
+    const opIdx = Math.max(0, COMPACT_OPS.indexOf(q.op));
     const entry = [q.nums[0], opIdx, q.nums[1], q.missingIndex, q.durationMs || 0];
     if ((q.wrongAnswers && q.wrongAnswers.length > 0) || q.right === 0) {
       entry.push(q.wrongAnswers || []);
@@ -2637,11 +3057,42 @@ function encodeCompactQuestionsList(questionsList) {
   });
 }
 
-function decodeCompactQuestionsList(compactList) {
+function decodeCompactQuestionsList(compactList, targetConfigId = activeConfigId) {
+  const cfg = getConfigById(targetConfigId);
   return (compactList || []).map((item) => {
     const a = Number(item[0]) || 0;
-    const op = ALL_OPS[item[1]] || '+';
+    const op = COMPACT_OPS[item[1]] || (isQuizConfig(cfg) ? '?' : '+');
     const b = Number(item[2]) || 0;
+
+    if (op === '?' || isQuizConfig(cfg)) {
+      const choiceOrder = item[3] === 1 ? 1 : 0;
+      const durationMs = typeof item[4] === 'number' ? item[4] : 800;
+      const wrongAnswers = Array.isArray(item[5]) ? item[5].map(String) : [];
+      const right = item[6] === 0 ? 0 : 1;
+      const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
+      const qIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, a)) : a;
+      const dIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, b)) : b;
+      const expected = items[qIdx] ? items[qIdx][1] : '';
+      const answers = [...wrongAnswers];
+      if (right > 0 && expected) {
+        answers.push(String(expected));
+      }
+      return normalizeQuestionRecord(
+        {
+          nums: [qIdx, dIdx, qIdx],
+          op: '?',
+          missingIndex: choiceOrder,
+          expected,
+          answers,
+          wrongAnswers,
+          right,
+          wrong: wrongAnswers.length,
+          durationMs
+        },
+        targetConfigId
+      );
+    }
+
     let c = 0;
     if (op === '+') c = a + b;
     else if (op === '-') c = a - b;
@@ -2658,29 +3109,33 @@ function decodeCompactQuestionsList(compactList) {
     if (right > 0) {
       answers.push(String(expected));
     }
-    return normalizeQuestionRecord({
-      nums,
-      op,
-      missingIndex,
-      expected,
-      answers,
-      wrongAnswers,
-      right,
-      wrong: wrongAnswers.length,
-      durationMs
-    });
+    return normalizeQuestionRecord(
+      {
+        nums,
+        op,
+        missingIndex,
+        expected,
+        answers,
+        wrongAnswers,
+        right,
+        wrong: wrongAnswers.length,
+        durationMs
+      },
+      targetConfigId
+    );
   });
 }
 
 function encodeReplayParam(session) {
+  const cfgId = session.configId || activeConfigId;
   const payload = {
     u: session.username || 'Player',
-    c: session.configId || activeConfigId,
+    c: cfgId,
     s: typeof session.score === 'number' ? session.score : 0,
     r: typeof session.right === 'number' ? session.right : 0,
     w: typeof session.wrong === 'number' ? session.wrong : 0,
     d: typeof session.durationMs === 'number' ? session.durationMs : GAME_DURATION_SECONDS * 1000,
-    q: encodeCompactQuestionsList(session.questions)
+    q: encodeCompactQuestionsList(session.questions, cfgId)
   };
 
   if (session.opponent && Array.isArray(session.opponent.questions) && session.opponent.questions.length > 0) {
@@ -2690,7 +3145,7 @@ function encodeReplayParam(session) {
       r: typeof session.opponent.right === 'number' ? session.opponent.right : 0,
       w: typeof session.opponent.wrong === 'number' ? session.opponent.wrong : 0,
       d: typeof session.opponent.durationMs === 'number' ? session.opponent.durationMs : GAME_DURATION_SECONDS * 1000,
-      q: encodeCompactQuestionsList(session.opponent.questions)
+      q: encodeCompactQuestionsList(session.opponent.questions, cfgId)
     };
   }
 
@@ -2715,7 +3170,8 @@ function decodeReplayParam(encoded) {
     const payload = JSON.parse(new TextDecoder().decode(bytes));
     if (!payload || !Array.isArray(payload.q) || payload.q.length === 0) return null;
 
-    const questions = decodeCompactQuestionsList(payload.q);
+    const cfgId = String(payload.c || activeConfigId);
+    const questions = decodeCompactQuestionsList(payload.q, cfgId);
     let opponent = null;
     if (payload.o && Array.isArray(payload.o.q) && payload.o.q.length > 0) {
       opponent = {
@@ -2724,13 +3180,13 @@ function decodeReplayParam(encoded) {
         right: Number(payload.o.r) || 0,
         wrong: Number(payload.o.w) || 0,
         durationMs: Number(payload.o.d) || GAME_DURATION_SECONDS * 1000,
-        questions: decodeCompactQuestionsList(payload.o.q)
+        questions: decodeCompactQuestionsList(payload.o.q, cfgId)
       };
     }
 
     return {
       username: String(payload.u || 'Player'),
-      configId: String(payload.c || activeConfigId),
+      configId: cfgId,
       isRace: Boolean(opponent),
       opponent,
       score: Number(payload.s) || 0,
@@ -2809,8 +3265,9 @@ function checkUrlReplayOnLoad() {
   }
 }
 
-function buildReplayTimeline(session) {
-  const questions = (session.questions || []).map(normalizeQuestionRecord);
+function buildReplayTimeline(session, targetConfigId = activeConfigId) {
+  const cfgId = (session && session.configId) || targetConfigId;
+  const questions = (session.questions || []).map(q => normalizeQuestionRecord(q, cfgId));
   let cursorMs = 0;
   const segments = questions.map((q, index) => {
     const dur = Math.max(150, q.durationMs || 800);
@@ -3006,7 +3463,9 @@ function seekReplayTo(targetMs) {
   }
 }
 
-function createReplayLogRow(q, startMs) {
+function createReplayLogRow(rawQ, startMs) {
+  const cfgId = (replaySessionData && replaySessionData.session && replaySessionData.session.configId) || activeConfigId;
+  const q = normalizeQuestionRecord(rawQ, cfgId);
   const li = document.createElement('li');
   li.className = 'review-row' + (q.wrong > 0 || q.right === 0 ? ' has-wrong' : '');
   li.title = 'Tap to jump to this question';
@@ -3016,14 +3475,7 @@ function createReplayLogRow(q, startMs) {
 
   const eqSpan = document.createElement('span');
   eqSpan.className = 'review-eq';
-  const opChar = q.op === '-' ? '−' : q.op;
-  const parts = q.nums.map((n, idx) => {
-    if (idx === q.missingIndex) {
-      return `<span class="review-q-slot">${n}</span>`;
-    }
-    return String(n);
-  });
-  eqSpan.innerHTML = `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
+  eqSpan.innerHTML = formatQuestionForReviewHtml(q, cfgId);
 
   const ansSpan = document.createElement('span');
   ansSpan.className = 'review-answers';
@@ -3120,7 +3572,10 @@ function renderReplayStateAt(elapsedMs) {
       nums: [...activeSeg.question.nums],
       op: activeSeg.question.op,
       missingIndex: activeSeg.question.missingIndex,
+      prompt: activeSeg.question.prompt,
       answer: activeSeg.question.expected,
+      distractor: activeSeg.question.distractor,
+      choices: activeSeg.question.choices,
       key: getQuestionKeyFromRecord(activeSeg.question)
     };
 
@@ -3222,11 +3677,21 @@ function startReplay(session) {
   replayElapsedMs = 0;
   replayLastTickTime = performance.now();
 
-  const timeline = buildReplayTimeline(session);
+  if (session.configId && configs.some(c => c.id === session.configId)) {
+    activeConfigId = session.configId;
+    localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+    renderConfigsUI();
+    renderLeaderboard();
+    renderReview();
+  }
+
+  const activeCfg = getActiveConfig();
+  const isQuiz = isQuizConfig(activeCfg);
+  const timeline = buildReplayTimeline(session, activeConfigId);
   const hasOpponent = Boolean(
     session.opponent && Array.isArray(session.opponent.questions) && session.opponent.questions.length > 0
   );
-  const opponentTimeline = hasOpponent ? buildReplayTimeline(session.opponent) : null;
+  const opponentTimeline = hasOpponent ? buildReplayTimeline(session.opponent, activeConfigId) : null;
   const raceChartMeta = renderReplayRaceChart(timeline, opponentTimeline, session);
   replaySessionData = {
     session,
@@ -3239,6 +3704,10 @@ function startReplay(session) {
 
   if (questionLastPerf) questionLastPerf.classList.add('hidden');
   keypad.classList.add('hidden');
+  if (quizChoicesEl) {
+    quizChoicesEl.classList.toggle('replay-compact', isQuiz);
+    quizChoicesEl.classList.toggle('hidden', !isQuiz);
+  }
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !hasOpponent);
   if (raceOppEq) raceOppEq.classList.toggle('hidden', !hasOpponent);
   if (replayResultBanner) {
@@ -3320,6 +3789,10 @@ function stopReplay(returnHome = true) {
   if (replayPlayBtn) replayPlayBtn.classList.add('hidden');
   if (replayPanel) replayPanel.classList.add('hidden');
   keypad.classList.remove('hidden');
+  if (quizChoicesEl) {
+    quizChoicesEl.classList.remove('replay-compact');
+    quizChoicesEl.classList.add('hidden');
+  }
   deleteUserBtn.classList.remove('hidden');
   updateInstallBtnVisibility();
 
@@ -3391,6 +3864,10 @@ if (soundToggleBtn) {
 }
 addUserBtn.addEventListener('click', addUser);
 deleteUserBtn.addEventListener('click', deleteCurrentUser);
+
+categoryBtns.forEach((btn) => {
+  btn.addEventListener('click', () => switchCategory(btn.dataset.category));
+});
 
 addConfigBtn.addEventListener('click', () => {
   if (newConfigPanel.classList.contains('hidden')) {
@@ -3589,10 +4066,37 @@ keypad.addEventListener('click', (e) => {
   handleDigitInput(btn.dataset.digit);
 });
 
-// Physical keyboard support (0-9 and -)
+// Fast touch/click response on the 2-choice quiz buttons
+if (quizChoicesEl) {
+  quizChoicesEl.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.choice-btn');
+    if (!btn) return;
+    e.preventDefault();
+    handleChoiceInput(Number(btn.dataset.choice));
+  });
+
+  quizChoicesEl.addEventListener('click', (e) => {
+    if (e.detail !== 0) return;
+    const btn = e.target.closest('.choice-btn');
+    if (!btn) return;
+    handleChoiceInput(Number(btn.dataset.choice));
+  });
+}
+
+// Physical keyboard support (0-9 and - for Math; 1/2 or ArrowLeft/ArrowRight for Quiz)
 window.addEventListener('keydown', (e) => {
   if (!isPlaying) return;
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  if (currentQuestion && currentQuestion.op === '?') {
+    if (e.key === '1' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      handleChoiceInput(0);
+    } else if (e.key === '2' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      handleChoiceInput(1);
+    }
+    return;
+  }
   if ((e.key >= '0' && e.key <= '9') || e.key === '-') {
     e.preventDefault();
     handleDigitInput(e.key);
@@ -3683,10 +4187,51 @@ function initInstallPrompt() {
   }
 }
 
+function initConfigs() {
+  const defaultCfg = createDefaultConfig();
+  const byId = new Map();
+  byId.set(defaultCfg.id, defaultCfg);
+
+  getBuiltinQuizConfigs().forEach((qCfg) => {
+    byId.set(qCfg.id, qCfg);
+  });
+
+  getLocalConfigs().forEach((c) => {
+    if (c && Array.isArray(c.ops)) {
+      const normalized = {
+        category: 'math',
+        type: 'math',
+        ops: ALL_OPS.filter(op => c.ops.includes(op)),
+        min1: clampConfigBound(c.min1),
+        max1: clampConfigBound(c.max1),
+        min2: clampConfigBound(c.min2),
+        max2: clampConfigBound(c.max2),
+        min3: clampConfigBound(c.min3),
+        max3: clampConfigBound(c.max3)
+      };
+      if (getValidSamplers(normalized).length > 0) {
+        normalized.id = getConfigId(normalized);
+        byId.set(normalized.id, normalized);
+      }
+    }
+  });
+
+  configs = Array.from(byId.values());
+  const savedConfigId = localStorage.getItem(STORAGE_KEYS.activeConfigId);
+  const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
+  activeConfigId = activeCfg.id;
+  activeCategory = getConfigCategory(activeCfg);
+
+  renderConfigsUI();
+  renderLeaderboard();
+  renderReview();
+}
+
 // Initialize
 initTheme();
 updateSoundToggleUI();
 initUsers();
+initConfigs();
 initInstallPrompt();
 syncFromFirebase();
 

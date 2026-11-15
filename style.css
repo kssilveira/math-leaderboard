@@ -1194,6 +1194,19 @@ html, body {
   color: var(--right);
 }
 
+.race-opp-quiz {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Equation Card */
 .equation-wrap {
   display: flex;
@@ -1232,6 +1245,45 @@ html, body {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   box-shadow: var(--shadow);
+  min-height: 108px;
+}
+
+.math-eq-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.quiz-prompt-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  width: 100%;
+}
+
+.quiz-prompt-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.quiz-prompt-text {
+  font-size: clamp(1.55rem, 6vw, 2.15rem);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.quiz-prompt-text.is-flag {
+  font-size: clamp(3.1rem, 12vw, 4rem);
+  line-height: 1.1;
 }
 
 .eq-item {
@@ -1303,6 +1355,73 @@ html, body {
 
 .key-zero {
   grid-column: 2;
+}
+
+/* 2-Choice Quiz Buttons */
+.quiz-choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  flex: 1;
+  max-height: 220px;
+}
+
+.quiz-choices.replay-compact {
+  flex: 0 0 auto;
+  max-height: none;
+}
+
+.choice-btn {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: clamp(1.1rem, 4.3vw, 1.35rem);
+  font-weight: 700;
+  padding: 16px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 88px;
+  line-height: 1.25;
+  word-break: break-word;
+  transition: transform 0.05s ease, background 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+}
+
+.quiz-choices.replay-compact .choice-btn {
+  min-height: 52px;
+  padding: 8px 10px;
+  font-size: 0.98rem;
+  cursor: default;
+}
+
+.choice-btn.is-flag {
+  font-size: clamp(2.6rem, 10vw, 3.3rem);
+}
+
+.quiz-choices.replay-compact .choice-btn.is-flag {
+  font-size: 1.8rem;
+}
+
+.choice-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  background: var(--surface-subtle);
+}
+
+.choice-btn.wrong {
+  background: var(--wrong-bg);
+  border-color: var(--wrong);
+  color: var(--wrong);
+  animation: shake 0.22s ease;
+}
+
+.choice-btn.right {
+  background: var(--right-bg);
+  border-color: var(--right);
+  color: var(--right);
 }
 
 /* Replay Panel */
