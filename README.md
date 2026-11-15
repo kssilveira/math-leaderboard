@@ -25,16 +25,19 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   - Generates a random username saved in `localStorage`, editable anytime in the header.
   - Add (`+ User`), switch, and delete (`✕`) users so multiple people can play on the same device.
   - Users are shared across all game configurations and leaderboards.
-- **Three Categories (`🧮 Math`, `🌍 Geo`, `💬 Lang`) Sorted by Popularity**:
+- **Four Categories (`🧮 Math`, `🌍 Geo`, `💬 Lang`, `🧪 Chem`) Sorted by Popularity**:
   - **🧮 Math**:
     - Default game: `+ − (0..10, 0..10, 0..20)`.
     - Create new math configurations (`+ Game`) with any subset of operators (`+`, `−`, `×`, `÷`) and integer `min`/`max` constraints on each of the 3 numbers (with division restricted to exact integers).
   - **🌍 Geography (6 built-in configs — 193 UN Member States)**:
     - `Flag → Country`, `Country → Flag`, `Country → Capital`, `Capital → Country`, `Flag → Capital`, and `Capital → Flag` across all 193 United Nations member states, played with 2-choice answer buttons.
-  - **💬 Language (10 built-in configs — 1,000 Most Common Words & 1,000 Top Emojis)**:
-    - `🇧🇷 Portuguese → English`, `🇪🇸 Spanish → English`, `🇫🇷 French → English`, `🇩🇪 German → English`
-    - `English → 🇧🇷 Portuguese`, `English → 🇪🇸 Spanish`, `English → 🇫🇷 French`, `English → 🇩🇪 German`
+  - **💬 Language & Wordplay (14 built-in configs)**:
+    - `🇧🇷 Portuguese → English`, `🇪🇸 Spanish → English`, `🇫🇷 French → English`, `🇩🇪 German → English` (1,000 most common words)
+    - `English → 🇧🇷 Portuguese`, `English → 🇪🇸 Spanish`, `English → 🇫🇷 French`, `English → 🇩🇪 German` (1,000 most common words)
     - `😀 Emoji → English` and `English → 😀 Emoji` (top 1,000 most used emojis)
+    - `Word → Synonym`, `Word → Antonym`, `Idiom → Meaning`, and `Meaning → Idiom`
+  - **🧪 Chemistry (2 built-in configs — 118 Chemical Elements)**:
+    - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
   - Within each category, game configurations are sorted by popularity (leaderboard size), with a **`▾ All (N)` / `▴ Less`** toggle to expand the list vertically across multiple rows instead of scrolling horizontally.
 - **1-Minute Math Game**:
   - Randomly hides one of the 3 numbers in the equation (`a op b = c`).

@@ -626,6 +626,7 @@ function getConfigCategory(cfg) {
   if (typeof cfg.id === 'string') {
     if (cfg.id.startsWith('cfg_geo_')) return 'geo';
     if (cfg.id.startsWith('cfg_lang_')) return 'lang';
+    if (cfg.id.startsWith('cfg_chem_')) return 'chem';
   }
   return 'math';
 }
@@ -633,7 +634,7 @@ function getConfigCategory(cfg) {
 function isQuizConfig(cfg) {
   if (!cfg) return false;
   const cat = getConfigCategory(cfg);
-  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang';
+  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang' || cat === 'chem';
 }
 
 function getConfigById(cfgId) {
@@ -774,7 +775,7 @@ function renderConfigsUI() {
 
 async function switchCategory(targetCat) {
   if (isPlaying) return;
-  if (!['math', 'geo', 'lang'].includes(targetCat)) return;
+  if (!['math', 'geo', 'lang', 'chem'].includes(targetCat)) return;
   activeCategory = targetCat;
   localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
   closeNewConfigPanel();

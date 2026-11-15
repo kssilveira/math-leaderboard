@@ -45,6 +45,12 @@ const QUIZ_CONFIG_LABELS = {
   cfg_lang_en_de: 'English → 🇩🇪 German',
   cfg_lang_emoji_en: '😀 Emoji → English',
   cfg_lang_en_emoji: 'English → 😀 Emoji',
+  cfg_lang_synonym: 'Word → Synonym',
+  cfg_lang_antonym: 'Word → Antonym',
+  cfg_lang_idiom_meaning: 'Idiom → Meaning',
+  cfg_lang_meaning_idiom: 'Meaning → Idiom',
+  cfg_chem_symbol_name: 'Symbol → Element',
+  cfg_chem_name_symbol: 'Element → Symbol',
 };
 
 function formatConfigId(configId) {
