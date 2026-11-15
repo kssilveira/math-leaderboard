@@ -72,8 +72,9 @@ function formatConfigId(configId) {
 }
 
 function decodeQuestionsList(list) {
-  return (list || []).map((item) => {
+  return (list || []).map((item, idx) => {
     const a = Number(item[0]) || 0;
+    const isQuiz = Number(item[1]) === 4;
     const op = ALL_OPS[item[1]] || '+';
     const b = Number(item[2]) || 0;
     let c = 0;
@@ -90,6 +91,8 @@ function decodeQuestionsList(list) {
     const right = item[6] === 0 ? 0 : 1;
 
     return {
+      qNum: idx + 1,
+      isQuiz,
       nums,
       op: op === '-' ? '−' : op,
       missingIndex,
@@ -422,13 +425,19 @@ function renderReplayCard(replay) {
 
   const questionRows = sampleQuestions.map((q) => {
     const hadMistake = q.wrong > 0 || q.right === 0;
-    const eqText = q.nums
-      .map((n, idx) => (idx === q.missingIndex ? `[${n}]` : String(n)))
-      .join(' ')
-      .replace(' ', ` ${q.op} `)
-      .replace(/ (\S+)$/, ' = $1');
+    const eqText = q.isQuiz
+      ? `Question #${q.qNum}`
+      : q.nums
+          .map((n, idx) => (idx === q.missingIndex ? `[${n}]` : String(n)))
+          .join(' ')
+          .replace(' ', ` ${q.op} `)
+          .replace(/ (\S+)$/, ' = $1');
 
-    const statusText = hadMistake
+    const statusText = q.isQuiz
+      ? hadMistake
+        ? 'Mistake'
+        : 'Correct'
+      : hadMistake
       ? `Wrong: ${q.wrongAnswers.join(', ')}${q.right > 0 ? ` -> ${q.expected}` : ''}`
       : `Ans: ${q.expected}`;
 
@@ -699,7 +708,7 @@ function renderReplayCard(replay) {
                       padding: '6px 12px',
                       borderRadius: '999px',
                     },
-                    '1-Min Math'
+                    '1-Min Quiz'
                   ),
                 ]
               ),
@@ -1016,7 +1025,7 @@ function renderUserProfileCard(profile) {
                   h(
                     'span',
                     { fontSize: '14px', color: '#627084', fontWeight: 700 },
-                    `${p.right}✓ ${p.wrong}✗`
+                    `${p.right}R / ${p.wrong}W`
                   ),
                   h(
                     'span',
