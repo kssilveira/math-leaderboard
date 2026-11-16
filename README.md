@@ -42,7 +42,7 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - `Word → Synonym` (300 synonym pairs), `Word → Antonym` (300 antonym pairs), `Idiom → Meaning` (200 idioms & phrasal verbs), and `Meaning → Idiom` (200 idioms & phrasal verbs)
   - **🧪 Chemistry (2 built-in configs — 118 Chemical Elements)**:
     - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
-  - Within each category, game configurations are sorted by popularity (leaderboard size), with a **`▾ All (N)` / `▴ Less`** toggle to expand the list vertically across multiple rows instead of scrolling horizontally.
+  - Topics are sorted by their maximum leaderboard size, and within each category, game configurations are sorted by popularity (leaderboard size), with a **`▾ All (N)` / `▴ Less`** toggle to expand the list vertically across multiple rows instead of scrolling horizontally.
 - **1-Minute Math Game**:
   - Randomly hides one of the 3 numbers in the equation (`a op b = c`).
   - On-screen mobile keypad formatted with 3 digits per row (plus physical keyboard support).

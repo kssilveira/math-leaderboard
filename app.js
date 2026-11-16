@@ -775,14 +775,48 @@ function getUserConfigPerformance(targetUserId, cfgId) {
   };
 }
 
+const CATEGORY_DEFAULT_ORDER = ['math', 'geo', 'lang', 'chem'];
+
 function getLeaderboardSize(configId) {
   const board = leaderboardsMap[configId];
   return board ? Object.keys(board).length : 0;
 }
 
+function getCategoryMaxLeaderboardSize(cat) {
+  let maxSize = 0;
+  for (const cfg of configs) {
+    if (getConfigCategory(cfg) === cat) {
+      const size = getLeaderboardSize(cfg.id);
+      if (size > maxSize) maxSize = size;
+    }
+  }
+  return maxSize;
+}
+
+function getCategoryTotalLeaderboardSize(cat) {
+  let total = 0;
+  for (const cfg of configs) {
+    if (getConfigCategory(cfg) === cat) {
+      total += getLeaderboardSize(cfg.id);
+    }
+  }
+  return total;
+}
+
+function compareCategoriesByPopularity(catA, catB) {
+  if (catA === catB) return 0;
+  const maxDiff = getCategoryMaxLeaderboardSize(catB) - getCategoryMaxLeaderboardSize(catA);
+  if (maxDiff !== 0) return maxDiff;
+  const totalDiff = getCategoryTotalLeaderboardSize(catB) - getCategoryTotalLeaderboardSize(catA);
+  if (totalDiff !== 0) return totalDiff;
+  return CATEGORY_DEFAULT_ORDER.indexOf(catA) - CATEGORY_DEFAULT_ORDER.indexOf(catB);
+}
+
 function compareConfigsByPopularity(a, b) {
   const sizeDiff = getLeaderboardSize(b.id) - getLeaderboardSize(a.id);
   if (sizeDiff !== 0) return sizeDiff;
+  const catDiff = compareCategoriesByPopularity(getConfigCategory(a), getConfigCategory(b));
+  if (catDiff !== 0) return catDiff;
   const builtins = getBuiltinQuizConfigs();
   const aIdx = builtins.findIndex(c => c.id === a.id);
   const bIdx = builtins.findIndex(c => c.id === b.id);
@@ -808,6 +842,19 @@ function renderConfigsUI() {
   if (!activeCfg) return;
   activeCategory = getConfigCategory(activeCfg);
   localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+
+  if (categoryListEl && categoryBtns.length > 0) {
+    const sortedBtns = [...categoryBtns].sort((a, b) =>
+      compareCategoriesByPopularity(a.dataset.category, b.dataset.category)
+    );
+    const currentChildren = Array.from(categoryListEl.children);
+    const orderChanged =
+      sortedBtns.length !== currentChildren.length ||
+      sortedBtns.some((btn, idx) => currentChildren[idx] !== btn);
+    if (orderChanged) {
+      sortedBtns.forEach((btn) => categoryListEl.appendChild(btn));
+    }
+  }
 
   categoryBtns.forEach((btn) => {
     const isCatActive = btn.dataset.category === activeCategory;
@@ -880,7 +927,7 @@ function renderConfigsUI() {
 
 async function switchCategory(targetCat) {
   if (isPlaying) return;
-  if (!['math', 'geo', 'lang', 'chem'].includes(targetCat)) return;
+  if (!CATEGORY_DEFAULT_ORDER.includes(targetCat)) return;
   activeCategory = targetCat;
   localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
   closeNewConfigPanel();
@@ -892,6 +939,8 @@ async function switchCategory(targetCat) {
     activeConfigId = catConfigs[0].id;
     leaderboardPage = 1;
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+  } else if (currentCfg) {
+    localStorage.setItem(STORAGE_KEYS.activeConfigId, currentCfg.id);
   }
 
   renderConfigsUI();
@@ -1135,7 +1184,13 @@ async function syncFromFirebase() {
     await backfillLocalBestToLeaderboard();
     sortConfigsByLeaderboardSize();
 
-    const savedConfigId = activeConfigId || localStorage.getItem(STORAGE_KEYS.activeConfigId);
+    const urlConfigParam = !hasHandledInitialUrlReplay
+      ? new URLSearchParams(window.location.search).get('config')
+      : null;
+    const savedConfigId =
+      urlConfigParam ||
+      localStorage.getItem(STORAGE_KEYS.activeConfigId) ||
+      (isPlaying || replaySessionData ? activeConfigId : '');
     const localIds = new Set(getLocalConfigs().map(c => c.id));
     let mathCount = 0;
     configs = configs.filter((c) => {
@@ -1148,6 +1203,7 @@ async function syncFromFirebase() {
       if (keep) mathCount += 1;
       return keep;
     });
+    sortConfigsByLeaderboardSize();
 
     const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
     activeConfigId = activeCfg.id;
