@@ -29,7 +29,7 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   - Generates a random username saved in `localStorage`, editable anytime in the header.
   - Add (`+ User`), switch, and delete (`✕`) users so multiple people can play on the same device.
   - Users are shared across all game configurations and leaderboards.
-- **Four Categories (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🧪 Chem`) Sorted by Popularity**:
+- **Four Categories (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🧩 Other`) Sorted by Popularity**:
   - **🔢 Math**:
     - Default game: `+ − (0..10, 0..10, 0..20)`.
     - Create new math configurations (`+ Game`) with any subset of operators (`+`, `−`, `×`, `÷`) and integer `min`/`max` constraints on each of the 3 numbers (with division restricted to exact integers).
@@ -40,8 +40,9 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - `English → 🇧🇷 Portuguese`, `English → 🇪🇸 Spanish`, `English → 🇫🇷 French`, `English → 🇩🇪 German` (1,000 most common words)
     - `😀 Emoji → English` and `English → 😀 Emoji` (top 1,000 most used emojis)
     - `Word → Synonym` (300 synonym pairs), `Word → Antonym` (300 antonym pairs), `Idiom → Meaning` (200 idioms & phrasal verbs), and `Meaning → Idiom` (200 idioms & phrasal verbs)
-  - **🧪 Chemistry (2 built-in configs — 118 Chemical Elements)**:
+  - **🧩 Other (4 built-in configs — Chemical Elements & Morse Code)**:
     - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
+    - `Morse → Character` (`• • •` → `S`) and `Character → Morse` (`S` → `• • •`) across all 36 International Morse Code characters (`A–Z`, `0–9`).
   - Topics are sorted by their maximum leaderboard size, and within each category, game configurations are sorted by popularity (leaderboard size), with a **`▾ All (N)` / `▴ Less`** toggle to expand the list vertically across multiple rows instead of scrolling horizontally.
 - **1-Minute Math Game**:
   - Randomly hides one of the 3 numbers in the equation (`a op b = c`).

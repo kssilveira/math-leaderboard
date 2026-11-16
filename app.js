@@ -35,7 +35,8 @@ let username = '';
 
 let configs = []; // [{ id, category, type, ... }]
 let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
-let activeCategory = localStorage.getItem(STORAGE_KEYS.activeCategory) || 'math';
+const rawSavedCategory = localStorage.getItem(STORAGE_KEYS.activeCategory);
+let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory || 'math');
 let activeConfigId = '';
 let draftConfig = null;
 let leaderboardPage = 1;
@@ -651,11 +652,12 @@ function getBuiltinQuizConfigs() {
 
 function getConfigCategory(cfg) {
   if (!cfg) return 'math';
+  if (cfg.category === 'chem') return 'other';
   if (cfg.category) return cfg.category;
   if (typeof cfg.id === 'string') {
     if (cfg.id.startsWith('cfg_geo_')) return 'geo';
     if (cfg.id.startsWith('cfg_lang_')) return 'lang';
-    if (cfg.id.startsWith('cfg_chem_')) return 'chem';
+    if (cfg.id.startsWith('cfg_chem_') || cfg.id.startsWith('cfg_other_')) return 'other';
   }
   return 'math';
 }
@@ -663,7 +665,7 @@ function getConfigCategory(cfg) {
 function isQuizConfig(cfg) {
   if (!cfg) return false;
   const cat = getConfigCategory(cfg);
-  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang' || cat === 'chem';
+  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang' || cat === 'other';
 }
 
 function getConfigById(cfgId) {
@@ -716,7 +718,7 @@ function isConfigPlayable(cfg) {
 function getCategoryIcon(cat) {
   if (cat === 'geo') return '🌍';
   if (cat === 'lang') return '💬';
-  if (cat === 'chem') return '🧪';
+  if (cat === 'other' || cat === 'chem') return '🧩';
   return '🔢';
 }
 
@@ -775,7 +777,7 @@ function getUserConfigPerformance(targetUserId, cfgId) {
   };
 }
 
-const CATEGORY_DEFAULT_ORDER = ['math', 'geo', 'lang', 'chem'];
+const CATEGORY_DEFAULT_ORDER = ['math', 'geo', 'lang', 'other'];
 
 function getLeaderboardSize(configId) {
   const board = leaderboardsMap[configId];

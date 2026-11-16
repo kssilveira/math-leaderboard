@@ -6,7 +6,7 @@ This document provides complete technical context for AI coding agents working o
 
 ## 1. Overview & Live Deployment Topology
 
-**1-Min Quiz** is a mobile-first 1-minute quiz web app and PWA across four categories (**🔢 Math**, **🌍 Geo**, **💬 Lang**, **🧪 Chem**) with multi-user support, practice mode, interactive replays, head-to-head ghost races, player profile pages, and global leaderboards.
+**1-Min Quiz** is a mobile-first 1-minute quiz web app and PWA across four categories (**🔢 Math**, **🌍 Geo**, **💬 Lang**, **🧩 Other**) with multi-user support, practice mode, interactive replays, head-to-head ghost races, player profile pages, and global leaderboards.
 
 The project uses a split-hosting architecture so `localStorage` stays on a single canonical origin while social media links get dynamic server-rendered Open Graph previews:
 
@@ -34,11 +34,11 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 ## 2. Repository Structure
 
 - `index.html`: Single-page app markup containing three main views:
-  - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🧪 Chem`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
+  - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🧩 Other`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
-- `quiz-data.js`: Defines `getBuiltinQuizConfigs()` with 22 built-in 2-choice quiz configurations:
+- `quiz-data.js`: Defines `BUILTIN_QUIZ_CONFIGS` with 24 built-in 2-choice quiz configurations:
   - **🌍 Geography (`6` configs — 193 UN Member States)**:
     - `cfg_geo_flag_country` (`Flag → Country`)
     - `cfg_geo_country_flag` (`Country → Flag`)
@@ -53,9 +53,11 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `cfg_lang_synonym` (`Word → Synonym`, 300 pairs)
     - `cfg_lang_antonym` (`Word → Antonym`, 300 pairs)
     - `cfg_lang_idiom_meaning`, `cfg_lang_meaning_idiom` (`Idiom ↔ Meaning`, 200 idioms & phrasal verbs)
-  - **🧪 Chemistry (`2` configs — 118 IUPAC Elements)**:
+  - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
     - `cfg_chem_symbol_name` (`Symbol → Element`)
     - `cfg_chem_name_symbol` (`Element → Symbol`)
+    - `cfg_other_morse_char` (`Morse → Character`)
+    - `cfg_other_char_morse` (`Character → Morse`)
 - `app.js`: All client-side application logic.
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
@@ -100,6 +102,6 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
    - Add the dataset and config entry to `getBuiltinQuizConfigs()` in `quiz-data.js`.
    - Add the human-readable label to `QUIZ_CONFIG_LABELS` in both `middleware.js` and `api/og.js`, and add a preview sample to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
 2. **Bumping Service Worker Cache**:
-   - Whenever modifying `index.html`, `style.css`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` (currently `'math-leaderboard-v28'`) so returning PWA users receive the updated assets immediately.
+   - Whenever modifying `index.html`, `style.css`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` (currently `'math-leaderboard-v29'`) so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
    - Run `python3 -m http.server 8000 --bind ::` and open `http://localhost:8000/`.

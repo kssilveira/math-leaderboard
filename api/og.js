@@ -52,6 +52,8 @@ const QUIZ_CONFIG_LABELS = {
   cfg_lang_meaning_idiom: 'Meaning → Idiom',
   cfg_chem_symbol_name: 'Symbol → Element',
   cfg_chem_name_symbol: 'Element → Symbol',
+  cfg_other_morse_char: 'Morse → Character',
+  cfg_other_char_morse: 'Character → Morse',
 };
 
 function formatConfigId(configId) {
@@ -835,6 +837,8 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_lang_meaning_idiom: { prompt: 'start a conversation', choices: ['break the ice', 'call it a day'] },
   cfg_chem_symbol_name: { prompt: 'Au', choices: ['Gold', 'Silver'] },
   cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
+  cfg_other_morse_char: { prompt: '• • •', choices: ['S', 'O'] },
+  cfg_other_char_morse: { prompt: 'S', choices: ['• • •', '− − −'] },
 };
 
 async function fetchTop10Leaderboard(configId = DEFAULT_CONFIG_ID) {
@@ -1137,7 +1141,7 @@ function renderUserProfileCard(profile) {
               h(
                 'span',
                 { fontSize: '17px', fontWeight: 700, color: '#475569' },
-                'Math · Geography · Language · Chemistry'
+                'Math · Geography · Language · Other'
               ),
             ]
           ),

@@ -73,6 +73,8 @@ const QUIZ_CONFIG_LABELS = {
   cfg_lang_meaning_idiom: 'Meaning → Idiom',
   cfg_chem_symbol_name: 'Symbol → Element',
   cfg_chem_name_symbol: 'Element → Symbol',
+  cfg_other_morse_char: 'Morse → Character',
+  cfg_other_char_morse: 'Character → Morse',
 };
 
 function formatConfigId(configId) {
@@ -102,7 +104,7 @@ export default async function middleware(request) {
 
   let ogTitle = '1-Minute Quiz — Global Leaderboard';
   let ogDesc =
-    '1-minute mobile quiz game (Math, Geography, Language & Chemistry) with replays, ghost races, and global leaderboards.';
+    '1-minute mobile quiz game (Math, Geography, Language & Other) with replays, ghost races, and global leaderboards.';
   let ogImage = `${origin}/api/og`;
   let targetUrl = CANONICAL_APP_URL + url.search;
 
@@ -129,7 +131,7 @@ export default async function middleware(request) {
   } else if (userParam) {
     const playerName = uParam || 'Player';
     ogTitle = `${playerName}'s Ranks & Scores — 1-Minute Quiz`;
-    ogDesc = `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language & Chemistry.`;
+    ogDesc = `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language & Other.`;
     const imgParams = new URLSearchParams();
     imgParams.set('user', userParam);
     if (uParam) imgParams.set('u', uParam);
