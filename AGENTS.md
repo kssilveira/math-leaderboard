@@ -102,6 +102,6 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
    - Add the dataset and config entry to `getBuiltinQuizConfigs()` in `quiz-data.js`.
    - Add the human-readable label to `QUIZ_CONFIG_LABELS` in both `middleware.js` and `api/og.js`, and add a preview sample to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
 2. **Bumping Service Worker Cache**:
-   - Whenever modifying `index.html`, `style.css`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` (currently `'math-leaderboard-v29'`) so returning PWA users receive the updated assets immediately.
+   - Whenever modifying `index.html`, `style.css`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
    - Run `python3 -m http.server 8000 --bind ::` and open `http://localhost:8000/`.
