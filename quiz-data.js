@@ -16,7 +16,7 @@ const CHEMICAL_ELEMENTS_118 = [["H", "Hydrogen"], ["He", "Helium"], ["Li", "Lith
 const MORSE_CODE_36 = [["A", "• −"], ["B", "− • • •"], ["C", "− • − •"], ["D", "− • •"], ["E", "•"], ["F", "• • − •"], ["G", "− − •"], ["H", "• • • •"], ["I", "• •"], ["J", "• − − −"], ["K", "− • −"], ["L", "• − • •"], ["M", "− −"], ["N", "− •"], ["O", "− − −"], ["P", "• − − •"], ["Q", "− − • −"], ["R", "• − •"], ["S", "• • •"], ["T", "−"], ["U", "• • −"], ["V", "• • • −"], ["W", "• − −"], ["X", "− • • −"], ["Y", "− • − −"], ["Z", "− − • •"], ["0", "− − − − −"], ["1", "• − − − −"], ["2", "• • − − −"], ["3", "• • • − −"], ["4", "• • • • −"], ["5", "• • • • •"], ["6", "− • • • •"], ["7", "− − • • •"], ["8", "− − − • •"], ["9", "− − − − •"]];
 
 const BUILTIN_QUIZ_CONFIGS = [
-  // Geography (6 configs across 193 UN member states: Country, Flag, Capital)
+  // Geography (12 configs across 193 UN member states: Country, Flag, Capital, Map)
   {
     id: 'cfg_geo_flag_country',
     category: 'geo',
@@ -70,6 +70,60 @@ const BUILTIN_QUIZ_CONFIGS = [
     isFlagPrompt: false,
     isFlagChoice: true,
     items: UN_MEMBER_STATES.map(([, flag, capital]) => [capital, flag])
+  },
+  {
+    id: 'cfg_geo_map_country',
+    category: 'geo',
+    type: 'quiz',
+    label: 'Map → Country',
+    isFlagPrompt: false,
+    isFlagChoice: false,
+    items: UN_MEMBER_STATES.map(([country]) => ['map:' + country, country])
+  },
+  {
+    id: 'cfg_geo_country_map',
+    category: 'geo',
+    type: 'quiz',
+    label: 'Country → Map',
+    isFlagPrompt: false,
+    isFlagChoice: false,
+    items: UN_MEMBER_STATES.map(([country]) => [country, 'map:' + country])
+  },
+  {
+    id: 'cfg_geo_map_flag',
+    category: 'geo',
+    type: 'quiz',
+    label: 'Map → Flag',
+    isFlagPrompt: false,
+    isFlagChoice: true,
+    items: UN_MEMBER_STATES.map(([country, flag]) => ['map:' + country, flag])
+  },
+  {
+    id: 'cfg_geo_flag_map',
+    category: 'geo',
+    type: 'quiz',
+    label: 'Flag → Map',
+    isFlagPrompt: true,
+    isFlagChoice: false,
+    items: UN_MEMBER_STATES.map(([country, flag]) => [flag, 'map:' + country])
+  },
+  {
+    id: 'cfg_geo_map_capital',
+    category: 'geo',
+    type: 'quiz',
+    label: 'Map → Capital',
+    isFlagPrompt: false,
+    isFlagChoice: false,
+    items: UN_MEMBER_STATES.map(([country, , capital]) => ['map:' + country, capital])
+  },
+  {
+    id: 'cfg_geo_capital_map',
+    category: 'geo',
+    type: 'quiz',
+    label: 'Capital → Map',
+    isFlagPrompt: false,
+    isFlagChoice: false,
+    items: UN_MEMBER_STATES.map(([country, , capital]) => [capital, 'map:' + country])
   },
 
   // Language (14 configs: 4 Foreign→English, 4 English→Foreign, 2 Emoji↔English, 4 English Vocabulary & Wordplay)

@@ -36,6 +36,12 @@ const QUIZ_CONFIG_LABELS = {
   cfg_geo_capital_country: 'Capital → Country',
   cfg_geo_flag_capital: 'Flag → Capital',
   cfg_geo_capital_flag: 'Capital → Flag',
+  cfg_geo_map_country: 'Map → Country',
+  cfg_geo_country_map: 'Country → Map',
+  cfg_geo_map_flag: 'Map → Flag',
+  cfg_geo_flag_map: 'Flag → Map',
+  cfg_geo_map_capital: 'Map → Capital',
+  cfg_geo_capital_map: 'Capital → Map',
   cfg_lang_pt_en: '🇧🇷 Portuguese → English',
   cfg_lang_es_en: '🇪🇸 Spanish → English',
   cfg_lang_fr_en: '🇫🇷 French → English',
@@ -814,6 +820,52 @@ function renderReplayCard(replay) {
   );
 }
 
+const OG_SAMPLE_MAPS = {
+  'map:Brazil': {
+    nb: 'M25 6L24 8L22 10L21 9L20 7L18 6L18 4L20 5L25 6ZM29 30L27 31L26 29L28 29L29 30ZM19 13L17 15L19 16L20 19L19 21L16 19L14 15L16 11L19 13ZM26 22L28 26L26 26L23 24L25 22L26 22ZM19 4L18 6L21 8L20 11L19 12L15 10L15 6L18 4L19 4ZM19 21L21 25L19 30L19 36L18 40L19 41L17 40L18 35L18 30L19 21ZM20 21L20 17L22 17L26 20L26 22L23 24L20 22L20 21ZM26 28L27 32L24 33L22 36L20 41L17 40L19 36L19 28L21 24L24 24L28 26L26 28Z',
+    tg: 'M21 10L25 8L26 10L30 9L31 10L29 12L32 11L39 14L39 16L37 19L36 23L31 26L31 28L29 30L27 28L28 25L26 22L25 20L22 16L18 17L17 15L19 13L20 10L21 10Z',
+  },
+  'map:Argentina': {
+    nb: 'M34 18L31 19L31 16L33 17L34 18ZM25 -1L23 1L25 5L24 8L21 5L19 0L22 -4L25 -2L25 -1ZM31 9L33 13L31 14L29 11L29 9L31 9ZM24 8L26 11L25 16L24 23L23 30L25 30L22 30L23 24L24 16L24 8ZM26 -5L34 -5L35 -2L40 -2L43 1L41 5L41 9L36 13L35 17L32 16L33 12L30 6L26 3L23 2L25 -3L26 -5ZM25 8L25 3L28 4L31 8L29 11L26 11L25 8Z',
+    tg: 'M31 16L32 20L29 22L27 24L26 29L24 30L23 28L24 22L25 14L26 11L29 11L32 14L33 13L31 16Z',
+  },
+};
+
+function renderOgQuizNode(val, isPrompt = false) {
+  const mapEntry = OG_SAMPLE_MAPS[val];
+  if (mapEntry) {
+    const w = isPrompt ? 224 : 168;
+    const ht = isPrompt ? 148 : 112;
+    return h(
+      'svg',
+      {
+        viewBox: '0 0 56 38',
+        width: String(w),
+        height: String(ht),
+        style: { borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#d8eaf8' },
+      },
+      [
+        h('rect', { width: '56', height: '38', fill: '#d8eaf8' }),
+        h('path', {
+          d: mapEntry.nb,
+          fill: '#f1f5f9',
+          stroke: '#94a3b8',
+          strokeWidth: '0.6',
+          fillRule: 'evenodd',
+        }),
+        h('path', {
+          d: mapEntry.tg,
+          fill: '#ea580c',
+          stroke: '#7c2d12',
+          strokeWidth: '0.9',
+          fillRule: 'evenodd',
+        }),
+      ]
+    );
+  }
+  return val;
+}
+
 const QUIZ_PREVIEW_SAMPLES = {
   cfg_geo_flag_country: { prompt: '🇧🇷', choices: ['Brazil', 'Argentina'] },
   cfg_geo_country_flag: { prompt: 'Brazil', choices: ['🇧🇷', '🇦🇷'] },
@@ -821,6 +873,12 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_geo_capital_country: { prompt: 'Brasília', choices: ['Brazil', 'Argentina'] },
   cfg_geo_flag_capital: { prompt: '🇧🇷', choices: ['Brasília', 'Buenos Aires'] },
   cfg_geo_capital_flag: { prompt: 'Brasília', choices: ['🇧🇷', '🇦🇷'] },
+  cfg_geo_map_country: { prompt: 'map:Brazil', choices: ['Brazil', 'Argentina'] },
+  cfg_geo_country_map: { prompt: 'Brazil', choices: ['map:Brazil', 'map:Argentina'] },
+  cfg_geo_map_flag: { prompt: 'map:Brazil', choices: ['🇧🇷', '🇦🇷'] },
+  cfg_geo_flag_map: { prompt: '🇧🇷', choices: ['map:Brazil', 'map:Argentina'] },
+  cfg_geo_map_capital: { prompt: 'map:Brazil', choices: ['Brasília', 'Buenos Aires'] },
+  cfg_geo_capital_map: { prompt: 'Brasília', choices: ['map:Brazil', 'map:Argentina'] },
   cfg_lang_pt_en: { prompt: 'sempre', choices: ['always', 'never'] },
   cfg_lang_es_en: { prompt: 'siempre', choices: ['always', 'never'] },
   cfg_lang_fr_en: { prompt: 'toujours', choices: ['always', 'never'] },
@@ -1319,11 +1377,13 @@ function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
               },
               cfgLabel
             ),
-            h(
-              'span',
-              { fontSize: '54px', fontWeight: 900, color: '#1b222c' },
-              quizSample.prompt
-            ),
+            OG_SAMPLE_MAPS[quizSample.prompt]
+              ? renderOgQuizNode(quizSample.prompt, true)
+              : h(
+                  'span',
+                  { fontSize: '54px', fontWeight: 900, color: '#1b222c' },
+                  quizSample.prompt
+                ),
           ]
         ),
         h(
@@ -1343,10 +1403,10 @@ function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
                 fontSize: '28px',
                 fontWeight: 800,
                 color: '#1264e1',
-                padding: '20px',
+                padding: OG_SAMPLE_MAPS[quizSample.choices[0]] ? '10px' : '20px',
                 textAlign: 'center',
               },
-              quizSample.choices[0]
+              renderOgQuizNode(quizSample.choices[0], false)
             ),
             h(
               'div',
@@ -1361,10 +1421,10 @@ function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
                 fontSize: '28px',
                 fontWeight: 800,
                 color: '#1b222c',
-                padding: '20px',
+                padding: OG_SAMPLE_MAPS[quizSample.choices[1]] ? '10px' : '20px',
                 textAlign: 'center',
               },
-              quizSample.choices[1]
+              renderOgQuizNode(quizSample.choices[1], false)
             ),
           ]
         ),

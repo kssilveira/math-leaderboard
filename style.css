@@ -16,6 +16,12 @@
   --border: hsl(214, 20%, 88%);
   --radius: 14px;
   --shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --map-ocean: #d8eaf8;
+  --map-neighbor: #f1f5f9;
+  --map-neighbor-stroke: #94a3b8;
+  --map-target: #ea580c;
+  --map-target-stroke: #7c2d12;
+  --map-pin: #dc2626;
 }
 
 :root[data-theme="dark"] {
@@ -35,6 +41,12 @@
   --wrong-border: hsla(355, 80%, 62%, 0.38);
   --border: hsl(220, 22%, 23%);
   --shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --map-ocean: #0f2238;
+  --map-neighbor: #273549;
+  --map-neighbor-stroke: #556984;
+  --map-target: #fb923c;
+  --map-target-stroke: #fff7ed;
+  --map-pin: #f87171;
   color-scheme: dark;
 }
 
@@ -1436,6 +1448,15 @@ html, body {
   min-height: 108px;
 }
 
+.equation-card.has-map-prompt {
+  padding: 10px 12px 12px;
+}
+
+.equation-card.has-map-prompt.is-replay-card {
+  padding: 8px 10px;
+  min-height: 0;
+}
+
 .math-eq-group {
   display: inline-flex;
   align-items: center;
@@ -1472,6 +1493,110 @@ html, body {
 .quiz-prompt-text.is-flag {
   font-size: clamp(3.1rem, 12vw, 4rem);
   line-height: 1.1;
+}
+
+.quiz-prompt-text.is-map {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+/* Country Context Map SVGs */
+.geo-map-svg {
+  display: block;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--map-ocean);
+}
+
+.geo-map-prompt {
+  width: 100%;
+  max-width: 292px;
+  height: auto;
+  max-height: 172px;
+}
+
+.is-replay-card .geo-map-prompt {
+  max-width: 185px;
+  max-height: 108px;
+}
+
+.geo-map-choice {
+  width: 100%;
+  height: auto;
+  max-height: 152px;
+}
+
+.quiz-choices.replay-compact .geo-map-choice {
+  max-width: 136px;
+  max-height: 78px;
+}
+
+.geo-map-mini {
+  width: 52px;
+  height: 35px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.geo-map-ocean {
+  fill: var(--map-ocean);
+}
+
+.geo-map-neighbor {
+  fill: var(--map-neighbor);
+  stroke: var(--map-neighbor-stroke);
+  stroke-width: 0.85px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.geo-map-target {
+  fill: var(--map-target);
+  stroke: var(--map-target-stroke);
+  stroke-width: 1.4px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.geo-map-mini .geo-map-neighbor {
+  stroke-width: 0.55px;
+}
+
+.geo-map-mini .geo-map-target {
+  stroke-width: 0.95px;
+}
+
+.geo-map-pin-ring {
+  fill: rgba(234, 88, 12, 0.2);
+  stroke: var(--map-pin);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.geo-map-mini .geo-map-pin-ring {
+  stroke-width: 1.35px;
+}
+
+.geo-map-pin-dot {
+  fill: var(--map-target);
+  stroke: #ffffff;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.review-inline-map,
+.race-opp-mini-map {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.review-q-slot.review-slot-map {
+  padding: 2px;
+  display: inline-flex;
+  vertical-align: middle;
 }
 
 .eq-item {
@@ -1592,6 +1717,15 @@ html, body {
 
 .quiz-choices.replay-compact .choice-btn.is-flag {
   font-size: 1.8rem;
+}
+
+.choice-btn.is-map {
+  padding: 8px;
+}
+
+.quiz-choices.replay-compact .choice-btn.is-map {
+  padding: 5px;
+  min-height: 64px;
 }
 
 .choice-btn:active:not(:disabled) {

@@ -33,8 +33,8 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   - **🔢 Math**:
     - Default game: `+ − (0..10, 0..10, 0..20)`.
     - Create new math configurations (`+ Game`) with any subset of operators (`+`, `−`, `×`, `÷`) and integer `min`/`max` constraints on each of the 3 numbers (with division restricted to exact integers).
-  - **🌍 Geography (6 built-in configs — 193 UN Member States)**:
-    - `Flag → Country`, `Country → Flag`, `Country → Capital`, `Capital → Country`, `Flag → Capital`, and `Capital → Flag` across all 193 United Nations member states, played with 2-choice answer buttons.
+  - **🌍 Geography (12 built-in configs — 193 UN Member States)**:
+    - `Flag ↔ Country`, `Country ↔ Capital`, `Flag ↔ Capital`, `Map ↔ Country`, `Map ↔ Flag`, and `Map ↔ Capital` across all 193 United Nations member states, played with 2-choice answer buttons and Natural Earth context maps showing neighboring countries.
   - **💬 Language & Wordplay (14 built-in configs)**:
     - `🇧🇷 Portuguese → English`, `🇪🇸 Spanish → English`, `🇫🇷 French → English`, `🇩🇪 German → English` (1,000 most common words)
     - `English → 🇧🇷 Portuguese`, `English → 🇪🇸 Spanish`, `English → 🇫🇷 French`, `English → 🇩🇪 German` (1,000 most common words)

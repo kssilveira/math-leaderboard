@@ -12,7 +12,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `quiz-data.js`, `app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `geo-maps.js`, `quiz-data.js`, `app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -38,14 +38,21 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
-- `quiz-data.js`: Defines `BUILTIN_QUIZ_CONFIGS` with 24 built-in 2-choice quiz configurations:
-  - **🌍 Geography (`6` configs — 193 UN Member States)**:
+- `geo-maps.js`: Public-domain Natural Earth (`1:50m` + Tuvalu `1:10m`) quantized world topology and `renderGeoMapSvg()` renderer showing any UN member state highlighted alongside neighboring countries (with adaptive viewport sizing and microstate target rings).
+- `quiz-data.js`: Defines `BUILTIN_QUIZ_CONFIGS` with 30 built-in 2-choice quiz configurations:
+  - **🌍 Geography (`12` configs — 193 UN Member States)**:
     - `cfg_geo_flag_country` (`Flag → Country`)
     - `cfg_geo_country_flag` (`Country → Flag`)
     - `cfg_geo_country_capital` (`Country → Capital`)
     - `cfg_geo_capital_country` (`Capital → Country`)
     - `cfg_geo_flag_capital` (`Flag → Capital`)
     - `cfg_geo_capital_flag` (`Capital → Flag`)
+    - `cfg_geo_map_country` (`Map → Country`)
+    - `cfg_geo_country_map` (`Country → Map`)
+    - `cfg_geo_map_flag` (`Map → Flag`)
+    - `cfg_geo_flag_map` (`Flag → Map`)
+    - `cfg_geo_map_capital` (`Map → Capital`)
+    - `cfg_geo_capital_map` (`Capital → Map`)
   - **💬 Language & Wordplay (`14` configs)**:
     - `cfg_lang_pt_en`, `cfg_lang_es_en`, `cfg_lang_fr_en`, `cfg_lang_de_en` (`Portuguese/Spanish/French/German → English`, 1,000 most common words each)
     - `cfg_lang_en_pt`, `cfg_lang_en_es`, `cfg_lang_en_fr`, `cfg_lang_en_de` (`English → Portuguese/Spanish/French/German`, 1,000 most common words each)
@@ -102,6 +109,6 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
    - Add the dataset and config entry to `getBuiltinQuizConfigs()` in `quiz-data.js`.
    - Add the human-readable label to `QUIZ_CONFIG_LABELS` in both `middleware.js` and `api/og.js`, and add a preview sample to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
 2. **Bumping Service Worker Cache**:
-   - Whenever modifying `index.html`, `style.css`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
+   - Whenever modifying `index.html`, `style.css`, `geo-maps.js`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
    - Run `python3 -m http.server 8000 --bind ::` and open `http://localhost:8000/`.

@@ -170,6 +170,7 @@ const scoreDisplay = document.getElementById('score-display');
 const rightDisplay = document.getElementById('right-display');
 const wrongDisplay = document.getElementById('wrong-display');
 const questionLastPerf = document.getElementById('question-last-perf');
+const equationCard = document.getElementById('equation-card');
 const mathEqGroup = document.getElementById('math-eq-group');
 const quizPromptGroup = document.getElementById('quiz-prompt-group');
 const quizPromptLabel = document.getElementById('quiz-prompt-label');
@@ -2279,10 +2280,34 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function isMapVal(val) {
+  return typeof isGeoMapToken === 'function' && isGeoMapToken(val);
+}
+
+function formatQuizAnswerText(val) {
+  if (isMapVal(val)) {
+    return `🗺️ ${getGeoMapCountryName(val)}`;
+  }
+  return String(val ?? '');
+}
+
+function renderInlineQuizValHtml(val, asSlot = false) {
+  if (isMapVal(val)) {
+    const cname = escapeHtml(getGeoMapCountryName(val));
+    const svg = renderGeoMapSvg(val, { variant: 'mini' });
+    return asSlot
+      ? `<span class="review-q-slot review-slot-map" title="${cname}">${svg}</span>`
+      : `<span class="review-inline-map" title="${cname}">${svg}</span>`;
+  }
+  return asSlot
+    ? `<span class="review-q-slot">${escapeHtml(val)}</span>`
+    : escapeHtml(val);
+}
+
 function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
   const q = normalizeQuestionRecord(rawQ, targetConfigId);
   if (q.op === '?') {
-    return `${escapeHtml(q.prompt)} → <span class="review-q-slot">${escapeHtml(q.expected)}</span>`;
+    return `${renderInlineQuizValHtml(q.prompt, false)} → ${renderInlineQuizValHtml(q.expected, true)}`;
   }
   const opChar = q.op === '-' ? '−' : q.op;
   const parts = q.nums.map((n, idx) => {
@@ -2620,13 +2645,13 @@ function renderReview() {
     wrongTyped.forEach((w) => {
       const wEl = document.createElement('span');
       wEl.className = 'review-wrong-ans';
-      wEl.textContent = `✗ ${w}`;
+      wEl.textContent = `✗ ${formatQuizAnswerText(w)}`;
       ansSpan.appendChild(wEl);
     });
     if (q.right > 0) {
       const rEl = document.createElement('span');
       rEl.className = 'review-right-ans';
-      rEl.textContent = `✓ ${expectedStr}`;
+      rEl.textContent = `✓ ${formatQuizAnswerText(expectedStr)}`;
       ansSpan.appendChild(rEl);
     }
 
@@ -2930,7 +2955,7 @@ function renderQuestion() {
 
       if (hadMistake) {
         const wrongText = wrongTyped.length > 0
-          ? wrongTyped.map(w => `✗ ${w}`).join(' ')
+          ? wrongTyped.map(w => `✗ ${formatQuizAnswerText(w)}`).join(' ')
           : `${lp.wrong} wrong`;
         questionLastPerf.textContent = `Last: ${wrongText} · ${secStr} avg`;
       } else {
@@ -2944,22 +2969,39 @@ function renderQuestion() {
   }
 
   if (isQuiz) {
+    const promptVal = String(currentQuestion.prompt || '');
+    const promptIsMap = isMapVal(promptVal);
+    if (equationCard) {
+      equationCard.classList.toggle('has-map-prompt', promptIsMap);
+      equationCard.classList.toggle('is-replay-card', Boolean(isReplaying));
+    }
     if (mathEqGroup) mathEqGroup.classList.add('hidden');
     if (quizPromptGroup) quizPromptGroup.classList.remove('hidden');
     if (quizPromptLabel) {
       quizPromptLabel.textContent = formatConfigLabel(activeCfg);
     }
     if (quizPromptText) {
-      quizPromptText.textContent = currentQuestion.prompt || '';
-      quizPromptText.classList.toggle('is-flag', Boolean(activeCfg && activeCfg.isFlagPrompt));
+      quizPromptText.classList.toggle('is-flag', !promptIsMap && Boolean(activeCfg && activeCfg.isFlagPrompt));
+      quizPromptText.classList.toggle('is-map', promptIsMap);
+      if (promptIsMap) {
+        quizPromptText.innerHTML = renderGeoMapSvg(promptVal, { variant: 'prompt' });
+      } else {
+        quizPromptText.textContent = promptVal;
+      }
     }
     if (quizChoice0Btn && quizChoice1Btn) {
       const choices = currentQuestion.choices || ['', ''];
       const isFlagChoice = Boolean(activeCfg && activeCfg.isFlagChoice);
       [quizChoice0Btn, quizChoice1Btn].forEach((btn, idx) => {
         const cText = String(choices[idx] ?? '');
-        btn.textContent = cText;
-        btn.classList.toggle('is-flag', isFlagChoice);
+        const choiceIsMap = isMapVal(cText);
+        btn.classList.toggle('is-flag', !choiceIsMap && isFlagChoice);
+        btn.classList.toggle('is-map', choiceIsMap);
+        if (choiceIsMap) {
+          btn.innerHTML = renderGeoMapSvg(cText, { variant: 'choice' });
+        } else {
+          btn.textContent = cText;
+        }
         btn.classList.remove('wrong', 'right');
         if (typedAnswer !== '') {
           if (cText === typedAnswer) {
@@ -2971,6 +3013,10 @@ function renderQuestion() {
       });
     }
     return;
+  }
+
+  if (equationCard) {
+    equationCard.classList.remove('has-map-prompt', 'is-replay-card');
   }
 
   if (mathEqGroup) mathEqGroup.classList.remove('hidden');
@@ -3066,8 +3112,18 @@ function renderOpponentQuestion(oppName, oppStats) {
       const slotClass =
         'race-opp-slot' +
         (oppStats.activeTyped === '' ? ' empty' : oppStats.activeWrong ? ' wrong' : ' right');
-      const ansText = oppStats.activeTyped === '' ? '?' : oppStats.activeTyped;
-      raceOppQuiz.innerHTML = `${escapeHtml(q.prompt)} → <span class="${slotClass}">${escapeHtml(ansText)}</span>`;
+      const promptHtml = isMapVal(q.prompt)
+        ? `<span class="race-opp-mini-map">${renderGeoMapSvg(q.prompt, { variant: 'mini' })}</span>`
+        : escapeHtml(q.prompt);
+      let ansHtml;
+      if (oppStats.activeTyped === '') {
+        ansHtml = '?';
+      } else if (isMapVal(oppStats.activeTyped)) {
+        ansHtml = `<span class="race-opp-mini-map">${renderGeoMapSvg(oppStats.activeTyped, { variant: 'mini' })}</span>`;
+      } else {
+        ansHtml = escapeHtml(oppStats.activeTyped);
+      }
+      raceOppQuiz.innerHTML = `${promptHtml} → <span class="${slotClass}">${ansHtml}</span>`;
     }
     return;
   }
@@ -4106,13 +4162,13 @@ function createReplayLogRow(rawQ, startMs) {
   wrongTyped.forEach((w) => {
     const wEl = document.createElement('span');
     wEl.className = 'review-wrong-ans';
-    wEl.textContent = `✗ ${w}`;
+    wEl.textContent = `✗ ${formatQuizAnswerText(w)}`;
     ansSpan.appendChild(wEl);
   });
   if (q.right > 0) {
     const rEl = document.createElement('span');
     rEl.className = 'review-right-ans';
-    rEl.textContent = `✓ ${expectedStr}`;
+    rEl.textContent = `✓ ${formatQuizAnswerText(expectedStr)}`;
     ansSpan.appendChild(rEl);
   }
 
