@@ -2,9 +2,6 @@
   "name": "math-leaderboard",
   "private": true,
   "type": "module",
-  "scripts": {
-    "start": "./serve.sh"
-  },
   "dependencies": {
     "@vercel/og": "^0.6.2"
   }
