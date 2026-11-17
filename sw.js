@@ -1,9 +1,11 @@
-const CACHE_NAME = 'math-leaderboard-v30';
+const CACHE_NAME = 'math-leaderboard-v31';
 const APP_SHELL = [
   './',
   './index.html',
   './privacy.html',
   './style.css',
+  './data/geo-map-data.js',
+  './data/quiz-datasets.js',
   './geo-maps.js',
   './quiz-data.js',
   './app.js',

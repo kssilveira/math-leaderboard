@@ -2,6 +2,9 @@
 
 This document provides complete technical context for AI coding agents working on this repository. Keep this repository strictly free of any proprietary, internal, or machine-specific paths/credentials.
 
+> **Context & Token Hygiene Rule (`data/` directory)**:
+> **NEVER** read, view, or grep files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas are documented in Section 2 below.
+
 ---
 
 ## 1. Overview & Live Deployment Topology
@@ -12,7 +15,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `geo-maps.js`, `quiz-data.js`, `app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `geo-maps.js`, `quiz-data.js`, `app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -38,8 +41,18 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
-- `geo-maps.js`: Public-domain Natural Earth (`1:50m` + Tuvalu `1:10m`) quantized world topology and `renderGeoMapSvg()` renderer showing any UN member state highlighted alongside neighboring countries (with adaptive viewport sizing and microstate target rings).
-- `quiz-data.js`: Defines `BUILTIN_QUIZ_CONFIGS` with 30 built-in 2-choice quiz configurations:
+- `data/` (**DO NOT READ OR GREP** unless modifying raw dataset entries):
+  - `data/geo-map-data.js`: Defines `GEO_MAP_DATA` (`{ a: encodedArcs, g: countryPolys, v: { [countryName]: [geomIdxs, lon0, lat0, spanY, pinLon, pinLat] } }`), derived from public-domain Natural Earth (`1:50m` + Tuvalu `1:10m`).
+  - `data/quiz-datasets.js`: Defines raw quiz datasets:
+    - `UN_MEMBER_STATES`: `[[country, flagEmoji, capital], ...]` (193 items)
+    - `COMMON_WORDS_1000`: `[[en, pt, es, fr, de], ...]` (1,000 items)
+    - `TOP_EMOJIS_1000`: `[[emoji, enDescription], ...]` (1,000 items)
+    - `ENGLISH_SYNONYMS` / `ENGLISH_ANTONYMS`: `[[word, match], ...]` (300 items each)
+    - `ENGLISH_IDIOMS`: `[[idiom, meaning], ...]` (200 items)
+    - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
+    - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
+- `geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
+- `quiz-data.js`: Lightweight (~7 KB) config registry defining `BUILTIN_QUIZ_CONFIGS` with 30 built-in 2-choice quiz configurations:
   - **🌍 Geography (`12` configs — 193 UN Member States)**:
     - `cfg_geo_flag_country` (`Flag → Country`)
     - `cfg_geo_country_flag` (`Country → Flag`)
@@ -106,9 +119,9 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 ## 4. Maintenance Checklist for Future Changes
 
 1. **Adding New Quiz Configs**:
-   - Add the dataset and config entry to `getBuiltinQuizConfigs()` in `quiz-data.js`.
+   - Add raw dataset arrays to `data/quiz-datasets.js` (if needed) and add the config entry to `BUILTIN_QUIZ_CONFIGS` in `quiz-data.js`.
    - Add the human-readable label to `QUIZ_CONFIG_LABELS` in both `middleware.js` and `api/og.js`, and add a preview sample to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
 2. **Bumping Service Worker Cache**:
-   - Whenever modifying `index.html`, `style.css`, `geo-maps.js`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
+   - Whenever modifying `index.html`, `style.css`, `data/*`, `geo-maps.js`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
    - Run `./serve.sh` (defaults to port `8000`, or `./serve.sh <port>`) and open `http://localhost:8000/`.
