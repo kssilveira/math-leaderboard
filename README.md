@@ -83,5 +83,5 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
 ## Running Locally
 
 ```bash
-python3 -m http.server 8000 --bind ::
+./serve.sh
 ```

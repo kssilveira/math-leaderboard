@@ -111,4 +111,4 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 2. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `geo-maps.js`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
-   - Run `python3 -m http.server 8000 --bind ::` and open `http://localhost:8000/`.
+   - Run `./serve.sh` (defaults to port `8000`, or `./serve.sh <port>`) and open `http://localhost:8000/`.
