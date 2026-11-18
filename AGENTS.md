@@ -23,7 +23,8 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
      - **Social Crawlers** (`Twitterbot`, `facebookexternalhit`, `WhatsApp`, `Discordbot`, `Slackbot`, `LinkedInBot`, `TelegramBot`, etc.) or `?og_preview=1`: Serves HTML with dynamic Open Graph (`og:*`) and Twitter (`twitter:*`) meta tags pointing `og:image` to `https://math-leaderboard.vercel.app/api/og?...`.
      - **Human Browsers**: Responds with an HTTP `307` redirect to `https://kssilveira.github.io/math-leaderboard/` (preserving `?replay=`, `?config=`, or `?user=` query parameters).
    - `api/og.js` (`@vercel/og` Edge Function) generates `1200 × 630` PNG preview images for:
-     - **Config Leaderboard** (`/api/og` or `/api/og?config=<configId>`): Shows a config-specific preview card (math equation or 2-choice quiz sample) alongside the live Top 10 leaderboard fetched from Firebase.
+     - **Home Overview** (`/api/og`): Shows a 2×2 gameplay showcase across all four categories (Math, Geography, Language, Other) alongside live `#1` global leaders across popular games from each category.
+     - **Config Leaderboard** (`/api/og?config=<configId>`): Shows a config-specific preview card (math equation or 2-choice quiz sample) alongside the live Top 10 leaderboard fetched from Firebase.
      - **Player Profile Page** (`/api/og?user=<userId>&u=<username>`): Fetches `/leaderboards.json`, computes the player's ranks and scores across all configs, and renders their summary stats and top performances.
      - **Solo Replay** (`/api/og?replay=<base64url>`): Renders the player's score, accuracy, pace, and question-by-question breakdown.
      - **Ghost Race Replay** (`/api/og?replay=<base64url>` with opponent `o` payload): Renders the head-to-head banner, dual-player score timeline SVG chart, and question log.

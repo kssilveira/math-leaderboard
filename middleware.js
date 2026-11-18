@@ -108,7 +108,7 @@ export default async function middleware(request) {
   const uParam = url.searchParams.get('u');
   const origin = url.origin;
 
-  let ogTitle = '1-Minute Quiz — Global Leaderboard';
+  let ogTitle = '1-Minute Quiz — Global Leaderboards';
   let ogDesc =
     '1-minute mobile quiz game (Math, Geography, Language & Other) with replays, ghost races, and global leaderboards.';
   let ogImage = `${origin}/api/og`;
@@ -170,7 +170,7 @@ export default async function middleware(request) {
   <script>window.location.replace(${JSON.stringify(targetUrl)});</script>
 </head>
 <body>
-  <p>Redirecting to <a href="${escapeHtml(targetUrl)}">1-Minute Math</a>...</p>
+  <p>Redirecting to <a href="${escapeHtml(targetUrl)}">1-Minute Quiz</a>...</p>
 </body>
 </html>`;
 

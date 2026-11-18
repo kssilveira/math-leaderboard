@@ -831,37 +831,56 @@ const OG_SAMPLE_MAPS = {
   },
 };
 
+function renderOgMapBox(mapKey, w, ht) {
+  const mapEntry = OG_SAMPLE_MAPS[mapKey];
+  if (!mapEntry) return mapKey;
+  return h(
+    'div',
+    {
+      display: 'flex',
+      width: `${w}px`,
+      height: `${ht}px`,
+      borderRadius: '10px',
+      border: '1px solid #cbd5e1',
+      backgroundColor: '#d8eaf8',
+      overflow: 'hidden',
+    },
+    [
+      svgEl(
+        'svg',
+        {
+          viewBox: '0 0 56 38',
+          width: String(w),
+          height: String(ht),
+          style: { width: `${w}px`, height: `${ht}px`, display: 'flex' },
+        },
+        [
+          svgEl('rect', { width: '56', height: '38', fill: '#d8eaf8' }),
+          svgEl('path', {
+            d: mapEntry.nb,
+            fill: '#f1f5f9',
+            stroke: '#94a3b8',
+            'stroke-width': '0.6',
+            'fill-rule': 'evenodd',
+          }),
+          svgEl('path', {
+            d: mapEntry.tg,
+            fill: '#ea580c',
+            stroke: '#7c2d12',
+            'stroke-width': '0.9',
+            'fill-rule': 'evenodd',
+          }),
+        ]
+      ),
+    ]
+  );
+}
+
 function renderOgQuizNode(val, isPrompt = false) {
-  const mapEntry = OG_SAMPLE_MAPS[val];
-  if (mapEntry) {
+  if (OG_SAMPLE_MAPS[val]) {
     const w = isPrompt ? 224 : 168;
     const ht = isPrompt ? 148 : 112;
-    return h(
-      'svg',
-      {
-        viewBox: '0 0 56 38',
-        width: String(w),
-        height: String(ht),
-        style: { borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#d8eaf8' },
-      },
-      [
-        h('rect', { width: '56', height: '38', fill: '#d8eaf8' }),
-        h('path', {
-          d: mapEntry.nb,
-          fill: '#f1f5f9',
-          stroke: '#94a3b8',
-          strokeWidth: '0.6',
-          fillRule: 'evenodd',
-        }),
-        h('path', {
-          d: mapEntry.tg,
-          fill: '#ea580c',
-          stroke: '#7c2d12',
-          strokeWidth: '0.9',
-          fillRule: 'evenodd',
-        }),
-      ]
-    );
+    return renderOgMapBox(val, w, ht);
   }
   return val;
 }
@@ -1707,6 +1726,613 @@ function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
   );
 }
 
+const HOME_FALLBACK_CONFIGS = [
+  'cfg_add-sub_0_10_0_10_0_20',
+  'cfg_add-sub-mul-div_0_10_0_10_0_20',
+  'cfg_geo_flag_country',
+  'cfg_geo_map_country',
+  'cfg_lang_pt_en',
+  'cfg_lang_emoji_en',
+  'cfg_chem_symbol_name',
+  'cfg_other_morse_char',
+];
+
+function getConfigCategory(cfgId) {
+  if (!cfgId) return 'math';
+  if (cfgId.startsWith('cfg_geo_')) return 'geo';
+  if (cfgId.startsWith('cfg_lang_')) return 'lang';
+  if (cfgId.startsWith('cfg_chem_') || cfgId.startsWith('cfg_other_')) return 'other';
+  return 'math';
+}
+
+function getCategoryIcon(cat) {
+  if (cat === 'geo') return '🌍';
+  if (cat === 'lang') return '💬';
+  if (cat === 'other') return '🧩';
+  return '🔢';
+}
+
+function truncateText(str, maxLen) {
+  const s = String(str || '');
+  return s.length > maxLen ? `${s.slice(0, maxLen - 1)}…` : s;
+}
+
+function isStandardMathShowcaseConfig(cfgId) {
+  const parts = String(cfgId || '').slice(4).split('_');
+  if (parts.length < 7) return true;
+  const min3 = Number(parts[5]);
+  const max3 = Number(parts[6]);
+  return Number.isNaN(min3) || Number.isNaN(max3) || max3 - min3 >= 5;
+}
+
+async function fetchHomeOverviewStats() {
+  try {
+    const res = await fetch(`${FIREBASE_BASE_URL}/leaderboards.json`);
+    const allBoards = res.ok ? await res.json() : {};
+    const uniqueUserIds = new Set();
+    const byCategory = { math: [], geo: [], lang: [], other: [] };
+    let activeGames = 0;
+
+    Object.entries(allBoards || {}).forEach(([cfgId, boardObj]) => {
+      if (!boardObj || typeof boardObj !== 'object') return;
+      const entries = Object.values(boardObj).filter(
+        (e) => e && typeof e.score === 'number'
+      );
+      if (entries.length === 0) return;
+      activeGames += 1;
+      entries.forEach((e) => {
+        if (e.userId) uniqueUserIds.add(e.userId);
+      });
+      entries.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.updatedAt || 0) - (b.updatedAt || 0);
+      });
+      const cat = getConfigCategory(cfgId);
+      byCategory[cat].push({
+        cfgId,
+        category: cat,
+        label: formatConfigId(cfgId),
+        playerCount: entries.length,
+        leaderName: String(entries[0].username || 'Player'),
+        topScore: entries[0].score,
+        isStandardMath: cat !== 'math' || isStandardMathShowcaseConfig(cfgId),
+      });
+    });
+
+    const sortGames = (a, b) => {
+      if (b.playerCount !== a.playerCount) return b.playerCount - a.playerCount;
+      return (b.topScore || 0) - (a.topScore || 0);
+    };
+
+    const categories = ['math', 'geo', 'lang', 'other'];
+    categories.forEach((cat) => {
+      byCategory[cat].sort((a, b) => {
+        if (a.isStandardMath !== b.isStandardMath) {
+          return a.isStandardMath ? -1 : 1;
+        }
+        return sortGames(a, b);
+      });
+    });
+
+    const selected = [];
+    const seen = new Set();
+    categories.forEach((cat) => {
+      byCategory[cat].slice(0, 2).forEach((g) => {
+        selected.push(g);
+        seen.add(g.cfgId);
+      });
+    });
+
+    if (selected.length < 8) {
+      const remaining = categories
+        .flatMap((cat) => byCategory[cat])
+        .filter((g) => !seen.has(g.cfgId))
+        .sort(sortGames);
+      for (const g of remaining) {
+        if (selected.length >= 8) break;
+        selected.push(g);
+        seen.add(g.cfgId);
+      }
+    }
+
+    selected.sort(sortGames);
+
+    for (const fallbackId of HOME_FALLBACK_CONFIGS) {
+      if (selected.length >= 8) break;
+      if (seen.has(fallbackId)) continue;
+      const cat = getConfigCategory(fallbackId);
+      selected.push({
+        cfgId: fallbackId,
+        category: cat,
+        label: formatConfigId(fallbackId),
+        playerCount: 0,
+        leaderName: null,
+        topScore: null,
+      });
+      seen.add(fallbackId);
+    }
+
+    return {
+      activeGames,
+      uniquePlayers: uniqueUserIds.size,
+      featuredGames: selected.slice(0, 8),
+    };
+  } catch (_) {
+    return {
+      activeGames: 0,
+      uniquePlayers: 0,
+      featuredGames: HOME_FALLBACK_CONFIGS.map((cfgId) => ({
+        cfgId,
+        category: getConfigCategory(cfgId),
+        label: formatConfigId(cfgId),
+        playerCount: 0,
+        leaderName: null,
+        topScore: null,
+      })),
+    };
+  }
+}
+
+function renderHomeOverviewCard(overview) {
+  const miniChoiceBtn = (text, selected = false) =>
+    h(
+      'div',
+      {
+        flex: 1,
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: selected ? '#e8f1fd' : '#ffffff',
+        border: selected ? '2.5px solid #1264e1' : '1.5px solid #dbe2ea',
+        borderRadius: '11px',
+        fontSize: '16px',
+        fontWeight: 800,
+        color: selected ? '#1264e1' : '#1b222c',
+        padding: '0 8px',
+      },
+      text
+    );
+
+  const miniKey = (digit, selected = false) =>
+    h(
+      'div',
+      {
+        flex: 1,
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: selected ? '#e8f1fd' : '#ffffff',
+        border: selected ? '2.5px solid #1264e1' : '1.5px solid #dbe2ea',
+        borderRadius: '11px',
+        fontSize: '18px',
+        fontWeight: 800,
+        color: selected ? '#1264e1' : '#1b222c',
+      },
+      String(digit)
+    );
+
+  const cardShell = (title, badgeText, bodyChildren) =>
+    h(
+      'div',
+      {
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        backgroundColor: '#ffffff',
+        border: '1px solid #dbe2ea',
+        borderRadius: '18px',
+        padding: '13px 15px',
+      },
+      [
+        h(
+          'div',
+          {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          },
+          [
+            h(
+              'span',
+              { fontSize: '16px', fontWeight: 900, color: '#1b222c' },
+              title
+            ),
+            h(
+              'span',
+              {
+                fontSize: '11px',
+                fontWeight: 800,
+                color: '#1264e1',
+                backgroundColor: '#e8f1fd',
+                padding: '3px 9px',
+                borderRadius: '999px',
+              },
+              badgeText
+            ),
+          ]
+        ),
+        ...bodyChildren,
+      ]
+    );
+
+  const mathCard = cardShell('🔢 Math', '+ − × ÷ · Custom', [
+    h(
+      'div',
+      {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        backgroundColor: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        height: '86px',
+        fontSize: '28px',
+        fontWeight: 900,
+        color: '#1b222c',
+      },
+      [
+        h('span', {}, '8 +'),
+        h(
+          'span',
+          {
+            color: '#1264e1',
+            backgroundColor: '#e8f1fd',
+            border: '2.5px solid #1264e1',
+            borderRadius: '9px',
+            padding: '2px 13px',
+          },
+          '?'
+        ),
+        h('span', {}, '= 15'),
+      ]
+    ),
+    h('div', { display: 'flex', gap: '6px' }, [
+      miniKey(5),
+      miniKey(6),
+      miniKey(7, true),
+      miniKey(8),
+    ]),
+  ]);
+
+  const geoCard = cardShell('🌍 Geography', '12 Games', [
+    h(
+      'div',
+      {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        height: '86px',
+        padding: '4px',
+      },
+      [renderOgMapBox('map:Brazil', 120, 74)]
+    ),
+    h('div', { display: 'flex', gap: '8px' }, [
+      miniChoiceBtn('🇧🇷 Brazil', true),
+      miniChoiceBtn('🇦🇷 Argentina', false),
+    ]),
+  ]);
+
+  const langCard = cardShell('💬 Language', '14 Games', [
+    h(
+      'div',
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '2px',
+        backgroundColor: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        height: '86px',
+        padding: '6px 10px',
+      },
+      [
+        h(
+          'span',
+          { fontSize: '11px', fontWeight: 800, color: '#627084' },
+          '🇧🇷 PT · 🇪🇸 ES · 🇫🇷 FR · 🇩🇪 DE · 😀'
+        ),
+        h(
+          'span',
+          { fontSize: '30px', fontWeight: 900, color: '#1b222c' },
+          'sempre'
+        ),
+      ]
+    ),
+    h('div', { display: 'flex', gap: '8px' }, [
+      miniChoiceBtn('always', true),
+      miniChoiceBtn('never', false),
+    ]),
+  ]);
+
+  const otherCard = cardShell('🧩 Other', 'Elements · Morse', [
+    h(
+      'div',
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '2px',
+        backgroundColor: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        height: '86px',
+        padding: '6px 10px',
+      },
+      [
+        h(
+          'span',
+          { fontSize: '11px', fontWeight: 800, color: '#627084' },
+          '118 ELEMENTS & MORSE CODE'
+        ),
+        h(
+          'span',
+          { fontSize: '30px', fontWeight: 900, color: '#1b222c' },
+          'Au'
+        ),
+      ]
+    ),
+    h('div', { display: 'flex', gap: '8px' }, [
+      miniChoiceBtn('Gold', true),
+      miniChoiceBtn('Silver', false),
+    ]),
+  ]);
+
+  const featureItem = (icon, text) =>
+    h(
+      'div',
+      {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+        fontSize: '13px',
+        fontWeight: 800,
+        color: '#334155',
+      },
+      [h('span', {}, icon), h('span', {}, text)]
+    );
+
+  const gameRows = overview.featuredGames.map((g, idx) =>
+    h(
+      'div',
+      {
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: idx === 0 ? '#e8f1fd' : '#f8fafc',
+        borderRadius: '11px',
+        padding: '0 14px',
+        fontSize: '16px',
+        fontWeight: 700,
+      },
+      [
+        h(
+          'div',
+          {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '9px',
+          },
+          [
+            h('span', { fontSize: '16px' }, getCategoryIcon(g.category)),
+            h(
+              'span',
+              {
+                color: '#1b222c',
+                fontWeight: idx === 0 ? 800 : 700,
+              },
+              truncateText(g.label, 29)
+            ),
+          ]
+        ),
+        g.leaderName
+          ? h(
+              'div',
+              {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              },
+              [
+                h(
+                  'div',
+                  {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    color: '#627084',
+                  },
+                  [
+                    h('span', {}, '🏆'),
+                    h('span', {}, truncateText(g.leaderName, 12)),
+                  ]
+                ),
+                h(
+                  'span',
+                  {
+                    fontSize: '19px',
+                    fontWeight: 900,
+                    color: '#1264e1',
+                    minWidth: '30px',
+                    textAlign: 'right',
+                  },
+                  String(g.topScore)
+                ),
+              ]
+            )
+          : h(
+              'span',
+              { fontSize: '14px', fontWeight: 700, color: '#627084' },
+              'Play Now'
+            ),
+      ]
+    )
+  );
+
+  const rightHeaderBadge =
+    overview.activeGames > 0 && overview.uniquePlayers > 0
+      ? `${overview.activeGames} Games · ${overview.uniquePlayers} Players`
+      : '30+ Leaderboards';
+
+  return h(
+    'div',
+    {
+      width: '1200px',
+      height: '630px',
+      display: 'flex',
+      padding: '32px 42px',
+      backgroundColor: '#eef3f9',
+      fontFamily: 'sans-serif',
+      gap: '28px',
+    },
+    [
+      // Left Column: Brand + Features + 2x2 Category Gameplay Showcase
+      h(
+        'div',
+        {
+          width: '560px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '12px',
+        },
+        [
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            },
+            [
+              h(
+                'span',
+                { fontSize: '36px', fontWeight: 900, color: '#1b222c' },
+                '1-Min Quiz'
+              ),
+              h(
+                'span',
+                {
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  color: '#ffffff',
+                  backgroundColor: '#1264e1',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                },
+                '30+ Games · 60s Sprints'
+              ),
+            ]
+          ),
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#ffffff',
+              border: '1px solid #dbe2ea',
+              borderRadius: '14px',
+              padding: '10px 16px',
+            },
+            [
+              featureItem('⚡', '60s Blitz'),
+              featureItem('▶', 'Replays'),
+              featureItem('⚔️', 'Ghost Races'),
+              featureItem('🏆', 'Global Ranks'),
+            ]
+          ),
+          h(
+            'div',
+            {
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              flex: 1,
+            },
+            [
+              h('div', { display: 'flex', gap: '12px', flex: 1 }, [
+                mathCard,
+                geoCard,
+              ]),
+              h('div', { display: 'flex', gap: '12px', flex: 1 }, [
+                langCard,
+                otherCard,
+              ]),
+            ]
+          ),
+        ]
+      ),
+      // Right Column: Live #1 Champions Across Categories
+      h(
+        'div',
+        {
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#ffffff',
+          border: '1px solid #dbe2ea',
+          borderRadius: '22px',
+          padding: '22px 24px',
+          justifyContent: 'space-between',
+        },
+        [
+          h(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '8px',
+            },
+            [
+              h(
+                'span',
+                { fontSize: '23px', fontWeight: 800, color: '#1b222c' },
+                '#1 Global Leaders'
+              ),
+              h(
+                'span',
+                {
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: '#1264e1',
+                  backgroundColor: '#e8f1fd',
+                  padding: '5px 12px',
+                  borderRadius: '999px',
+                },
+                rightHeaderBadge
+              ),
+            ]
+          ),
+          h(
+            'div',
+            {
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '7px',
+              flex: 1,
+            },
+            gameRows
+          ),
+        ]
+      ),
+    ]
+  );
+}
+
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const replayParam = searchParams.get('replay');
@@ -1738,9 +2364,19 @@ export default async function handler(req) {
     });
   }
 
-  const targetCfgId = configParam || DEFAULT_CONFIG_ID;
-  const top10 = await fetchTop10Leaderboard(targetCfgId);
-  return new ImageResponse(renderLeaderboardCard(top10, targetCfgId), {
+  if (configParam) {
+    const top10 = await fetchTop10Leaderboard(configParam);
+    return new ImageResponse(renderLeaderboardCard(top10, configParam), {
+      width: 1200,
+      height: 630,
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    });
+  }
+
+  const overview = await fetchHomeOverviewStats();
+  return new ImageResponse(renderHomeOverviewCard(overview), {
     width: 1200,
     height: 630,
     headers: {
