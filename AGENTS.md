@@ -15,7 +15,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `geo-maps.js`, `quiz-data.js`, `app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -31,7 +31,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 3. **Android App (Google Play Trusted Web Activity)**:
    - Package ID: `io.github.kssilveira.twa`
    - Digital Asset Links (`/.well-known/assetlinks.json`) are hosted on the root GitHub Pages site (`https://kssilveira.github.io/.well-known/assetlinks.json`).
-   - Android closed-testing links in the footer and install banner are automatically hidden when running inside standalone/TWA mode (`isStandaloneApp()` in `app.js`).
+   - Android closed-testing links in the footer and install banner are automatically hidden when running inside standalone/TWA mode (`isStandaloneApp()` in `js/app.js`).
 
 ---
 
@@ -42,6 +42,9 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
+- `assets/`:
+  - `assets/icons/`: App and PWA icons (`favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`).
+  - `assets/store/`: Google Play Store listing graphics (`feature-graphic.png` and `screenshot-1..4.png`).
 - `data/` (**DO NOT READ OR GREP** unless modifying raw dataset entries):
   - `data/geo-map-data.js`: Defines `GEO_MAP_DATA` (`{ a: encodedArcs, g: countryPolys, v: { [countryName]: [geomIdxs, lon0, lat0, spanY, pinLon, pinLat] } }`), derived from public-domain Natural Earth (`1:50m` + Tuvalu `1:10m`).
   - `data/quiz-datasets.js`: Defines raw quiz datasets:
@@ -52,34 +55,35 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `ENGLISH_IDIOMS`: `[[idiom, meaning], ...]` (200 items)
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
-- `geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
-- `quiz-data.js`: Lightweight (~7 KB) config registry defining `BUILTIN_QUIZ_CONFIGS` with 30 built-in 2-choice quiz configurations:
-  - **🌍 Geography (`12` configs — 193 UN Member States)**:
-    - `cfg_geo_flag_country` (`Flag → Country`)
-    - `cfg_geo_country_flag` (`Country → Flag`)
-    - `cfg_geo_country_capital` (`Country → Capital`)
-    - `cfg_geo_capital_country` (`Capital → Country`)
-    - `cfg_geo_flag_capital` (`Flag → Capital`)
-    - `cfg_geo_capital_flag` (`Capital → Flag`)
-    - `cfg_geo_map_country` (`Map → Country`)
-    - `cfg_geo_country_map` (`Country → Map`)
-    - `cfg_geo_map_flag` (`Map → Flag`)
-    - `cfg_geo_flag_map` (`Flag → Map`)
-    - `cfg_geo_map_capital` (`Map → Capital`)
-    - `cfg_geo_capital_map` (`Capital → Map`)
-  - **💬 Language & Wordplay (`14` configs)**:
-    - `cfg_lang_pt_en`, `cfg_lang_es_en`, `cfg_lang_fr_en`, `cfg_lang_de_en` (`Portuguese/Spanish/French/German → English`, 1,000 most common words each)
-    - `cfg_lang_en_pt`, `cfg_lang_en_es`, `cfg_lang_en_fr`, `cfg_lang_en_de` (`English → Portuguese/Spanish/French/German`, 1,000 most common words each)
-    - `cfg_lang_emoji_en`, `cfg_lang_en_emoji` (`Emoji ↔ English`, 1,000 most used emojis)
-    - `cfg_lang_synonym` (`Word → Synonym`, 300 pairs)
-    - `cfg_lang_antonym` (`Word → Antonym`, 300 pairs)
-    - `cfg_lang_idiom_meaning`, `cfg_lang_meaning_idiom` (`Idiom ↔ Meaning`, 200 idioms & phrasal verbs)
-  - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
-    - `cfg_chem_symbol_name` (`Symbol → Element`)
-    - `cfg_chem_name_symbol` (`Element → Symbol`)
-    - `cfg_other_morse_char` (`Morse → Character`)
-    - `cfg_other_char_morse` (`Character → Morse`)
-- `app.js`: All client-side application logic.
+- `js/`:
+  - `js/geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
+  - `js/quiz-data.js`: Lightweight (~7 KB) config registry defining `BUILTIN_QUIZ_CONFIGS` with 30 built-in 2-choice quiz configurations:
+    - **🌍 Geography (`12` configs — 193 UN Member States)**:
+      - `cfg_geo_flag_country` (`Flag → Country`)
+      - `cfg_geo_country_flag` (`Country → Flag`)
+      - `cfg_geo_country_capital` (`Country → Capital`)
+      - `cfg_geo_capital_country` (`Capital → Country`)
+      - `cfg_geo_flag_capital` (`Flag → Capital`)
+      - `cfg_geo_capital_flag` (`Capital → Flag`)
+      - `cfg_geo_map_country` (`Map → Country`)
+      - `cfg_geo_country_map` (`Country → Map`)
+      - `cfg_geo_map_flag` (`Map → Flag`)
+      - `cfg_geo_flag_map` (`Flag → Map`)
+      - `cfg_geo_map_capital` (`Map → Capital`)
+      - `cfg_geo_capital_map` (`Capital → Map`)
+    - **💬 Language & Wordplay (`14` configs)**:
+      - `cfg_lang_pt_en`, `cfg_lang_es_en`, `cfg_lang_fr_en`, `cfg_lang_de_en` (`Portuguese/Spanish/French/German → English`, 1,000 most common words each)
+      - `cfg_lang_en_pt`, `cfg_lang_en_es`, `cfg_lang_en_fr`, `cfg_lang_en_de` (`English → Portuguese/Spanish/French/German`, 1,000 most common words each)
+      - `cfg_lang_emoji_en`, `cfg_lang_en_emoji` (`Emoji ↔ English`, 1,000 most used emojis)
+      - `cfg_lang_synonym` (`Word → Synonym`, 300 pairs)
+      - `cfg_lang_antonym` (`Word → Antonym`, 300 pairs)
+      - `cfg_lang_idiom_meaning`, `cfg_lang_meaning_idiom` (`Idiom ↔ Meaning`, 200 idioms & phrasal verbs)
+    - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
+      - `cfg_chem_symbol_name` (`Symbol → Element`)
+      - `cfg_chem_name_symbol` (`Element → Symbol`)
+      - `cfg_other_morse_char` (`Morse → Character`)
+      - `cfg_other_char_morse` (`Character → Morse`)
+  - `js/app.js`: All client-side application logic.
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
@@ -120,9 +124,9 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 ## 4. Maintenance Checklist for Future Changes
 
 1. **Adding New Quiz Configs**:
-   - Add raw dataset arrays to `data/quiz-datasets.js` (if needed) and add the config entry to `BUILTIN_QUIZ_CONFIGS` in `quiz-data.js`.
+   - Add raw dataset arrays to `data/quiz-datasets.js` (if needed) and add the config entry to `BUILTIN_QUIZ_CONFIGS` in `js/quiz-data.js`.
    - Add the human-readable label to `QUIZ_CONFIG_LABELS` in both `middleware.js` and `api/og.js`, and add a preview sample to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
 2. **Bumping Service Worker Cache**:
-   - Whenever modifying `index.html`, `style.css`, `data/*`, `geo-maps.js`, `quiz-data.js`, or `app.js`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
+   - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
    - Run `./serve.sh` (defaults to port `8000`, or `./serve.sh <port>`) and open `http://localhost:8000/`.

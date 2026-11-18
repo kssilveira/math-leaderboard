@@ -1,4 +1,4 @@
-const CACHE_NAME = 'math-leaderboard-v36';
+const CACHE_NAME = 'math-leaderboard-v37';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,14 +6,14 @@ const APP_SHELL = [
   './style.css',
   './data/geo-map-data.js',
   './data/quiz-datasets.js',
-  './geo-maps.js',
-  './quiz-data.js',
-  './app.js',
+  './js/geo-maps.js',
+  './js/quiz-data.js',
+  './js/app.js',
   './manifest.json',
-  './favicon.svg',
-  './icon-192.png',
-  './icon-512.png',
-  './apple-touch-icon.png'
+  './assets/icons/favicon.svg',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
+  './assets/icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
