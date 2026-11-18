@@ -2012,26 +2012,31 @@ html, body {
 
 .app-footer {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 4px 0 8px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+#game-view.active ~ .app-footer,
+body.game-landscape .app-footer {
+  display: none !important;
+}
+
+.footer-row {
+  display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 6px;
-  text-align: center;
-  padding: 4px 0 8px;
-  font-size: 0.76rem;
 }
 
 .footer-sep {
   color: var(--text-muted);
   opacity: 0.6;
-}
-
-.footer-android-links {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
 }
 
 @media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
@@ -2045,6 +2050,10 @@ html, body {
 .app-footer a {
   color: var(--text-muted);
   text-decoration: none;
+}
+
+.app-footer .footer-credit a {
+  font-weight: 600;
 }
 
 .app-footer a:hover {
