@@ -702,11 +702,85 @@ html, body {
 /* Buttons */
 .play-actions {
   display: flex;
+  align-items: stretch;
   gap: 8px;
 }
 
 .play-actions > button {
   flex: 1;
+}
+
+.play-actions > .primary-btn,
+.play-actions > .secondary-btn {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.play-actions > .orientation-toggle-btn {
+  flex: 0 0 auto;
+}
+
+.orientation-toggle-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 6px 10px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.orientation-toggle-btn:active {
+  transform: scale(0.96);
+  background: var(--surface-subtle);
+}
+
+.orientation-toggle-btn.active {
+  background: var(--primary-light);
+  border: 2px solid var(--primary);
+  color: var(--primary);
+  padding: 5px 9px;
+}
+
+.orientation-icon {
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.orientation-toggle-btn.active .orientation-icon {
+  transform: rotate(-90deg);
+}
+
+.game-bottom-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.game-bottom-actions > #quit-btn {
+  flex: 1;
+}
+
+.game-orientation-btn {
+  flex-direction: row;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.84rem;
+}
+
+.game-orientation-btn.active {
+  padding: 8px 11px;
 }
 
 .primary-btn {
@@ -1976,4 +2050,276 @@ html, body {
 .app-footer a:hover {
   color: var(--primary);
   text-decoration: underline;
+}
+
+/* Gameplay-Only Landscape Mode (active solely during play for opted-in games) */
+html.game-landscape-lock,
+body.game-landscape {
+  overflow: hidden;
+  height: 100%;
+}
+
+body.game-landscape {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.game-landscape .topbar,
+body.game-landscape .install-hint {
+  display: none !important;
+}
+
+body.game-landscape .app {
+  max-width: 960px;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  max-height: 520px;
+  margin: auto;
+  padding:
+    calc(6px + env(safe-area-inset-top, 0px))
+    calc(14px + env(safe-area-inset-right, 0px))
+    calc(8px + env(safe-area-inset-bottom, 0px))
+    calc(14px + env(safe-area-inset-left, 0px));
+  gap: 6px;
+  overflow: hidden;
+}
+
+/* CSS 90° viewport rotation fallback when OS portrait lock keeps the viewport portrait (e.g. iOS) */
+@media (orientation: portrait) {
+  body.game-landscape.game-css-rotated .app {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 100vh;
+    width: 100dvh;
+    height: 100vw;
+    height: 100dvw;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding:
+      6px
+      calc(14px + env(safe-area-inset-bottom, 0px))
+      8px
+      calc(14px + env(safe-area-inset-top, 0px));
+    transform: translate(-50%, -50%) rotate(90deg);
+    z-index: 50;
+  }
+}
+
+body.game-landscape .game-hud {
+  padding: 5px 10px;
+  border-radius: 10px;
+  gap: 6px;
+  align-items: center;
+}
+
+body.game-landscape .hud-label {
+  font-size: 0.62rem;
+}
+
+body.game-landscape .hud-value {
+  font-size: 1.12rem;
+  line-height: 1.1;
+}
+
+body.game-landscape .hud-subvalue {
+  font-size: 0.98rem;
+  line-height: 1.1;
+}
+
+body.game-landscape .race-hud-bar {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+body.game-landscape .question-last-perf {
+  font-size: 0.7rem;
+  padding: 1px 8px;
+}
+
+body.game-landscape .game-bottom-actions {
+  gap: 6px;
+}
+
+body.game-landscape .game-bottom-actions > #quit-btn {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+body.game-landscape .game-orientation-btn {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+body.game-landscape .game-orientation-btn.active {
+  padding: 5px 9px;
+}
+
+/* Landscape 2-Choice Quiz Layout: Header row + full-width prompt + 2 wide thumb buttons */
+body.game-landscape #game-view.is-quiz-mode {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+body.game-landscape #game-view.is-quiz-mode.is-race-mode {
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
+}
+
+body.game-landscape #game-view.is-quiz-mode .game-hud {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-landscape #game-view.is-quiz-mode .game-bottom-actions {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body.game-landscape #game-view.is-quiz-mode .game-bottom-actions > .game-orientation-btn {
+  order: -1;
+}
+
+body.game-landscape #game-view.is-quiz-mode #race-hud-bar {
+  grid-column: 1 / -1;
+}
+
+body.game-landscape #game-view.is-quiz-mode .equation-wrap {
+  grid-column: 1 / -1;
+  min-height: 0;
+  gap: 3px;
+}
+
+body.game-landscape #game-view.is-quiz-mode .equation-card {
+  flex: 1;
+  min-height: 0;
+  padding: 6px 14px;
+  overflow: hidden;
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-prompt-group {
+  height: 100%;
+  min-height: 0;
+  gap: 2px;
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-prompt-label {
+  font-size: 0.66rem;
+  flex-shrink: 0;
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text {
+  font-size: clamp(1.2rem, 3.4vw, 1.8rem);
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text.is-flag {
+  font-size: clamp(2.3rem, 6.8vw, 3.3rem);
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text.is-map {
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  margin-top: 0;
+}
+
+body.game-landscape .geo-map-prompt {
+  aspect-ratio: 260 / 168;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+body.game-landscape #game-view.is-quiz-mode #quiz-choices {
+  grid-column: 1 / -1;
+  max-height: none;
+  min-height: 0;
+  gap: 10px;
+}
+
+body.game-landscape #game-view.is-quiz-mode .choice-btn {
+  min-height: 0;
+  height: 100%;
+  padding: 8px 14px;
+  font-size: clamp(1.05rem, 2.8vw, 1.35rem);
+  overflow: hidden;
+}
+
+body.game-landscape #game-view.is-quiz-mode .choice-btn.is-flag {
+  font-size: clamp(2.1rem, 6.2vw, 3rem);
+}
+
+body.game-landscape #game-view.is-quiz-mode .choice-btn.is-map {
+  padding: 6px;
+}
+
+body.game-landscape .geo-map-choice {
+  aspect-ratio: 200 / 138;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* Landscape Math Layout: Left column (HUD + Equation + Actions) + Right column (Keypad) */
+body.game-landscape #game-view.is-math-mode {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 46%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+body.game-landscape #game-view.is-math-mode.is-race-mode {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+body.game-landscape #game-view.is-math-mode .game-hud,
+body.game-landscape #game-view.is-math-mode #race-hud-bar,
+body.game-landscape #game-view.is-math-mode .equation-wrap,
+body.game-landscape #game-view.is-math-mode .game-bottom-actions {
+  grid-column: 1;
+}
+
+body.game-landscape #game-view.is-math-mode .equation-wrap {
+  min-height: 0;
+  gap: 3px;
+}
+
+body.game-landscape #game-view.is-math-mode .equation-card {
+  flex: 1;
+  min-height: 0;
+  padding: 10px;
+  font-size: clamp(1.6rem, 4.2vw, 2.25rem);
+}
+
+body.game-landscape #game-view.is-math-mode .eq-item {
+  min-width: 52px;
+  height: 52px;
+  padding: 0 8px;
+}
+
+body.game-landscape #game-view.is-math-mode #keypad {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  max-height: none;
+  height: 100%;
+  min-height: 0;
+  gap: 7px;
+}
+
+body.game-landscape #game-view.is-math-mode .key-btn {
+  min-height: 0;
+  font-size: 1.45rem;
 }

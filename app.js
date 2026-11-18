@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
   overviewExpanded: 'math_overview_expanded_v1',
   configsExpanded: 'math_configs_expanded_v1',
   soundEnabled: 'math_sound_enabled_v1',
-  theme: 'math_theme_v1'
+  theme: 'math_theme_v1',
+  landscapeConfigs: 'math_landscape_configs_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -124,7 +125,9 @@ const userSortNextBtn = document.getElementById('user-sort-next-btn');
 const userPageList = document.getElementById('user-page-list');
 const playBtn = document.getElementById('play-btn');
 const practiceBtn = document.getElementById('practice-btn');
+const landscapeToggleBtn = document.getElementById('landscape-toggle-btn');
 const quitBtn = document.getElementById('quit-btn');
+const gameLandscapeBtn = document.getElementById('game-landscape-btn');
 const lastResult = document.getElementById('last-result');
 const lastScoreLabel = document.getElementById('last-score-label');
 const lastScoreValue = document.getElementById('last-score-value');
@@ -278,6 +281,121 @@ function initTheme() {
     } else if (mq.addListener) {
       mq.addListener(onChange);
     }
+  }
+}
+
+// --- Per-Game Landscape Mode (Active Only During Play) ---
+
+let landscapeCssFallbackTimer = null;
+
+function getLandscapeConfigsMap() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.landscapeConfigs) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function isConfigLandscape(cfgId = activeConfigId) {
+  if (!cfgId) return false;
+  const map = getLandscapeConfigsMap();
+  return Boolean(map[cfgId]);
+}
+
+function setConfigLandscape(cfgId, enabled) {
+  if (!cfgId) return;
+  const map = getLandscapeConfigsMap();
+  if (enabled) {
+    map[cfgId] = true;
+  } else {
+    delete map[cfgId];
+  }
+  try {
+    localStorage.setItem(STORAGE_KEYS.landscapeConfigs, JSON.stringify(map));
+  } catch (_) {}
+}
+
+function updateLandscapeToggleUI() {
+  const enabled = isConfigLandscape(activeConfigId);
+  const titleText = enabled
+    ? 'Landscape mode on for this game (tap to use portrait)'
+    : 'Play this game in landscape mode (off — plays in portrait)';
+  const ariaLabel = enabled
+    ? 'Disable landscape mode for this game'
+    : 'Enable landscape mode for this game';
+
+  [landscapeToggleBtn, gameLandscapeBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.classList.toggle('active', enabled);
+    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    btn.title = titleText;
+    btn.setAttribute('aria-label', ariaLabel);
+  });
+}
+
+function lockPortraitOrientation() {
+  if (!window.screen || !screen.orientation) return;
+  if (typeof screen.orientation.lock === 'function') {
+    screen.orientation.lock('portrait').catch(() => {
+      try {
+        if (typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+      } catch (_) {}
+    });
+  } else if (typeof screen.orientation.unlock === 'function') {
+    try {
+      screen.orientation.unlock();
+    } catch (_) {}
+  }
+}
+
+function applyGameplayOrientation() {
+  if (landscapeCssFallbackTimer) {
+    clearTimeout(landscapeCssFallbackTimer);
+    landscapeCssFallbackTimer = null;
+  }
+
+  const wantLandscape = Boolean(isPlaying && !isReplaying && isConfigLandscape(activeConfigId));
+  if (!wantLandscape) {
+    document.documentElement.classList.remove('game-landscape-lock');
+    document.body.classList.remove('game-landscape', 'game-css-rotated');
+    lockPortraitOrientation();
+    return;
+  }
+
+  document.documentElement.classList.add('game-landscape-lock');
+  document.body.classList.add('game-landscape');
+
+  const canLockNative = Boolean(window.screen && screen.orientation && typeof screen.orientation.lock === 'function');
+  if (canLockNative) {
+    enterAndroidImmersiveFullscreen()
+      .then(() => screen.orientation.lock('landscape'))
+      .catch(() => {
+        if (isPlaying && !isReplaying && isConfigLandscape(activeConfigId)) {
+          document.body.classList.add('game-css-rotated');
+        }
+      });
+    landscapeCssFallbackTimer = setTimeout(() => {
+      landscapeCssFallbackTimer = null;
+      if (isPlaying && !isReplaying && isConfigLandscape(activeConfigId)) {
+        document.body.classList.add('game-css-rotated');
+      }
+    }, 200);
+  } else {
+    document.body.classList.add('game-css-rotated');
+  }
+}
+
+function toggleActiveConfigLandscape() {
+  if (!activeConfigId) return;
+  const nextEnabled = !isConfigLandscape(activeConfigId);
+  setConfigLandscape(activeConfigId, nextEnabled);
+  playKeyClickSound();
+  updateLandscapeToggleUI();
+  if (isPlaying && !isReplaying) {
+    applyGameplayOrientation();
   }
 }
 
@@ -926,6 +1044,8 @@ function renderConfigsUI() {
   } else {
     minusKey.classList.add('hidden');
   }
+
+  updateLandscapeToggleUI();
 }
 
 async function switchCategory(targetCat) {
@@ -3449,11 +3569,12 @@ function triggerCelebration(isNewHigh = false) {
 }
 
 function enterAndroidImmersiveFullscreen() {
-  if (!/Android/i.test(navigator.userAgent)) return;
+  if (!/Android/i.test(navigator.userAgent)) return Promise.resolve();
   const docEl = document.documentElement;
   if (!document.fullscreenElement && docEl.requestFullscreen) {
-    docEl.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    return docEl.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
   }
+  return Promise.resolve();
 }
 
 function startGame(practice = false, raceTargetSession = null) {
@@ -3511,12 +3632,18 @@ function startGame(practice = false, raceTargetSession = null) {
     quizChoicesEl.classList.remove('replay-compact');
     quizChoicesEl.classList.toggle('hidden', !isQuiz);
   }
+  gameView.classList.toggle('is-quiz-mode', isQuiz);
+  gameView.classList.toggle('is-math-mode', !isQuiz);
+  gameView.classList.toggle('is-race-mode', isRaceMode);
+  if (gameLandscapeBtn) gameLandscapeBtn.classList.remove('hidden');
   quitBtn.textContent = isRaceMode ? 'End Race' : isPracticeMode ? 'End Practice' : 'End Game';
   deleteUserBtn.classList.add('hidden');
   updateInstallBtnVisibility();
   if (userView) userView.classList.remove('active');
   homeView.classList.remove('active');
   gameView.classList.add('active');
+  updateLandscapeToggleUI();
+  applyGameplayOrientation();
 
   updateHud();
   nextQuestion();
@@ -3577,7 +3704,9 @@ async function finishGame(saveScore) {
 
   deleteUserBtn.classList.remove('hidden');
   updateInstallBtnVisibility();
-  gameView.classList.remove('active');
+  if (gameLandscapeBtn) gameLandscapeBtn.classList.add('hidden');
+  gameView.classList.remove('active', 'is-quiz-mode', 'is-math-mode', 'is-race-mode');
+  applyGameplayOrientation();
   homeView.classList.add('active');
 
   if (saveScore) {
@@ -4437,6 +4566,9 @@ function startReplay(session) {
   }
   if (replayPauseBtn) replayPauseBtn.textContent = '⏸ Pause';
   if (replaySpeedBtn) replaySpeedBtn.textContent = `${replaySpeed}× Speed`;
+  if (gameLandscapeBtn) gameLandscapeBtn.classList.add('hidden');
+  gameView.classList.remove('is-quiz-mode', 'is-math-mode', 'is-race-mode');
+  applyGameplayOrientation();
   quitBtn.textContent = 'Exit Replay';
 
   deleteUserBtn.classList.add('hidden');
@@ -4581,6 +4713,12 @@ if (replayPlayBtn) {
 }
 if (practiceBtn) {
   practiceBtn.addEventListener('click', () => startGame(true));
+}
+if (landscapeToggleBtn) {
+  landscapeToggleBtn.addEventListener('click', toggleActiveConfigLandscape);
+}
+if (gameLandscapeBtn) {
+  gameLandscapeBtn.addEventListener('click', toggleActiveConfigLandscape);
 }
 quitBtn.addEventListener('click', () => {
   if (isReplaying) {
@@ -4865,7 +5003,11 @@ window.addEventListener('keydown', (e) => {
 // On Android, hide the bottom system navigation bar on tap (unless focusing a text/number input)
 document.addEventListener('click', (e) => {
   if (e.target && e.target.closest('input')) return;
-  enterAndroidImmersiveFullscreen();
+  enterAndroidImmersiveFullscreen().then(() => {
+    if (!isPlaying || isReplaying || !isConfigLandscape(activeConfigId)) {
+      lockPortraitOrientation();
+    }
+  });
 });
 
 // --- PWA Install Prompt ---
