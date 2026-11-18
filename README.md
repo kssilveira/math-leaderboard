@@ -1,6 +1,6 @@
-# 1-Minute Quiz (Math, Geography & Language)
+# 1-Minute Quiz (Math, Geography, Language & Other)
 
-Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), and **Language** (1,000 most common words in Portuguese, Spanish, French, and German) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
 - **Android App (Google Play Closed Testing)**:
@@ -9,7 +9,11 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   3. **Join on the Web**: **https://play.google.com/apps/testing/io.github.kssilveira.twa**
 - **Share URL** (live Open Graph previews + redirect to GitHub Pages): **https://math-leaderboard.vercel.app/**
 
-  [![Root OG Image](https://math-leaderboard.vercel.app/api/og)](https://math-leaderboard.vercel.app)
+  [![Root OG Image](https://math-leaderboard.vercel.app/api/og?v=2)](https://math-leaderboard.vercel.app)
+
+- **Example Game Leaderboard (`+ − (0..10, 0..10, 0..20)`)**: click on the image below
+
+  [![Main Config OG Image](https://math-leaderboard.vercel.app/api/og?config=cfg_add-sub_0_10_0_10_0_20)](https://math-leaderboard.vercel.app/?config=cfg_add-sub_0_10_0_10_0_20)
 
 - **Example Replay (`kaue: 60`)**: click on the image below
 
@@ -74,7 +78,7 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   - Each game configuration has its own paginated global leaderboard in Firebase Realtime Database using standard competition ranking (tied scores share the same rank), with a pinned current-user row, `🎯 My Rank` page jump, and exact points needed to tie/pass the next rank up.
   - **Player Profile Pages (`?user=<userId>&u=<username>`)**: Click any player's name on the leaderboard (or `👤 Page`) to open their full-screen Player Profile showing their performances across all games sorted by **🏆 By Rank**, **📈 By Score**, or **🎯 Play Next**, with direct links to each game config and `▶` replay buttons.
   - **Shareable Game Configs (`?config=<configId>`)**: Click `🔗` in the Leaderboard header to share a direct link to any game configuration's leaderboard.
-  - `api/og.js` and `middleware.js` on Vercel serve dynamic `1200 × 630` Open Graph preview images for live config leaderboards (`/api/og?config=...`), player profile pages (`/api/og?user=...`), solo replays, and head-to-head Ghost Race replays while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
+  - `api/og.js` and `middleware.js` on Vercel serve dynamic `1200 × 630` Open Graph preview images for the multi-category home overview (`/api/og`), live config leaderboards (`/api/og?config=...`), player profile pages (`/api/og?user=...`), solo replays, and head-to-head Ghost Race replays while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
 - **Installable Phone App (PWA)**:
   - Includes a Web App Manifest (`manifest.json`), home-screen icons, safe-area inset padding, Android immersive fullscreen, a header `📲` install button, and an offline-capable Service Worker (`sw.js`).
   - **iPhone / iPad (Safari)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap `📲` (or **Share** → **Add to Home Screen**).
