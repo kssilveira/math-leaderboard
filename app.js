@@ -74,7 +74,7 @@ let userPageSortMode = 'rank'; // 'rank' | 'score' | 'next'
 let viewedUserId = null;
 let viewedUsername = '';
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
-let isOverviewExpanded = localStorage.getItem(STORAGE_KEYS.overviewExpanded) === '1';
+let isOverviewExpanded = localStorage.getItem(STORAGE_KEYS.overviewExpanded) !== '0';
 let isConfigsExpanded = localStorage.getItem(STORAGE_KEYS.configsExpanded) === '1';
 let isSoundEnabled = localStorage.getItem(STORAGE_KEYS.soundEnabled) !== '0';
 let currentStreak = 0;
