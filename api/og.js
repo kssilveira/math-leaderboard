@@ -2347,7 +2347,7 @@ export default async function handler(req) {
         width: 1200,
         height: 630,
         headers: {
-          'Cache-Control': 'public, max-age=31536000, immutable',
+          'cache-control': 'public, max-age=31536000, immutable',
         },
       });
     }
@@ -2359,7 +2359,7 @@ export default async function handler(req) {
       width: 1200,
       height: 630,
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'cache-control': 'public, s-maxage=60, stale-while-revalidate=300',
       },
     });
   }
@@ -2370,7 +2370,7 @@ export default async function handler(req) {
       width: 1200,
       height: 630,
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'cache-control': 'public, s-maxage=60, stale-while-revalidate=300',
       },
     });
   }
@@ -2380,7 +2380,7 @@ export default async function handler(req) {
     width: 1200,
     height: 630,
     headers: {
-      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      'cache-control': 'public, s-maxage=60, stale-while-revalidate=300',
     },
   });
 }
