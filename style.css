@@ -2034,6 +2034,12 @@ body.game-landscape .app-footer {
   gap: 6px;
 }
 
+.footer-android-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .footer-sep {
   color: var(--text-muted);
   opacity: 0.6;
