@@ -125,6 +125,12 @@
         </div>
       </div>
 
+      <!-- Sub-Game Set Switcher (All + 4 Mini Parts for Quiz Games) -->
+      <div id="part-switcher-row" class="switcher-row part-switcher-row hidden" aria-label="Game Set">
+        <span class="switcher-label">Set</span>
+        <div id="part-list" class="pill-list" role="tablist"></div>
+      </div>
+
       <!-- New Game Creation Panel (shown only when adding a new game) -->
       <section id="new-config-panel" class="config-card hidden" aria-label="Create New Game">
         <div class="config-controls">
@@ -215,6 +221,15 @@
         </button>
 
         <div id="overview-body" class="review-body">
+          <div class="scope-tabs" role="tablist" aria-label="Filter full or mini games">
+            <button type="button" id="overview-scope-full-btn" class="pill-btn scope-pill active" role="tab" aria-selected="true">
+              Full Games
+            </button>
+            <button type="button" id="overview-scope-mini-btn" class="pill-btn scope-pill" role="tab" aria-selected="false">
+              Mini Games (4×)
+            </button>
+          </div>
+
           <div class="review-tabs" role="tablist" aria-label="Sort all games">
             <button type="button" id="overview-sort-next-btn" class="pill-btn active" role="tab" aria-selected="true">
               🎯 Play Next
@@ -321,6 +336,15 @@
         <div class="leaderboard-header">
           <h2 id="user-page-heading">Performances Across Games</h2>
           <span id="user-page-count-badge" class="badge">0 games</span>
+        </div>
+
+        <div class="scope-tabs" role="tablist" aria-label="Filter full or mini games">
+          <button type="button" id="user-scope-full-btn" class="pill-btn scope-pill active" role="tab" aria-selected="true">
+            Full Games
+          </button>
+          <button type="button" id="user-scope-mini-btn" class="pill-btn scope-pill" role="tab" aria-selected="false">
+            Mini Games (4×)
+          </button>
         </div>
 
         <div class="review-tabs" role="tablist" aria-label="Sort user performances">

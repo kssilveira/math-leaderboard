@@ -14,7 +14,8 @@ const STORAGE_KEYS = {
   configsExpanded: 'math_configs_expanded_v1',
   soundEnabled: 'math_sound_enabled_v1',
   theme: 'math_theme_v1',
-  landscapeConfigs: 'math_landscape_configs_v1'
+  landscapeConfigs: 'math_landscape_configs_v1',
+  overviewScope: 'math_overview_scope_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -70,7 +71,9 @@ let currentQuestionRecord = null;
 let currentGameQuestions = [];
 let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
 let overviewSortMode = 'next'; // 'next' | 'rank' | 'score'
+let overviewScope = localStorage.getItem(STORAGE_KEYS.overviewScope) === 'mini' ? 'mini' : 'full';
 let userPageSortMode = 'rank'; // 'rank' | 'score' | 'next'
+let userPageScope = 'full';
 let viewedUserId = null;
 let viewedUsername = '';
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
@@ -92,6 +95,8 @@ const categoryListEl = document.getElementById('category-list');
 const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll('[data-category]')) : [];
 const gameSwitcherRow = document.getElementById('game-switcher-row');
 const configListEl = document.getElementById('config-list');
+const partSwitcherRow = document.getElementById('part-switcher-row');
+const partListEl = document.getElementById('part-list');
 const expandConfigsBtn = document.getElementById('expand-configs-btn');
 const addConfigBtn = document.getElementById('add-config-btn');
 const newConfigPanel = document.getElementById('new-config-panel');
@@ -122,6 +127,8 @@ const shareUserPageBtn = document.getElementById('share-user-page-btn');
 const userSortRankBtn = document.getElementById('user-sort-rank-btn');
 const userSortScoreBtn = document.getElementById('user-sort-score-btn');
 const userSortNextBtn = document.getElementById('user-sort-next-btn');
+const userScopeFullBtn = document.getElementById('user-scope-full-btn');
+const userScopeMiniBtn = document.getElementById('user-scope-mini-btn');
 const userPageList = document.getElementById('user-page-list');
 const playBtn = document.getElementById('play-btn');
 const practiceBtn = document.getElementById('practice-btn');
@@ -156,6 +163,8 @@ const overviewSummaryBadge = document.getElementById('overview-summary-badge');
 const overviewSortNextBtn = document.getElementById('overview-sort-next-btn');
 const overviewSortRankBtn = document.getElementById('overview-sort-rank-btn');
 const overviewSortScoreBtn = document.getElementById('overview-sort-score-btn');
+const overviewScopeFullBtn = document.getElementById('overview-scope-full-btn');
+const overviewScopeMiniBtn = document.getElementById('overview-scope-mini-btn');
 const overviewList = document.getElementById('overview-list');
 const reviewCard = document.getElementById('review-card');
 const reviewToggleBtn = document.getElementById('review-toggle-btn');
@@ -297,19 +306,27 @@ function getLandscapeConfigsMap() {
   }
 }
 
+function getLandscapeStorageKey(cfgId = activeConfigId) {
+  if (!cfgId) return '';
+  const cfg = getConfigById(cfgId);
+  return cfg && cfg.parentId ? cfg.parentId : cfgId;
+}
+
 function isConfigLandscape(cfgId = activeConfigId) {
-  if (!cfgId) return false;
+  const key = getLandscapeStorageKey(cfgId);
+  if (!key) return false;
   const map = getLandscapeConfigsMap();
-  return Boolean(map[cfgId]);
+  return Boolean(map[key]);
 }
 
 function setConfigLandscape(cfgId, enabled) {
-  if (!cfgId) return;
+  const key = getLandscapeStorageKey(cfgId);
+  if (!key) return;
   const map = getLandscapeConfigsMap();
   if (enabled) {
-    map[cfgId] = true;
+    map[key] = true;
   } else {
-    delete map[cfgId];
+    delete map[key];
   }
   try {
     localStorage.setItem(STORAGE_KEYS.landscapeConfigs, JSON.stringify(map));
@@ -898,9 +915,38 @@ function getUserConfigPerformance(targetUserId, cfgId) {
 
 const CATEGORY_DEFAULT_ORDER = ['math', 'geo', 'lang', 'other'];
 
+function isMiniConfig(cfg) {
+  return Boolean(cfg && (cfg.isMini || cfg.parentId));
+}
+
+function getBaseConfig(cfg) {
+  if (!cfg) return null;
+  return cfg.parentId ? (getConfigById(cfg.parentId) || cfg) : cfg;
+}
+
+function getPartConfigsForBase(baseConfigId) {
+  if (!baseConfigId) return [];
+  return configs
+    .filter(c => c.parentId === baseConfigId)
+    .sort((a, b) => (a.partIndex || 0) - (b.partIndex || 0));
+}
+
 function getLeaderboardSize(configId) {
   const board = leaderboardsMap[configId];
   return board ? Object.keys(board).length : 0;
+}
+
+function getConfigFamilyLeaderboardSize(cfg) {
+  if (!cfg) return 0;
+  let total = getLeaderboardSize(cfg.id);
+  if (!isMiniConfig(cfg)) {
+    for (const c of configs) {
+      if (c.parentId === cfg.id) {
+        total += getLeaderboardSize(c.id);
+      }
+    }
+  }
+  return total;
 }
 
 function getCategoryMaxLeaderboardSize(cat) {
@@ -934,6 +980,8 @@ function compareCategoriesByPopularity(catA, catB) {
 }
 
 function compareConfigsByPopularity(a, b) {
+  const familyDiff = getConfigFamilyLeaderboardSize(b) - getConfigFamilyLeaderboardSize(a);
+  if (familyDiff !== 0) return familyDiff;
   const sizeDiff = getLeaderboardSize(b.id) - getLeaderboardSize(a.id);
   if (sizeDiff !== 0) return sizeDiff;
   const catDiff = compareCategoriesByPopularity(getConfigCategory(a), getConfigCategory(b));
@@ -954,13 +1002,33 @@ function getConfigsForCategory(cat) {
   return filtered.sort(compareConfigsByPopularity);
 }
 
+function getBaseConfigsForCategory(cat) {
+  const filtered = configs.filter(c => getConfigCategory(c) === cat && !isMiniConfig(c));
+  return filtered.sort(compareConfigsByPopularity);
+}
+
 function getActiveConfig() {
   return configs.find(c => c.id === activeConfigId) || configs[0];
+}
+
+function appendPillPerfMeta(btn, cfgId) {
+  const perf = getUserConfigPerformance(userId, cfgId);
+  if (perf.rank !== null || perf.bestScore !== null) {
+    const meta = document.createElement('span');
+    meta.className = 'pill-meta';
+    if (perf.rank !== null) {
+      meta.textContent = ` · #${perf.rank} (${perf.bestScore})`;
+    } else {
+      meta.textContent = ` · (${perf.bestScore})`;
+    }
+    btn.appendChild(meta);
+  }
 }
 
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
   if (!activeCfg) return;
+  const activeBaseCfg = getBaseConfig(activeCfg) || activeCfg;
   activeCategory = getConfigCategory(activeCfg);
   localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
 
@@ -991,7 +1059,7 @@ function renderConfigsUI() {
   }
 
   configListEl.innerHTML = '';
-  const categoryConfigs = getConfigsForCategory(activeCategory);
+  const categoryConfigs = getBaseConfigsForCategory(activeCategory);
   const canExpand = categoryConfigs.length > 2;
 
   if (gameSwitcherRow) {
@@ -1004,36 +1072,53 @@ function renderConfigsUI() {
   }
 
   const orderedConfigs =
-    !isConfigsExpanded && categoryConfigs.some(c => c.id === activeCfg.id)
-      ? [activeCfg, ...categoryConfigs.filter(c => c.id !== activeCfg.id)]
+    !isConfigsExpanded && categoryConfigs.some(c => c.id === activeBaseCfg.id)
+      ? [activeBaseCfg, ...categoryConfigs.filter(c => c.id !== activeBaseCfg.id)]
       : categoryConfigs;
 
   orderedConfigs.forEach((cfg) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'pill-btn' + (cfg.id === activeCfg.id ? ' active' : '');
+    const isBaseActive = cfg.id === activeBaseCfg.id;
+    btn.className = 'pill-btn' + (isBaseActive ? ' active' : '');
     const labelText = document.createTextNode(formatConfigLabel(cfg));
     btn.appendChild(labelText);
-
-    const perf = getUserConfigPerformance(userId, cfg.id);
-    if (perf.rank !== null || perf.bestScore !== null) {
-      const meta = document.createElement('span');
-      meta.className = 'pill-meta';
-      if (perf.rank !== null) {
-        meta.textContent = ` · #${perf.rank} (${perf.bestScore})`;
-      } else {
-        meta.textContent = ` · (${perf.bestScore})`;
-      }
-      btn.appendChild(meta);
-    }
+    appendPillPerfMeta(btn, cfg.id);
 
     btn.setAttribute('role', 'tab');
-    btn.setAttribute('aria-selected', cfg.id === activeCfg.id ? 'true' : 'false');
+    btn.setAttribute('aria-selected', isBaseActive ? 'true' : 'false');
     btn.addEventListener('click', () => switchConfig(cfg.id));
     configListEl.appendChild(btn);
   });
   if (!isConfigsExpanded) {
     configListEl.scrollLeft = 0;
+  }
+
+  if (partSwitcherRow && partListEl) {
+    const parts = getPartConfigsForBase(activeBaseCfg.id);
+    if (parts.length === 0) {
+      partSwitcherRow.classList.add('hidden');
+      partListEl.innerHTML = '';
+    } else {
+      partSwitcherRow.classList.remove('hidden');
+      partListEl.innerHTML = '';
+      const setOptions = [
+        { id: activeBaseCfg.id, label: 'All' },
+        ...parts.map(p => ({ id: p.id, label: p.partLabel || `Part ${p.partIndex}` }))
+      ];
+      setOptions.forEach((opt) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isSetActive = opt.id === activeCfg.id;
+        btn.className = 'pill-btn' + (isSetActive ? ' active' : '');
+        btn.appendChild(document.createTextNode(opt.label));
+        appendPillPerfMeta(btn, opt.id);
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', isSetActive ? 'true' : 'false');
+        btn.addEventListener('click', () => switchConfig(opt.id));
+        partListEl.appendChild(btn);
+      });
+    }
   }
 
   leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
@@ -1056,7 +1141,7 @@ async function switchCategory(targetCat) {
   closeNewConfigPanel();
   lastResult.classList.add('hidden');
 
-  const catConfigs = getConfigsForCategory(targetCat);
+  const catConfigs = getBaseConfigsForCategory(targetCat);
   const currentCfg = getActiveConfig();
   if ((!currentCfg || getConfigCategory(currentCfg) !== targetCat) && catConfigs.length > 0) {
     activeConfigId = catConfigs[0].id;
@@ -1328,7 +1413,7 @@ async function syncFromFirebase() {
     });
     sortConfigsByLeaderboardSize();
 
-    const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
+    const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
     activeConfigId = activeCfg.id;
     activeCategory = getConfigCategory(activeCfg);
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
@@ -2066,6 +2151,22 @@ function renderUserPage() {
     perf: getUserConfigPerformance(viewedUserId, cfg.id)
   }));
 
+  const fullItems = allItems.filter(it => !isMiniConfig(it.cfg));
+  const miniItems = allItems.filter(it => isMiniConfig(it.cfg));
+  const fullPlayedCount = fullItems.filter(it => it.perf.bestScore !== null).length;
+  const miniPlayedCount = miniItems.filter(it => it.perf.bestScore !== null).length;
+
+  if (userScopeFullBtn) {
+    userScopeFullBtn.classList.toggle('active', userPageScope === 'full');
+    userScopeFullBtn.setAttribute('aria-selected', userPageScope === 'full' ? 'true' : 'false');
+    userScopeFullBtn.textContent = `Full (${fullPlayedCount}/${fullItems.length})`;
+  }
+  if (userScopeMiniBtn) {
+    userScopeMiniBtn.classList.toggle('active', userPageScope === 'mini');
+    userScopeMiniBtn.setAttribute('aria-selected', userPageScope === 'mini' ? 'true' : 'false');
+    userScopeMiniBtn.textContent = `Mini (${miniPlayedCount}/${miniItems.length})`;
+  }
+
   const playedItems = allItems.filter(it => it.perf.bestScore !== null);
   const firstCount = playedItems.filter(it => it.perf.rank === 1).length;
   const bestRank = playedItems.reduce(
@@ -2084,11 +2185,14 @@ function renderUserPage() {
         ? `${playedItems.length} games played · ${firstCount} × 🏆 #1 · ${rankStr} · Top score: ${topScore}`
         : 'No games recorded yet';
   }
+
+  const scopedItems = userPageScope === 'mini' ? miniItems : fullItems;
+  const scopedPlayedCount = userPageScope === 'mini' ? miniPlayedCount : fullPlayedCount;
   if (userPageCountBadge) {
-    userPageCountBadge.textContent = `${playedItems.length} / ${allItems.length} games`;
+    userPageCountBadge.textContent = `${scopedPlayedCount} / ${scopedItems.length} games`;
   }
 
-  const itemsToShow = [...allItems];
+  const itemsToShow = [...scopedItems];
   itemsToShow.sort((a, b) => {
     const pa = a.perf;
     const pb = b.perf;
@@ -2238,11 +2342,29 @@ function renderOverview() {
     overviewSortScoreBtn.setAttribute('aria-selected', overviewSortMode === 'score' ? 'true' : 'false');
   }
 
-  const items = configs.map((cfg) => ({
+  const allOverviewItems = configs.map((cfg) => ({
     cfg,
     cat: getConfigCategory(cfg),
     perf: getUserConfigPerformance(userId, cfg.id)
   }));
+
+  const fullOverviewItems = allOverviewItems.filter(it => !isMiniConfig(it.cfg));
+  const miniOverviewItems = allOverviewItems.filter(it => isMiniConfig(it.cfg));
+  const fullPlayedCount = fullOverviewItems.filter(it => it.perf.bestScore !== null).length;
+  const miniPlayedCount = miniOverviewItems.filter(it => it.perf.bestScore !== null).length;
+
+  if (overviewScopeFullBtn) {
+    overviewScopeFullBtn.classList.toggle('active', overviewScope === 'full');
+    overviewScopeFullBtn.setAttribute('aria-selected', overviewScope === 'full' ? 'true' : 'false');
+    overviewScopeFullBtn.textContent = `Full (${fullPlayedCount}/${fullOverviewItems.length})`;
+  }
+  if (overviewScopeMiniBtn) {
+    overviewScopeMiniBtn.classList.toggle('active', overviewScope === 'mini');
+    overviewScopeMiniBtn.setAttribute('aria-selected', overviewScope === 'mini' ? 'true' : 'false');
+    overviewScopeMiniBtn.textContent = `Mini (${miniPlayedCount}/${miniOverviewItems.length})`;
+  }
+
+  const items = overviewScope === 'mini' ? miniOverviewItems : fullOverviewItems;
 
   const playedCount = items.filter(it => it.perf.bestScore !== null).length;
   const firstPlaceCount = items.filter(it => it.perf.rank === 1).length;
@@ -4893,11 +5015,41 @@ if (userSortNextBtn) {
   });
 }
 
+if (userScopeFullBtn) {
+  userScopeFullBtn.addEventListener('click', () => {
+    userPageScope = 'full';
+    renderUserPage();
+  });
+}
+
+if (userScopeMiniBtn) {
+  userScopeMiniBtn.addEventListener('click', () => {
+    userPageScope = 'mini';
+    renderUserPage();
+  });
+}
+
 if (overviewToggleBtn) {
   overviewToggleBtn.addEventListener('click', () => {
     isOverviewExpanded = !isOverviewExpanded;
     localStorage.setItem(STORAGE_KEYS.overviewExpanded, isOverviewExpanded ? '1' : '0');
     updateOverviewCollapseUI();
+  });
+}
+
+if (overviewScopeFullBtn) {
+  overviewScopeFullBtn.addEventListener('click', () => {
+    overviewScope = 'full';
+    localStorage.setItem(STORAGE_KEYS.overviewScope, overviewScope);
+    renderOverview();
+  });
+}
+
+if (overviewScopeMiniBtn) {
+  overviewScopeMiniBtn.addEventListener('click', () => {
+    overviewScope = 'mini';
+    localStorage.setItem(STORAGE_KEYS.overviewScope, overviewScope);
+    renderOverview();
   });
 }
 
@@ -5120,7 +5272,7 @@ function initConfigs() {
   configs = Array.from(byId.values());
   const urlConfigParam = new URLSearchParams(window.location.search).get('config');
   const savedConfigId = urlConfigParam || localStorage.getItem(STORAGE_KEYS.activeConfigId);
-  const activeCfg = configs.find(c => c.id === savedConfigId) || configs[0];
+  const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
   activeConfigId = activeCfg.id;
   activeCategory = getConfigCategory(activeCfg);
 

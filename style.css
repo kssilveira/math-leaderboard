@@ -325,6 +325,11 @@ html, body {
   flex-shrink: 0;
 }
 
+.part-switcher-row .pill-btn {
+  padding: 4px 10px;
+  font-size: 0.77rem;
+}
+
 .expand-pill-btn {
   border-style: solid;
   background: var(--surface);
@@ -1217,6 +1222,19 @@ html, body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.scope-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.scope-pill {
+  flex: 1;
+  text-align: center;
+  padding: 4px 10px;
+  font-size: 0.78rem;
 }
 
 .review-list {

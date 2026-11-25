@@ -62,7 +62,35 @@ const QUIZ_CONFIG_LABELS = {
   cfg_other_char_morse: 'Character → Morse',
 };
 
+function getMiniPartLabel(baseId, partNum) {
+  if (baseId.startsWith('cfg_geo_')) {
+    return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
+  }
+  if (baseId === 'cfg_lang_synonym' || baseId === 'cfg_lang_antonym') {
+    return ['1–75', '76–150', '151–225', '226–300'][partNum - 1] || `Part ${partNum}`;
+  }
+  if (baseId === 'cfg_lang_idiom_meaning' || baseId === 'cfg_lang_meaning_idiom') {
+    return ['1–50', '51–100', '101–150', '151–200'][partNum - 1] || `Part ${partNum}`;
+  }
+  if (baseId.startsWith('cfg_lang_')) {
+    return ['1–250', '251–500', '501–750', '751–1000'][partNum - 1] || `Part ${partNum}`;
+  }
+  if (baseId.startsWith('cfg_chem_')) {
+    return ['1–30', '31–56', '57–88', '89–118'][partNum - 1] || `Part ${partNum}`;
+  }
+  if (baseId.includes('morse')) {
+    return ['1–2 Signals', '3 Signals', '4 Signals', '5 Signals'][partNum - 1] || `Part ${partNum}`;
+  }
+  return `Part ${partNum}`;
+}
+
 function formatConfigId(configId) {
+  if (typeof configId === 'string') {
+    const miniMatch = configId.match(/^(.+)_p([1-4])$/);
+    if (miniMatch && QUIZ_CONFIG_LABELS[miniMatch[1]]) {
+      return `${QUIZ_CONFIG_LABELS[miniMatch[1]]} · ${getMiniPartLabel(miniMatch[1], Number(miniMatch[2]))}`;
+    }
+  }
   if (configId && QUIZ_CONFIG_LABELS[configId]) {
     return QUIZ_CONFIG_LABELS[configId];
   }
@@ -1296,7 +1324,8 @@ function renderUserProfileCard(profile) {
 function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
   const safeCfgId = configId || DEFAULT_CONFIG_ID;
   const cfgLabel = formatConfigId(safeCfgId);
-  const quizSample = QUIZ_PREVIEW_SAMPLES[safeCfgId] || null;
+  const baseSampleId = safeCfgId.replace(/_p[1-4]$/, '');
+  const quizSample = QUIZ_PREVIEW_SAMPLES[safeCfgId] || QUIZ_PREVIEW_SAMPLES[baseSampleId] || null;
   const rows =
     top10.length > 0
       ? top10.map((item, idx) =>
@@ -1795,6 +1824,7 @@ async function fetchHomeOverviewStats() {
         playerCount: entries.length,
         leaderName: String(entries[0].username || 'Player'),
         topScore: entries[0].score,
+        isFullGame: !/_p[1-4]$/.test(cfgId),
         isStandardMath: cat !== 'math' || isStandardMathShowcaseConfig(cfgId),
       });
     });
@@ -1807,6 +1837,9 @@ async function fetchHomeOverviewStats() {
     const categories = ['math', 'geo', 'lang', 'other'];
     categories.forEach((cat) => {
       byCategory[cat].sort((a, b) => {
+        if (a.isFullGame !== b.isFullGame) {
+          return a.isFullGame ? -1 : 1;
+        }
         if (a.isStandardMath !== b.isStandardMath) {
           return a.isStandardMath ? -1 : 1;
         }
