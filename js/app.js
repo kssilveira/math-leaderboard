@@ -98,6 +98,11 @@ let gameStartTime = 0;
 let questionStartTime = 0;
 let currentQuestionRecord = null;
 let currentGameQuestions = [];
+const PRACTICE_REPEAT_COOLDOWN = 5;
+let currentGameQuizDeck = [];
+let currentGameQuizDeckConfigId = '';
+let currentGameSeenKeys = new Set();
+let currentGameRecentKeys = [];
 let reviewSortMode = 'improve'; // 'improve' | 'order' | 'practice'
 let overviewSortMode = 'next'; // 'next' | 'rank' | 'score'
 let overviewScope = localStorage.getItem(STORAGE_KEYS.overviewScope) === 'mini' ? 'mini' : 'full';
@@ -3622,6 +3627,39 @@ function buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, lastPerf = n
   };
 }
 
+function drawNextQuizIndex(cfg) {
+  const n = cfg.items.length;
+  if (currentGameQuizDeckConfigId !== cfg.id || currentGameQuizDeck.length === 0) {
+    let unseen = [];
+    for (let i = 0; i < n; i++) {
+      if (!currentGameSeenKeys.has(`quiz_${i}`)) {
+        unseen.push(i);
+      }
+    }
+    if (unseen.length === 0) {
+      currentGameSeenKeys.clear();
+      unseen = Array.from({ length: n }, (_, i) => i);
+    }
+    for (let i = unseen.length - 1; i > 0; i--) {
+      const j = randomInt(0, i);
+      const tmp = unseen[i];
+      unseen[i] = unseen[j];
+      unseen[j] = tmp;
+    }
+    if (unseen.length > 1 && currentQuestion && `quiz_${unseen[unseen.length - 1]}` === currentQuestion.key) {
+      const swapIdx = randomInt(0, unseen.length - 2);
+      const tmp = unseen[unseen.length - 1];
+      unseen[unseen.length - 1] = unseen[swapIdx];
+      unseen[swapIdx] = tmp;
+    }
+    currentGameQuizDeck = unseen;
+    currentGameQuizDeckConfigId = cfg.id;
+  }
+  const qIdx = currentGameQuizDeck.pop();
+  currentGameSeenKeys.add(`quiz_${qIdx}`);
+  return qIdx;
+}
+
 function generateRandomQuestion() {
   const cfg = getActiveConfig();
   if (!cfg) return null;
@@ -3630,39 +3668,31 @@ function generateRandomQuestion() {
     const items = Array.isArray(cfg.items) ? cfg.items : [];
     if (items.length < 2) return null;
     const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
-    let candidate = null;
-    for (let attempt = 0; attempt < 25; attempt++) {
-      const qIdx = randomInt(0, items.length - 1);
-      const key = `quiz_${qIdx}`;
-      if (!currentQuestion || key !== currentQuestion.key || attempt === 24) {
-        const dIdx = sampleQuizDistractorIndex(items, qIdx);
-        const choiceOrder = randomInt(0, 1);
-        candidate = buildQuizQuestionFromIndices(
-          cfg,
-          qIdx,
-          dIdx,
-          choiceOrder,
-          bucket[key] ? { ...bucket[key] } : null
-        );
-        break;
-      }
-    }
-    return candidate;
+    const qIdx = drawNextQuizIndex(cfg);
+    const key = `quiz_${qIdx}`;
+    const dIdx = sampleQuizDistractorIndex(items, qIdx);
+    const choiceOrder = randomInt(0, 1);
+    return buildQuizQuestionFromIndices(
+      cfg,
+      qIdx,
+      dIdx,
+      choiceOrder,
+      bucket[key] ? { ...bucket[key] } : null
+    );
   }
 
   const samplers = getValidSamplers(cfg);
   if (samplers.length === 0) return null;
 
   const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
-  let candidate = null;
-  for (let attempt = 0; attempt < 25; attempt++) {
+  const sampleMathCandidate = () => {
     const sampleFn = samplers[randomInt(0, samplers.length - 1)];
     const { a, b, c, op } = sampleFn();
     const nums = [a, b, c];
     const validIndices = getValidMissingIndices(a, op, b, c);
     const missingIndex = validIndices[randomInt(0, validIndices.length - 1)];
     const key = `${a}${op}${b}=${c}?${missingIndex}`;
-    candidate = {
+    return {
       nums,
       op,
       missingIndex,
@@ -3670,9 +3700,34 @@ function generateRandomQuestion() {
       key,
       lastPerf: bucket[key] ? { ...bucket[key] } : null
     };
-    if (!currentQuestion || candidate.key !== currentQuestion.key) {
+  };
+
+  const MAX_MATH_ATTEMPTS = 60;
+  let candidate = null;
+  let foundFresh = false;
+  for (let attempt = 0; attempt < MAX_MATH_ATTEMPTS; attempt++) {
+    candidate = sampleMathCandidate();
+    if (!currentGameSeenKeys.has(candidate.key) && (!currentQuestion || candidate.key !== currentQuestion.key)) {
+      foundFresh = true;
       break;
     }
+  }
+
+  if (!foundFresh) {
+    currentGameSeenKeys.clear();
+    if (currentQuestion && currentQuestion.key) {
+      currentGameSeenKeys.add(currentQuestion.key);
+    }
+    for (let attempt = 0; attempt < 25; attempt++) {
+      candidate = sampleMathCandidate();
+      if (!currentQuestion || candidate.key !== currentQuestion.key) {
+        break;
+      }
+    }
+  }
+
+  if (candidate) {
+    currentGameSeenKeys.add(candidate.key);
   }
   return candidate;
 }
@@ -3683,15 +3738,28 @@ function generatePracticeQuestion() {
     return generateRandomQuestion();
   }
 
-  const candidates = tracked.length > 1 && currentQuestion
-    ? tracked.filter(q => q.key !== currentQuestion.key)
+  const cooldownSize = Math.min(PRACTICE_REPEAT_COOLDOWN, Math.max(0, tracked.length - 1));
+  const recentSet = cooldownSize > 0 ? new Set(currentGameRecentKeys.slice(-cooldownSize)) : new Set();
+  let candidates = cooldownSize > 0
+    ? tracked.filter(q => !recentSet.has(q.key))
     : tracked;
+
+  if (candidates.length === 0) {
+    candidates = tracked.length > 1 && currentQuestion
+      ? tracked.filter(q => q.key !== currentQuestion.key)
+      : tracked;
+  }
 
   if (candidates.length === 0) {
     return generateRandomQuestion();
   }
 
   const picked = candidates[0];
+  currentGameRecentKeys.push(picked.key);
+  if (currentGameRecentKeys.length > PRACTICE_REPEAT_COOLDOWN) {
+    currentGameRecentKeys.shift();
+  }
+
   const cfg = getActiveConfig();
   if (cfg && isQuizConfig(cfg) && Array.isArray(cfg.items) && cfg.items.length >= 2) {
     const qIdx = Math.max(0, Math.min(cfg.items.length - 1, Number(picked.nums && picked.nums[0]) || 0));
@@ -3719,6 +3787,8 @@ function generateRaceQuestion() {
     const rawQ = raceSessionData.session.questions[raceSessionData.questionIndex];
     raceSessionData.questionIndex += 1;
     const q = normalizeQuestionRecord(rawQ, activeConfigId);
+    const key = getQuestionKeyFromRecord(q);
+    currentGameSeenKeys.add(key);
     if (q.op === '?') {
       return {
         nums: [...q.nums],
@@ -3728,7 +3798,7 @@ function generateRaceQuestion() {
         answer: q.expected,
         distractor: q.distractor,
         choices: q.choices,
-        key: getQuestionKeyFromRecord(q)
+        key
       };
     }
     return {
@@ -3736,7 +3806,7 @@ function generateRaceQuestion() {
       op: q.op,
       missingIndex: q.missingIndex,
       answer: q.expected,
-      key: getQuestionKeyFromRecord(q)
+      key
     };
   }
   return generateRandomQuestion();
@@ -4306,6 +4376,10 @@ function startGame(practice = false, raceTargetSession = null) {
   currentQuestion = null;
   gameStartTime = Date.now();
   currentGameQuestions = [];
+  currentGameQuizDeck = [];
+  currentGameQuizDeckConfigId = '';
+  currentGameSeenKeys = new Set();
+  currentGameRecentKeys = [];
   currentQuestionRecord = null;
   getAudioContext();
 
