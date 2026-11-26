@@ -36,7 +36,32 @@ let userId = '';
 let username = '';
 
 let configs = []; // [{ id, category, type, ... }]
+let configsByIdMap = new Map();
+let localConfigsCache = null;
+let landscapeConfigsCache = null;
+let gameHistoryCache = null;
+const bestLocalSessionCache = new Map();
+let questionStatsCache = null;
+let questionStatsDirty = false;
+let hasCompactedLegacyHistory = false;
+
 let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
+const knownCloudConfigIds = new Set();
+const claimedUserIds = new Set();
+try {
+  const rawClaimed = JSON.parse(sessionStorage.getItem('math_claimed_users_v1') || '[]');
+  if (Array.isArray(rawClaimed)) {
+    rawClaimed.forEach((id) => {
+      if (typeof id === 'string' && id) claimedUserIds.add(id);
+    });
+  }
+} catch (_) {}
+let hasRunInitialBackfill = false;
+let lastFullSyncAt = 0;
+const configSyncTimestamps = new Map();
+const CONFIG_REFRESH_TTL_MS = 30000;
+const replayCacheMap = new Map();
+let firebaseReplaysPathSupported = true;
 const rawSavedCategory = localStorage.getItem(STORAGE_KEYS.activeCategory);
 let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory || 'math');
 let activeConfigId = '';
@@ -298,12 +323,14 @@ function initTheme() {
 let landscapeCssFallbackTimer = null;
 
 function getLandscapeConfigsMap() {
+  if (landscapeConfigsCache) return landscapeConfigsCache;
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.landscapeConfigs) || '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    landscapeConfigsCache = parsed && typeof parsed === 'object' ? parsed : {};
   } catch (_) {
-    return {};
+    landscapeConfigsCache = {};
   }
+  return landscapeConfigsCache;
 }
 
 function getLandscapeStorageKey(cfgId = activeConfigId) {
@@ -328,6 +355,7 @@ function setConfigLandscape(cfgId, enabled) {
   } else {
     delete map[key];
   }
+  landscapeConfigsCache = map;
   try {
     localStorage.setItem(STORAGE_KEYS.landscapeConfigs, JSON.stringify(map));
   } catch (_) {}
@@ -765,25 +793,44 @@ function clampConfigBound(val) {
 }
 
 function getLocalConfigs() {
+  if (localConfigsCache) return localConfigsCache;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.localConfigs);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    localConfigsCache = Array.isArray(parsed) ? parsed : [];
   } catch (_) {
-    return [];
+    localConfigsCache = [];
   }
+  return localConfigsCache;
 }
 
 function saveLocalConfig(cfg) {
   const list = getLocalConfigs().filter(c => c && c.id && c.id !== cfg.id);
   list.unshift(cfg);
-  localStorage.setItem(STORAGE_KEYS.localConfigs, JSON.stringify(list.slice(0, MAX_LOCAL_CONFIGS)));
+  localConfigsCache = list.slice(0, MAX_LOCAL_CONFIGS);
+  try {
+    localStorage.setItem(STORAGE_KEYS.localConfigs, JSON.stringify(localConfigsCache));
+  } catch (_) {}
 }
 
 function getBuiltinQuizConfigs() {
   return typeof BUILTIN_QUIZ_CONFIGS !== 'undefined' && Array.isArray(BUILTIN_QUIZ_CONFIGS)
     ? BUILTIN_QUIZ_CONFIGS
     : [];
+}
+
+function rebuildConfigsIndex() {
+  const nextMap = new Map();
+  getBuiltinQuizConfigs().forEach((c) => {
+    if (c && c.id) nextMap.set(c.id, c);
+  });
+  getLocalConfigs().forEach((c) => {
+    if (c && c.id && !nextMap.has(c.id)) nextMap.set(c.id, c);
+  });
+  configs.forEach((c) => {
+    if (c && c.id) nextMap.set(c.id, c);
+  });
+  configsByIdMap = nextMap;
 }
 
 function getConfigCategory(cfg) {
@@ -806,12 +853,10 @@ function isQuizConfig(cfg) {
 
 function getConfigById(cfgId) {
   if (!cfgId) return null;
-  return (
-    configs.find(c => c.id === cfgId) ||
-    getBuiltinQuizConfigs().find(c => c.id === cfgId) ||
-    getLocalConfigs().find(c => c.id === cfgId) ||
-    null
-  );
+  if (configsByIdMap.size === 0) {
+    rebuildConfigsIndex();
+  }
+  return configsByIdMap.get(cfgId) || null;
 }
 
 function getConfigId(cfg) {
@@ -871,7 +916,7 @@ function getUserConfigPerformance(targetUserId, cfgId) {
 
   const totalPlayers = rankedEntries.length;
   const myEntry = rankedEntries.find(e => e.userId === targetUserId) || null;
-  const bestLocal = getBestLocalSession(targetUserId, cfgId);
+  const bestLocal = myEntry ? null : getBestLocalSession(targetUserId, cfgId);
   const bestScore = myEntry
     ? myEntry.score
     : (bestLocal && typeof bestLocal.score === 'number' ? bestLocal.score : null);
@@ -1223,6 +1268,7 @@ async function createNewConfigFromDraft() {
   if (!configs.some(c => c.id === newCfg.id)) {
     configs.push(newCfg);
   }
+  rebuildConfigsIndex();
 
   activeConfigId = newCfg.id;
   localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
@@ -1264,6 +1310,28 @@ function updateDraftRangeInputs() {
   saveConfigBtn.disabled = !isValid;
 }
 
+async function refreshSingleConfigLeaderboard(configId, force = false) {
+  if (!configId) return;
+  const lastAt = Math.max(lastFullSyncAt, configSyncTimestamps.get(configId) || 0);
+  if (!force && Date.now() - lastAt < CONFIG_REFRESH_TTL_MS) return;
+
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(configId)}.json`);
+    if (!res.ok) return;
+    const boardData = await res.json();
+    configSyncTimestamps.set(configId, Date.now());
+    if (boardData && typeof boardData === 'object') {
+      leaderboardsMap[configId] = boardData;
+    } else {
+      delete leaderboardsMap[configId];
+    }
+    if (activeConfigId === configId) {
+      renderConfigsUI();
+      renderLeaderboard();
+    }
+  } catch (_) {}
+}
+
 async function switchConfig(targetConfigId) {
   if (isPlaying) return;
   const target = configs.find(c => c.id === targetConfigId);
@@ -1277,16 +1345,21 @@ async function switchConfig(targetConfigId) {
   renderConfigsUI();
   renderLeaderboard();
   renderReview();
-  await syncFromFirebase();
+  refreshSingleConfigLeaderboard(target.id);
 }
 
 function isPlausibleLeaderboardSession(score, sessionData) {
   if (typeof score !== 'number' || score <= 0 || score > MAX_VALID_SCORE) return false;
   if (!sessionData) return true;
-  const qs = Array.isArray(sessionData.questions) ? sessionData.questions : [];
+  const qs = Array.isArray(sessionData.questions)
+    ? sessionData.questions
+    : (Array.isArray(sessionData.q) ? sessionData.q : []);
   if (qs.length > 240) return false;
   if (qs.length >= 5) {
-    const totalMs = qs.reduce((sum, q) => sum + (Number(q.durationMs) || 0), 0);
+    const totalMs = qs.reduce((sum, item) => {
+      const dur = Array.isArray(item) ? Number(item[4]) : Number(item && item.durationMs);
+      return sum + (dur || 0);
+    }, 0);
     if (totalMs / qs.length < MIN_AVG_QUESTION_MS) return false;
   }
   return true;
@@ -1294,7 +1367,7 @@ function isPlausibleLeaderboardSession(score, sessionData) {
 
 async function ensureConfigPublishedInFirebase(configId) {
   const cfg = getConfigById(configId);
-  if (!cfg || isQuizConfig(cfg)) return;
+  if (!cfg || isQuizConfig(cfg) || knownCloudConfigIds.has(cfg.id)) return;
   const mathPayload = {
     id: cfg.id,
     ops: cfg.ops,
@@ -1305,11 +1378,16 @@ async function ensureConfigPublishedInFirebase(configId) {
     min3: cfg.min3,
     max3: cfg.max3
   };
-  await fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(cfg.id)}.json`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mathPayload)
-  }).catch(() => {});
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(cfg.id)}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mathPayload)
+    });
+    if (res && res.ok) {
+      knownCloudConfigIds.add(cfg.id);
+    }
+  } catch (_) {}
 }
 
 async function syncFromFirebase() {
@@ -1323,6 +1401,8 @@ async function syncFromFirebase() {
     const cloudLeaderboards = leaderboardsRes.ok ? await leaderboardsRes.json() : null;
 
     leaderboardsMap = cloudLeaderboards && typeof cloudLeaderboards === 'object' ? cloudLeaderboards : {};
+    lastFullSyncAt = Date.now();
+    configSyncTimestamps.clear();
 
     const defaultCfg = createDefaultConfig();
     const byId = new Map();
@@ -1357,8 +1437,10 @@ async function syncFromFirebase() {
 
     if (cloudConfigs && typeof cloudConfigs === 'object') {
       Object.entries(cloudConfigs).forEach(([key, c]) => {
+        knownCloudConfigIds.add(key);
         const normalized = normalizeCfgObj(c);
         if (normalized) {
+          knownCloudConfigIds.add(normalized.id);
           byId.set(normalized.id, normalized);
 
           // Migrate any legacy non-canonical config key in Firebase
@@ -1389,6 +1471,7 @@ async function syncFromFirebase() {
     }
 
     configs = Array.from(byId.values());
+    rebuildConfigsIndex();
     await backfillLocalBestToLeaderboard();
     sortConfigsByLeaderboardSize();
 
@@ -1412,6 +1495,7 @@ async function syncFromFirebase() {
       return keep;
     });
     sortConfigsByLeaderboardSize();
+    rebuildConfigsIndex();
 
     const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
     activeConfigId = activeCfg.id;
@@ -1503,11 +1587,17 @@ function normalizeQuestionRecord(q, targetConfigId = activeConfigId) {
 }
 
 function getBestLocalSession(targetUserId, targetConfigId) {
-  const historyMap = getGameHistoryMap();
   const key = `${targetUserId}__${targetConfigId}`;
+  if (bestLocalSessionCache.has(key)) {
+    return bestLocalSessionCache.get(key);
+  }
+  const historyMap = getGameHistoryMap();
   const sessions = Array.isArray(historyMap[key]) ? historyMap[key] : [];
-  const regular = sessions.filter(s => !s.isPractice && typeof s.score === 'number');
-  if (regular.length === 0) return null;
+  const regular = sessions.filter(s => s && !s.isPractice && typeof s.score === 'number');
+  if (regular.length === 0) {
+    bestLocalSessionCache.set(key, null);
+    return null;
+  }
 
   let best = regular[0];
   for (let i = 1; i < regular.length; i++) {
@@ -1516,61 +1606,134 @@ function getBestLocalSession(targetUserId, targetConfigId) {
       best = s;
     } else if (
       s.score === best.score &&
-      (!Array.isArray(best.questions) || best.questions.length === 0) &&
-      Array.isArray(s.questions) &&
-      s.questions.length > 0
+      !sessionHasQuestions(best) &&
+      sessionHasQuestions(s)
     ) {
       best = s;
     }
   }
+  bestLocalSessionCache.set(key, best);
   return best;
 }
 
-async function writeProtectedLeaderboardEntry(cfgId, uId, record) {
+function markUserClaimed(uId) {
+  if (!uId) return;
+  claimedUserIds.add(uId);
+  try {
+    sessionStorage.setItem('math_claimed_users_v1', JSON.stringify(Array.from(claimedUserIds)));
+  } catch (_) {}
+}
+
+function entryHasReplay(entry) {
+  return Boolean(
+    entry &&
+    (entry.hasReplay ||
+      (Array.isArray(entry.questions) && entry.questions.length > 0) ||
+      (Array.isArray(entry.q) && entry.q.length > 0))
+  );
+}
+
+async function writeProtectedLeaderboardEntry(cfgId, uId, slimRecord, normalizedQuestions = null) {
   const token = getUserSecret(uId);
-  const payload = {
+  const compactQ = Array.isArray(normalizedQuestions) && normalizedQuestions.length > 0
+    ? encodeCompactQuestionsList(normalizedQuestions, cfgId)
+    : [];
+  const recordToWrite = { ...slimRecord };
+  delete recordToWrite.questions;
+  delete recordToWrite.q;
+  if (compactQ.length > 0) {
+    recordToWrite.hasReplay = true;
+    replayCacheMap.set(`${cfgId}__${uId}`, compactQ);
+  }
+
+  if (compactQ.length > 0 && firebaseReplaysPathSupported) {
+    const splitPayload = {
+      [`userSecrets/${uId}`]: {
+        token,
+        proof: `${token}_${recordToWrite.updatedAt}`
+      },
+      [`leaderboards/${cfgId}/${uId}`]: recordToWrite,
+      [`replays/${cfgId}/${uId}`]: {
+        updatedAt: recordToWrite.updatedAt,
+        q: compactQ
+      }
+    };
+    try {
+      const res = await fetch(`${FIREBASE_DB_URL}/.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(splitPayload)
+      });
+      if (res && res.ok) {
+        markUserClaimed(uId);
+        return { ok: true, mode: 'split', record: recordToWrite };
+      }
+      if (res && (res.status === 401 || res.status === 403)) {
+        firebaseReplaysPathSupported = false;
+      } else {
+        return { ok: false, mode: 'split', record: recordToWrite };
+      }
+    } catch (_) {
+      return { ok: false, mode: 'split', record: recordToWrite };
+    }
+  }
+
+  const fallbackRecord = compactQ.length > 0
+    ? { ...recordToWrite, questions: normalizedQuestions }
+    : recordToWrite;
+  const fallbackPayload = {
     [`userSecrets/${uId}`]: {
       token,
-      proof: `${token}_${record.updatedAt}`
+      proof: `${token}_${fallbackRecord.updatedAt}`
     },
-    [`leaderboards/${cfgId}/${uId}`]: record
+    [`leaderboards/${cfgId}/${uId}`]: fallbackRecord
   };
-  await fetch(`${FIREBASE_DB_URL}/.json`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).catch(() => {});
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fallbackPayload)
+    });
+    if (res && res.ok) {
+      markUserClaimed(uId);
+      return { ok: true, mode: 'inline', record: fallbackRecord };
+    }
+  } catch (_) {}
+  return { ok: false, mode: 'inline', record: fallbackRecord };
 }
 
 async function claimLocalUsersInFirebase() {
-  for (const u of users) {
-    if (!u || !u.userId) continue;
-    const token = getUserSecret(u.userId);
-    await fetch(`${FIREBASE_DB_URL}/userSecrets/${encodeURIComponent(u.userId)}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token,
-        proof: `${token}_claim_${Date.now()}`
-      })
-    }).catch(() => {});
-  }
+  const unclaimed = users.filter(u => u && u.userId && !claimedUserIds.has(u.userId));
+  if (unclaimed.length === 0) return;
+  await Promise.all(
+    unclaimed.map(async (u) => {
+      const token = getUserSecret(u.userId);
+      try {
+        const res = await fetch(`${FIREBASE_DB_URL}/userSecrets/${encodeURIComponent(u.userId)}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            proof: `${token}_claim_${Date.now()}`
+          })
+        });
+        if (res && res.ok) {
+          markUserClaimed(u.userId);
+        }
+      } catch (_) {}
+    })
+  );
 }
 
 async function backfillLocalBestToLeaderboard() {
+  if (hasRunInitialBackfill) return;
+  hasRunInitialBackfill = true;
+
   await claimLocalUsersInFirebase();
   const historyMap = getGameHistoryMap();
-  const pairs = new Set();
+  const uploadsByUser = new Map();
 
-  users.forEach((u) => {
-    configs.forEach((c) => {
-      pairs.add(`${u.userId}__${c.id}`);
-    });
-  });
-  Object.keys(historyMap).forEach((k) => pairs.add(k));
-
-  const uploads = [];
-  pairs.forEach((compKey) => {
+  Object.keys(historyMap).forEach((compKey) => {
     const sepIdx = compKey.indexOf('__');
     if (sepIdx <= 0) return;
     const uId = compKey.slice(0, sepIdx);
@@ -1582,51 +1745,63 @@ async function backfillLocalBestToLeaderboard() {
 
     const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][uId];
     const hasExisting = existing && typeof existing.score === 'number';
-    const existingHasQuestions = hasExisting && Array.isArray(existing.questions) && existing.questions.length > 0;
-    const localHasQuestions = Array.isArray(bestLocal.questions) && bestLocal.questions.length > 0;
+    const existingHasReplay = hasExisting && entryHasReplay(existing);
+    const localHasQuestions = sessionHasQuestions(bestLocal);
 
     const needsUpload =
       !hasExisting ||
       bestLocal.score > existing.score ||
-      (!existingHasQuestions && localHasQuestions);
+      (!existingHasReplay && localHasQuestions);
 
     if (!needsUpload) return;
 
     const userObj = users.find(u => u.userId === uId);
     const resolvedUsername = (userObj && userObj.username) || (existing && existing.username) || username || 'Player';
     const bestScore = hasExisting ? Math.max(existing.score, bestLocal.score) : bestLocal.score;
-    const normalizedQuestions = localHasQuestions
-      ? bestLocal.questions.map(q => normalizeQuestionRecord(q, cfgId))
-      : [];
+    const rawQuestions = localHasQuestions ? getSessionQuestions(bestLocal, cfgId) : [];
+    const normalizedQuestions = rawQuestions.map(q => normalizeQuestionRecord(q, cfgId));
     const baseUpdatedAt = (hasExisting && bestLocal.score <= existing.score && existing.updatedAt)
       ? existing.updatedAt + 1
       : (bestLocal.playedAt || Date.now());
 
-    const record = {
+    const slimRecord = {
       userId: uId,
       username: resolvedUsername,
       score: bestScore,
       right: typeof bestLocal.right === 'number' ? bestLocal.right : 0,
       wrong: typeof bestLocal.wrong === 'number' ? bestLocal.wrong : 0,
       durationMs: typeof bestLocal.durationMs === 'number' ? bestLocal.durationMs : GAME_DURATION_SECONDS * 1000,
-      questions: normalizedQuestions,
       updatedAt: baseUpdatedAt
     };
+    if (normalizedQuestions.length > 0) {
+      slimRecord.hasReplay = true;
+    }
 
     if (!leaderboardsMap[cfgId]) {
       leaderboardsMap[cfgId] = {};
     }
-    leaderboardsMap[cfgId][uId] = record;
+    leaderboardsMap[cfgId][uId] = slimRecord;
 
-    uploads.push(async () => {
+    if (!uploadsByUser.has(uId)) {
+      uploadsByUser.set(uId, []);
+    }
+    uploadsByUser.get(uId).push(async () => {
       await ensureConfigPublishedInFirebase(cfgId);
-      await writeProtectedLeaderboardEntry(cfgId, uId, record);
+      const res = await writeProtectedLeaderboardEntry(cfgId, uId, slimRecord, normalizedQuestions);
+      if (res && res.record) {
+        leaderboardsMap[cfgId][uId] = res.record;
+      }
     });
   });
 
-  for (const runUpload of uploads) {
-    await runUpload();
-  }
+  if (uploadsByUser.size === 0) return;
+  await Promise.all(
+    Array.from(uploadsByUser.values()).map(async (userTasks) => {
+      for (const runUpload of userTasks) {
+        await runUpload();
+      }
+    })
+  );
 }
 
 async function submitScoreToLeaderboard(score, sessionData) {
@@ -1634,11 +1809,54 @@ async function submitScoreToLeaderboard(score, sessionData) {
     return;
   }
   const configId = activeConfigId;
+  const cachedEntry = leaderboardsMap[configId] && leaderboardsMap[configId][userId];
+  const cachedHasReplay = cachedEntry && entryHasReplay(cachedEntry);
+
+  // Fast path: score didn't beat cached best and replay is already stored remotely
+  if (
+    cachedEntry &&
+    typeof cachedEntry.score === 'number' &&
+    score <= cachedEntry.score &&
+    cachedHasReplay
+  ) {
+    lastResult.classList.remove('new-high-score');
+    lastScoreLabel.textContent = 'Last Score';
+    refreshSingleConfigLeaderboard(configId, true);
+    return;
+  }
+
+  // Optimistic local update for immediate UI feedback
+  const sessionQuestions = getSessionQuestions(sessionData, configId);
+  const isOptimisticHigh = !cachedEntry || typeof cachedEntry.score !== 'number' || score > cachedEntry.score;
+  const optimisticQuestions = sessionQuestions.map(q => normalizeQuestionRecord(q, configId));
+  if (isOptimisticHigh || !cachedHasReplay) {
+    const optimisticRecord = {
+      userId,
+      username,
+      score: isOptimisticHigh ? score : cachedEntry.score,
+      right: isOptimisticHigh ? rightCount : (cachedEntry.right ?? rightCount),
+      wrong: isOptimisticHigh ? wrongCount : (cachedEntry.wrong ?? wrongCount),
+      durationMs: isOptimisticHigh
+        ? (sessionData && typeof sessionData.durationMs === 'number' ? sessionData.durationMs : GAME_DURATION_SECONDS * 1000)
+        : (cachedEntry.durationMs || GAME_DURATION_SECONDS * 1000),
+      updatedAt: Date.now()
+    };
+    if (optimisticQuestions.length > 0) {
+      optimisticRecord.hasReplay = true;
+      replayCacheMap.set(`${configId}__${userId}`, encodeCompactQuestionsList(optimisticQuestions, configId));
+    }
+    if (!leaderboardsMap[configId]) leaderboardsMap[configId] = {};
+    leaderboardsMap[configId][userId] = optimisticRecord;
+    renderConfigsUI();
+    renderLeaderboard();
+  }
+
   const userUrl = `${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`;
+  const [, existingRes] = await Promise.all([
+    ensureConfigPublishedInFirebase(configId),
+    fetch(userUrl).catch(() => null)
+  ]);
 
-  await ensureConfigPublishedInFirebase(configId);
-
-  const existingRes = await fetch(userUrl).catch(() => null);
   const existing = existingRes && existingRes.ok ? await existingRes.json() : null;
   const hasExisting = existing && typeof existing.score === 'number';
   const isNewHighScore = !hasExisting || score > existing.score;
@@ -1647,22 +1865,21 @@ async function submitScoreToLeaderboard(score, sessionData) {
   lastResult.classList.toggle('new-high-score', isNewHighScore);
   lastScoreLabel.textContent = isNewHighScore ? '★ New High Score!' : 'Last Score';
 
-  const existingHasQuestions = hasExisting && Array.isArray(existing.questions) && existing.questions.length > 0;
-  const useSessionQuestions = isNewHighScore || (score === existing.score && !existingHasQuestions);
-  const bestLocal = getBestLocalSession(userId, configId);
+  const existingHasReplay = hasExisting && entryHasReplay(existing);
+  const useSessionQuestions = isNewHighScore || (score === existing.score && !existingHasReplay);
+  const bestLocal = useSessionQuestions ? null : getBestLocalSession(userId, configId);
   const sourceSession = useSessionQuestions
     ? sessionData
-    : (existingHasQuestions ? existing : (bestLocal || sessionData));
+    : (existingHasReplay ? existing : (bestLocal || sessionData));
 
-  const normalizedQuestions = sourceSession && Array.isArray(sourceSession.questions)
-    ? sourceSession.questions.map(q => normalizeQuestionRecord(q, configId))
-    : [];
+  const sourceQuestions = getSessionQuestions(sourceSession, configId);
+  const normalizedQuestions = sourceQuestions.map(q => normalizeQuestionRecord(q, configId));
 
   const nextUpdatedAt = isNewHighScore
     ? Date.now()
     : ((existing && existing.updatedAt ? existing.updatedAt : Date.now()) + 1);
 
-  const record = {
+  const slimRecord = {
     userId,
     username,
     score: bestScore,
@@ -1671,58 +1888,114 @@ async function submitScoreToLeaderboard(score, sessionData) {
     durationMs: sourceSession && typeof sourceSession.durationMs === 'number'
       ? sourceSession.durationMs
       : GAME_DURATION_SECONDS * 1000,
-    questions: normalizedQuestions,
     updatedAt: nextUpdatedAt
   };
-
-  if (isNewHighScore || useSessionQuestions) {
-    await writeProtectedLeaderboardEntry(configId, userId, record);
+  if (normalizedQuestions.length > 0 || existingHasReplay) {
+    slimRecord.hasReplay = true;
   }
 
-  await syncFromFirebase();
+  if (isNewHighScore || useSessionQuestions) {
+    const writeRes = await writeProtectedLeaderboardEntry(configId, userId, slimRecord, normalizedQuestions);
+    if (!leaderboardsMap[configId]) leaderboardsMap[configId] = {};
+    leaderboardsMap[configId][userId] = (writeRes && writeRes.record) ? writeRes.record : slimRecord;
+  }
+
+  await refreshSingleConfigLeaderboard(configId, true);
 }
 
 async function updateUsernameInFirebase(targetUserId, newUsername) {
   const configIds = Object.keys(leaderboardsMap);
+  const affected = [];
+  let maxUpdatedAt = Date.now() - 1;
   for (const cfgId of configIds) {
     const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId];
     if (existing) {
-      const updatedRecord = {
-        ...existing,
-        userId: targetUserId,
-        username: newUsername,
-        updatedAt: (existing.updatedAt || Date.now()) + 1
-      };
-      await writeProtectedLeaderboardEntry(cfgId, targetUserId, updatedRecord);
+      affected.push({ cfgId, existing });
+      if (typeof existing.updatedAt === 'number' && existing.updatedAt > maxUpdatedAt) {
+        maxUpdatedAt = existing.updatedAt;
+      }
     }
   }
-  await syncFromFirebase();
+  if (affected.length === 0) return;
+
+  const nextUpdatedAt = maxUpdatedAt + 1;
+  const token = getUserSecret(targetUserId);
+  const patchBody = {
+    [`userSecrets/${targetUserId}`]: {
+      token,
+      proof: `${token}_${nextUpdatedAt}`
+    }
+  };
+
+  affected.forEach(({ cfgId, existing }) => {
+    const updatedRecord = {
+      ...existing,
+      userId: targetUserId,
+      username: newUsername,
+      updatedAt: nextUpdatedAt
+    };
+    leaderboardsMap[cfgId][targetUserId] = updatedRecord;
+    patchBody[`leaderboards/${cfgId}/${targetUserId}`] = updatedRecord;
+  });
+
+  renderLeaderboard();
+
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchBody)
+    });
+    if (res && res.ok) {
+      markUserClaimed(targetUserId);
+    }
+  } catch (_) {}
 }
 
 async function deleteUserFromFirebase(targetUserId, knownSecret) {
   const configIds = Object.keys(leaderboardsMap);
   const token = knownSecret || getUserSecret(targetUserId);
+  const deleteProof = `${token}_delete_${Date.now()}`;
   const patchBody = {
     [`userSecrets/${targetUserId}`]: {
       token,
-      proof: `${token}_delete_${Date.now()}`
+      proof: deleteProof
     }
   };
   let hasEntries = false;
   configIds.forEach((cfgId) => {
     if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
+      delete leaderboardsMap[cfgId][targetUserId];
+      replayCacheMap.delete(`${cfgId}__${targetUserId}`);
       patchBody[`leaderboards/${cfgId}/${targetUserId}`] = null;
+      if (firebaseReplaysPathSupported) {
+        patchBody[`replays/${cfgId}/${targetUserId}`] = null;
+      }
       hasEntries = true;
     }
   });
+  renderConfigsUI();
+  renderLeaderboard();
   if (hasEntries) {
-    await fetch(`${FIREBASE_DB_URL}/.json`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patchBody)
-    }).catch(() => {});
+    try {
+      const res = await fetch(`${FIREBASE_DB_URL}/.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchBody)
+      });
+      if (res && (res.status === 401 || res.status === 403) && firebaseReplaysPathSupported) {
+        firebaseReplaysPathSupported = false;
+        Object.keys(patchBody).forEach((k) => {
+          if (k.startsWith('replays/')) delete patchBody[k];
+        });
+        await fetch(`${FIREBASE_DB_URL}/.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchBody)
+        }).catch(() => {});
+      }
+    } catch (_) {}
   }
-  await syncFromFirebase();
 }
 
 function sortLeaderboard(entries) {
@@ -1732,39 +2005,61 @@ function sortLeaderboard(entries) {
   });
 }
 
-function getMyBestReplaySession() {
+function hasMyBestReplaySession() {
   const boardObj = leaderboardsMap[activeConfigId] || {};
   const myEntry = boardObj[userId];
-  if (myEntry && Array.isArray(myEntry.questions) && myEntry.questions.length > 0) {
-    return {
-      username: myEntry.username || username,
-      configId: activeConfigId,
-      score: myEntry.score,
-      right: myEntry.right,
-      wrong: myEntry.wrong,
-      durationMs: myEntry.durationMs || GAME_DURATION_SECONDS * 1000,
-      questions: myEntry.questions.map(q => normalizeQuestionRecord(q, activeConfigId))
-    };
-  }
+  if (myEntry && entryHasReplay(myEntry)) return true;
   const bestLocal = getBestLocalSession(userId, activeConfigId);
-  if (bestLocal && Array.isArray(bestLocal.questions) && bestLocal.questions.length > 0) {
-    return {
-      username,
-      configId: activeConfigId,
-      score: bestLocal.score,
-      right: bestLocal.right,
-      wrong: bestLocal.wrong,
-      durationMs: bestLocal.durationMs || GAME_DURATION_SECONDS * 1000,
-      questions: bestLocal.questions.map(q => normalizeQuestionRecord(q, activeConfigId))
-    };
-  }
-  return null;
+  return sessionHasQuestions(bestLocal);
 }
 
-function buildEntryReplaySession(entry, targetConfigId = activeConfigId) {
-  if (!entry || !Array.isArray(entry.questions) || entry.questions.length === 0) {
-    return null;
+function getMyBestLocalScore() {
+  const bestLocal = getBestLocalSession(userId, activeConfigId);
+  return bestLocal && typeof bestLocal.score === 'number' ? bestLocal.score : null;
+}
+
+async function fetchRemoteReplayQuestions(cfgId, targetUserId) {
+  const cacheKey = `${cfgId}__${targetUserId}`;
+  if (replayCacheMap.has(cacheKey)) {
+    const cached = replayCacheMap.get(cacheKey);
+    if (Array.isArray(cached) && cached.length > 0) {
+      return Array.isArray(cached[0])
+        ? decodeCompactQuestionsList(cached, cfgId)
+        : cached.map(q => normalizeQuestionRecord(q, cfgId));
+    }
+    return [];
   }
+
+  try {
+    const res = await fetch(
+      `${FIREBASE_DB_URL}/replays/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data || typeof data !== 'object') return [];
+    if (Array.isArray(data.q) && data.q.length > 0) {
+      replayCacheMap.set(cacheKey, data.q);
+      return decodeCompactQuestionsList(data.q, cfgId);
+    }
+    if (Array.isArray(data.questions) && data.questions.length > 0) {
+      replayCacheMap.set(cacheKey, data.questions);
+      return data.questions.map(q => normalizeQuestionRecord(q, cfgId));
+    }
+  } catch (_) {}
+  return [];
+}
+
+async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId) {
+  if (!entry) return null;
+  let questions = null;
+  if (Array.isArray(entry.questions) && entry.questions.length > 0) {
+    questions = entry.questions.map(q => normalizeQuestionRecord(q, targetConfigId));
+  } else if (Array.isArray(entry.q) && entry.q.length > 0) {
+    questions = decodeCompactQuestionsList(entry.q, targetConfigId);
+  } else if (entry.hasReplay && entry.userId) {
+    questions = await fetchRemoteReplayQuestions(targetConfigId, entry.userId);
+  }
+  if (!questions || questions.length === 0) return null;
   return {
     username: entry.username,
     configId: targetConfigId,
@@ -1772,13 +2067,60 @@ function buildEntryReplaySession(entry, targetConfigId = activeConfigId) {
     right: entry.right,
     wrong: entry.wrong,
     durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
-    questions: entry.questions.map(q => normalizeQuestionRecord(q, targetConfigId))
+    questions
   };
 }
 
+async function resolveMyBestReplaySession() {
+  const boardObj = leaderboardsMap[activeConfigId] || {};
+  const myEntry = boardObj[userId];
+  const bestLocal = getBestLocalSession(userId, activeConfigId);
+
+  if (myEntry) {
+    if (
+      (Array.isArray(myEntry.questions) && myEntry.questions.length > 0) ||
+      (Array.isArray(myEntry.q) && myEntry.q.length > 0)
+    ) {
+      return await resolveEntryReplaySession(myEntry, activeConfigId);
+    }
+    if (
+      bestLocal &&
+      typeof bestLocal.score === 'number' &&
+      bestLocal.score >= myEntry.score &&
+      sessionHasQuestions(bestLocal)
+    ) {
+      return {
+        username: myEntry.username || username,
+        configId: activeConfigId,
+        score: bestLocal.score,
+        right: bestLocal.right,
+        wrong: bestLocal.wrong,
+        durationMs: bestLocal.durationMs || GAME_DURATION_SECONDS * 1000,
+        questions: getSessionQuestions(bestLocal, activeConfigId).map(q => normalizeQuestionRecord(q, activeConfigId))
+      };
+    }
+    if (myEntry.hasReplay) {
+      const remote = await resolveEntryReplaySession(myEntry, activeConfigId);
+      if (remote) return remote;
+    }
+  }
+
+  if (bestLocal && sessionHasQuestions(bestLocal)) {
+    return {
+      username,
+      configId: activeConfigId,
+      score: bestLocal.score,
+      right: bestLocal.right,
+      wrong: bestLocal.wrong,
+      durationMs: bestLocal.durationMs || GAME_DURATION_SECONDS * 1000,
+      questions: getSessionQuestions(bestLocal, activeConfigId).map(q => normalizeQuestionRecord(q, activeConfigId))
+    };
+  }
+  return null;
+}
+
 function appendEntryActionButtons(container, entry, targetConfigId = activeConfigId) {
-  const replaySession = buildEntryReplaySession(entry, targetConfigId);
-  if (!replaySession) return;
+  if (!entryHasReplay(entry)) return;
 
   const replayBtn = document.createElement('button');
   replayBtn.type = 'button';
@@ -1786,9 +2128,15 @@ function appendEntryActionButtons(container, entry, targetConfigId = activeConfi
   replayBtn.textContent = '▶';
   replayBtn.title = `Replay ${entry.username}'s best game`;
   replayBtn.setAttribute('aria-label', `Replay ${entry.username}'s best game`);
-  replayBtn.addEventListener('click', (e) => {
+  replayBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    startReplay(replaySession);
+    replayBtn.disabled = true;
+    try {
+      const replaySession = await resolveEntryReplaySession(entry, targetConfigId);
+      if (replaySession) startReplay(replaySession);
+    } finally {
+      replayBtn.disabled = false;
+    }
   });
 
   container.appendChild(replayBtn);
@@ -1854,7 +2202,8 @@ function getPageButtonNumbers(currentPage, totalPages) {
   return result;
 }
 
-function renderLeaderboard() {
+function renderLeaderboard(options = {}) {
+  const { skipOverview = false } = options;
   const boardObj = leaderboardsMap[activeConfigId] || {};
   const entries = sortLeaderboard(Object.values(boardObj));
   let currentRank = 1;
@@ -1872,7 +2221,8 @@ function renderLeaderboard() {
   const myIndex = rankedEntries.findIndex(e => e.userId === userId);
   const myEntry = myIndex >= 0 ? rankedEntries[myIndex] : null;
   const myPage = myIndex >= 0 ? Math.floor(myIndex / LEADERBOARD_PAGE_SIZE) + 1 : 1;
-  const myBestSession = getMyBestReplaySession();
+  const hasMyBestReplay = hasMyBestReplaySession();
+  const localBestScore = myEntry ? null : getMyBestLocalScore();
 
   if (myEntry) {
     myRankValue.textContent = `#${myEntry.rank} of ${totalEntries}`;
@@ -1884,13 +2234,13 @@ function renderLeaderboard() {
       myRankJump.onclick = totalPages > 1
         ? () => {
             leaderboardPage = myPage;
-            renderLeaderboard();
+            renderLeaderboard({ skipOverview: true });
           }
         : null;
     }
   } else {
     myRankValue.textContent = totalEntries > 0 ? `Unranked (of ${totalEntries})` : 'Unranked';
-    myBestValue.textContent = myBestSession ? myBestSession.score : '—';
+    myBestValue.textContent = localBestScore !== null ? localBestScore : '—';
     if (myRankJump) {
       myRankJump.classList.remove('clickable');
       myRankJump.title = '';
@@ -1899,7 +2249,7 @@ function renderLeaderboard() {
   }
 
   if (myBestActions) {
-    myBestActions.classList.toggle('hidden', !myBestSession);
+    myBestActions.classList.toggle('hidden', !hasMyBestReplay);
   }
 
   // Next score to move up
@@ -1978,7 +2328,7 @@ function renderLeaderboard() {
       pinnedRow.title = `Jump to Page ${myPage}`;
       pinnedRow.addEventListener('click', () => {
         leaderboardPage = myPage;
-        renderLeaderboard();
+        renderLeaderboard({ skipOverview: true });
       });
       leaderboardPinnedMe.append(sep, pinnedRow);
       leaderboardPinnedMe.classList.remove('hidden');
@@ -2004,7 +2354,7 @@ function renderLeaderboard() {
       prevBtn.addEventListener('click', () => {
         if (leaderboardPage > 1) {
           leaderboardPage -= 1;
-          renderLeaderboard();
+          renderLeaderboard({ skipOverview: true });
         }
       });
       navGroup.appendChild(prevBtn);
@@ -2027,7 +2377,7 @@ function renderLeaderboard() {
           }
           btn.addEventListener('click', () => {
             leaderboardPage = token;
-            renderLeaderboard();
+            renderLeaderboard({ skipOverview: true });
           });
           navGroup.appendChild(btn);
         }
@@ -2043,7 +2393,7 @@ function renderLeaderboard() {
       nextBtn.addEventListener('click', () => {
         if (leaderboardPage < totalPages) {
           leaderboardPage += 1;
-          renderLeaderboard();
+          renderLeaderboard({ skipOverview: true });
         }
       });
       navGroup.appendChild(nextBtn);
@@ -2057,7 +2407,7 @@ function renderLeaderboard() {
         myPageBtn.textContent = `🎯 My Rank (P${myPage})`;
         myPageBtn.addEventListener('click', () => {
           leaderboardPage = myPage;
-          renderLeaderboard();
+          renderLeaderboard({ skipOverview: true });
         });
         leaderboardPagination.appendChild(myPageBtn);
       }
@@ -2068,7 +2418,9 @@ function renderLeaderboard() {
     }
   }
 
-  renderOverview();
+  if (!skipOverview) {
+    renderOverview();
+  }
   if (viewedUserId && userView && userView.classList.contains('active')) {
     renderUserPage();
   }
@@ -2375,6 +2727,10 @@ function renderOverview() {
         : `${playedCount}/${items.length} played`;
   }
 
+  if (!isOverviewExpanded) {
+    return;
+  }
+
   items.sort((a, b) => {
     const pa = a.perf;
     const pb = b.perf;
@@ -2561,34 +2917,167 @@ function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
   return `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
 }
 
+function sessionHasQuestions(session) {
+  return Boolean(
+    session &&
+    ((Array.isArray(session.questions) && session.questions.length > 0) ||
+      (Array.isArray(session.q) && session.q.length > 0))
+  );
+}
+
+function getSessionQuestions(session, targetConfigId = activeConfigId) {
+  if (!session) return [];
+  const cfgId = targetConfigId || session.configId || activeConfigId;
+  if (Array.isArray(session.questions) && session.questions.length > 0) {
+    return session.questions;
+  }
+  if (Array.isArray(session.q) && session.q.length > 0) {
+    return decodeCompactQuestionsList(session.q, cfgId);
+  }
+  return [];
+}
+
+function compactSessionForStorage(session) {
+  if (!session || typeof session !== 'object') return session;
+  const cfgId = session.configId || activeConfigId;
+  const copy = { ...session };
+  if (Array.isArray(copy.questions)) {
+    copy.q = encodeCompactQuestionsList(copy.questions, cfgId);
+    delete copy.questions;
+  }
+  if (copy.opponent && typeof copy.opponent === 'object' && Array.isArray(copy.opponent.questions)) {
+    copy.opponent = {
+      ...copy.opponent,
+      q: encodeCompactQuestionsList(copy.opponent.questions, cfgId)
+    };
+    delete copy.opponent.questions;
+  }
+  return copy;
+}
+
 function getGameHistoryMap() {
+  if (gameHistoryCache) return gameHistoryCache;
   const raw = localStorage.getItem(STORAGE_KEYS.gameHistory);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed;
+        gameHistoryCache = parsed;
+        return gameHistoryCache;
       }
     } catch (_) {
       // Fall through
     }
   }
-  return {};
+  gameHistoryCache = {};
+  return gameHistoryCache;
 }
 
 function getQuestionStatsMap() {
+  if (questionStatsCache) return questionStatsCache;
   const raw = localStorage.getItem(STORAGE_KEYS.questionStats);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed;
+        questionStatsCache = parsed;
+        return questionStatsCache;
       }
     } catch (_) {
       // Fall through
     }
   }
-  return {};
+  questionStatsCache = {};
+  return questionStatsCache;
+}
+
+function stripRedundantQuizStatFields(statsMap) {
+  Object.values(statsMap || {}).forEach((bucket) => {
+    if (!bucket || typeof bucket !== 'object') return;
+    Object.values(bucket).forEach((entry) => {
+      if (entry && entry.op === '?') {
+        delete entry.prompt;
+        delete entry.expected;
+        delete entry.distractor;
+        delete entry.choices;
+      }
+    });
+  });
+}
+
+function flushQuestionStatsToStorage(force = false) {
+  if (!questionStatsCache || (!force && !questionStatsDirty)) return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(questionStatsCache));
+    questionStatsDirty = false;
+  } catch (_) {
+    try {
+      stripRedundantQuizStatFields(questionStatsCache);
+      localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(questionStatsCache));
+      questionStatsDirty = false;
+    } catch (_) {}
+  }
+}
+
+function compactAllLegacyHistoryEntries(map) {
+  if (!map || typeof map !== 'object') return false;
+  let changed = false;
+  Object.keys(map).forEach((compKey) => {
+    const list = map[compKey];
+    if (!Array.isArray(list)) return;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] && Array.isArray(list[i].questions)) {
+        list[i] = compactSessionForStorage(list[i]);
+        changed = true;
+      }
+    }
+  });
+  return changed;
+}
+
+function trimHistoryMapBuckets(map, maxPerBucket) {
+  Object.keys(map).forEach((compKey) => {
+    const list = map[compKey];
+    if (!Array.isArray(list) || list.length <= maxPerBucket) return;
+    let bestIdx = -1;
+    let bestScore = -Infinity;
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      if (s && !s.isPractice && typeof s.score === 'number' && s.score > bestScore) {
+        bestScore = s.score;
+        bestIdx = i;
+      }
+    }
+    const kept = list.slice(0, maxPerBucket);
+    if (bestIdx >= maxPerBucket && list[bestIdx]) {
+      kept[maxPerBucket - 1] = list[bestIdx];
+    }
+    map[compKey] = kept;
+  });
+}
+
+function persistGameHistoryMap() {
+  const map = getGameHistoryMap();
+  try {
+    localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+    return true;
+  } catch (_) {
+    compactAllLegacyHistoryEntries(map);
+    try {
+      localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+      return true;
+    } catch (_) {
+      for (const limit of [8, 3, 1]) {
+        trimHistoryMapBuckets(map, limit);
+        bestLocalSessionCache.clear();
+        try {
+          localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+          return true;
+        } catch (_) {}
+      }
+    }
+  }
+  return false;
 }
 
 function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
@@ -2599,8 +3088,9 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
     const historyMap = getGameHistoryMap();
     const sessions = Array.isArray(historyMap[compKey]) ? [...historyMap[compKey]].reverse() : [];
     sessions.forEach((session) => {
-      if (Array.isArray(session.questions)) {
-        session.questions.forEach((q) => {
+      const sessionQs = getSessionQuestions(session, targetConfigId);
+      if (sessionQs.length > 0) {
+        sessionQs.forEach((q) => {
           if (q && Array.isArray(q.nums) && q.nums.length === 3) {
             const normQ = normalizeQuestionRecord(q, targetConfigId);
             const qKey = getQuestionKeyFromRecord(normQ);
@@ -2613,15 +3103,11 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
             const totalDurationMs = prevTotalMs + (normQ.durationMs || 0);
             const avgDurationMs = Math.round(totalDurationMs / count);
 
-            bucket[qKey] = {
+            const entry = {
               key: qKey,
               nums: [...normQ.nums],
               op: normQ.op,
               missingIndex: normQ.missingIndex,
-              prompt: normQ.prompt,
-              expected: normQ.expected,
-              distractor: normQ.distractor,
-              choices: normQ.choices,
               answers: Array.isArray(normQ.answers) ? [...normQ.answers] : [],
               right: normQ.right || 0,
               wrong: normQ.wrong || 0,
@@ -2630,12 +3116,17 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
               durationMs: avgDurationMs,
               updatedAt: session.playedAt || Date.now()
             };
+            if (normQ.op !== '?') {
+              entry.expected = normQ.expected;
+            }
+            bucket[qKey] = entry;
           }
         });
       }
     });
     statsMap[compKey] = bucket;
-    localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
+    questionStatsDirty = true;
+    flushQuestionStatsToStorage();
   }
   return { statsMap, compKey, bucket: statsMap[compKey] };
 }
@@ -2656,15 +3147,11 @@ function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
   const totalDurationMs = prevTotalMs + (normQ.durationMs || 0);
   const avgDurationMs = Math.round(totalDurationMs / count);
 
-  bucket[qKey] = {
+  const entry = {
     key: qKey,
     nums: [...normQ.nums],
     op: normQ.op,
     missingIndex: normQ.missingIndex,
-    prompt: normQ.prompt,
-    expected: normQ.expected,
-    distractor: normQ.distractor,
-    choices: normQ.choices,
     answers: Array.isArray(normQ.answers) ? [...normQ.answers] : [],
     right: normQ.right || 0,
     wrong: normQ.wrong || 0,
@@ -2673,8 +3160,12 @@ function updateQuestionLastPerformance(targetUserId, targetConfigId, qRecord) {
     durationMs: avgDurationMs,
     updatedAt: Date.now()
   };
+  if (normQ.op !== '?') {
+    entry.expected = normQ.expected;
+  }
+  bucket[qKey] = entry;
   statsMap[compKey] = bucket;
-  localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
+  questionStatsDirty = true;
 }
 
 function getTrackedQuestions(targetUserId, targetConfigId) {
@@ -2690,11 +3181,16 @@ function getTrackedQuestions(targetUserId, targetConfigId) {
 
 function saveGameReviewToStorage(gameSession) {
   const map = getGameHistoryMap();
+  if (!hasCompactedLegacyHistory) {
+    hasCompactedLegacyHistory = true;
+    compactAllLegacyHistoryEntries(map);
+  }
   const key = `${gameSession.userId}__${gameSession.configId}`;
   const historyList = Array.isArray(map[key]) ? map[key] : [];
-  historyList.unshift(gameSession);
+  historyList.unshift(compactSessionForStorage(gameSession));
   map[key] = historyList.slice(0, 20); // Keep last 20 games per user+config
-  localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+  bestLocalSessionCache.delete(key);
+  persistGameHistoryMap();
 }
 
 function deleteUserReviewFromStorage(targetUserId) {
@@ -2704,7 +3200,8 @@ function deleteUserReviewFromStorage(targetUserId) {
       delete map[key];
     }
   });
-  localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+  bestLocalSessionCache.clear();
+  persistGameHistoryMap();
 
   const statsMap = getQuestionStatsMap();
   Object.keys(statsMap).forEach((key) => {
@@ -2712,7 +3209,8 @@ function deleteUserReviewFromStorage(targetUserId) {
       delete statsMap[key];
     }
   });
-  localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
+  questionStatsDirty = true;
+  flushQuestionStatsToStorage(true);
 }
 
 function renderHistoryChart(sessions) {
@@ -2825,14 +3323,13 @@ function renderReview() {
     practiceBtn.classList.toggle('hidden', trackedQuestions.length === 0);
   }
 
-  if (trackedQuestions.length === 0 && (!lastSession || !Array.isArray(lastSession.questions) || lastSession.questions.length === 0)) {
+  if (trackedQuestions.length === 0 && !sessionHasQuestions(lastSession)) {
     reviewCard.classList.add('hidden');
     return;
   }
 
   reviewCard.classList.remove('hidden');
   updateReviewCollapseUI();
-  renderHistoryChart(sessions || []);
 
   sortImproveBtn.classList.toggle('active', reviewSortMode === 'improve');
   sortImproveBtn.setAttribute('aria-selected', reviewSortMode === 'improve' ? 'true' : 'false');
@@ -2843,7 +3340,24 @@ function renderReview() {
     sortPracticeBtn.setAttribute('aria-selected', reviewSortMode === 'practice' ? 'true' : 'false');
   }
 
-  const lastQuestions = lastSession && Array.isArray(lastSession.questions) ? lastSession.questions : [];
+  const lastQuestions = getSessionQuestions(lastSession, activeConfigId);
+  if (reviewSortMode === 'practice' && trackedQuestions.length > 0) {
+    const totalQMs = trackedQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+    const avgSec = (totalQMs / trackedQuestions.length / 1000).toFixed(1);
+    const mistakeCount = trackedQuestions.filter(q => q.wrong > 0 || q.right === 0).length;
+    reviewSummaryBadge.textContent = `${trackedQuestions.length} tracked · ${avgSec}s avg · ${mistakeCount} to fix`;
+  } else if (lastQuestions.length > 0) {
+    const totalQMs = lastQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+    const avgSec = (totalQMs / lastQuestions.length / 1000).toFixed(1);
+    reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
+  }
+
+  if (!isReviewExpanded) {
+    return;
+  }
+
+  renderHistoryChart(sessions || []);
+
   let ordered = [];
   if (reviewSortMode === 'practice') {
     ordered = trackedQuestions;
@@ -2855,17 +3369,6 @@ function renderReview() {
         return (b.durationMs || 0) - (a.durationMs || 0);
       });
     }
-  }
-
-  if (reviewSortMode === 'practice' && trackedQuestions.length > 0) {
-    const totalQMs = trackedQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
-    const avgSec = (totalQMs / trackedQuestions.length / 1000).toFixed(1);
-    const mistakeCount = trackedQuestions.filter(q => q.wrong > 0 || q.right === 0).length;
-    reviewSummaryBadge.textContent = `${trackedQuestions.length} tracked · ${avgSec}s avg · ${mistakeCount} to fix`;
-  } else if (lastQuestions.length > 0) {
-    const totalQMs = lastQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
-    const avgSec = (totalQMs / lastQuestions.length / 1000).toFixed(1);
-    reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
   }
 
   reviewList.innerHTML = '';
@@ -3092,6 +3595,7 @@ function generateRandomQuestion() {
   const samplers = getValidSamplers(cfg);
   if (samplers.length === 0) return null;
 
+  const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
   let candidate = null;
   for (let attempt = 0; attempt < 25; attempt++) {
     const sampleFn = samplers[randomInt(0, samplers.length - 1)];
@@ -3100,7 +3604,6 @@ function generateRandomQuestion() {
     const validIndices = getValidMissingIndices(a, op, b, c);
     const missingIndex = validIndices[randomInt(0, validIndices.length - 1)];
     const key = `${a}${op}${b}=${c}?${missingIndex}`;
-    const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
     candidate = {
       nums,
       op,
@@ -3139,11 +3642,15 @@ function generatePracticeQuestion() {
     return buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, { ...picked });
   }
 
+  const pickedAnswer = picked.expected !== undefined
+    ? picked.expected
+    : (Array.isArray(picked.nums) ? picked.nums[picked.missingIndex] : 0);
+
   return {
     nums: [...picked.nums],
     op: picked.op,
     missingIndex: picked.missingIndex,
-    answer: picked.expected,
+    answer: pickedAnswer,
     key: picked.key,
     lastPerf: { ...picked }
   };
@@ -3192,7 +3699,7 @@ function renderQuestion() {
       const lp = currentQuestion.lastPerf;
       const secStr = `${((lp.durationMs || 0) / 1000).toFixed(1)}s`;
       const hadMistake = lp.wrong > 0 || lp.right === 0;
-      const expectedStr = String(lp.expected);
+      const expectedStr = String(lp.expected !== undefined ? lp.expected : currentQuestion.answer);
       const wrongTyped = (lp.answers || []).filter(a => a !== expectedStr);
 
       if (hadMistake) {
@@ -3819,6 +4326,7 @@ async function finishGame(saveScore) {
     updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
     currentQuestionRecord = null;
   }
+  flushQuestionStatsToStorage();
 
   const finalScore = rightCount - wrongCount;
   const gameDurationMs = Date.now() - gameStartTime;
@@ -4866,20 +5374,20 @@ if (shareLastBtn) {
   });
 }
 if (replayBestBtn) {
-  replayBestBtn.addEventListener('click', () => {
-    const best = getMyBestReplaySession();
+  replayBestBtn.addEventListener('click', async () => {
+    const best = await resolveMyBestReplaySession();
     if (best) startReplay(best);
   });
 }
 if (raceBestBtn) {
-  raceBestBtn.addEventListener('click', () => {
-    const best = getMyBestReplaySession();
+  raceBestBtn.addEventListener('click', async () => {
+    const best = await resolveMyBestReplaySession();
     if (best) startRace(best);
   });
 }
 if (shareBestBtn) {
-  shareBestBtn.addEventListener('click', () => {
-    const best = getMyBestReplaySession();
+  shareBestBtn.addEventListener('click', async () => {
+    const best = await resolveMyBestReplaySession();
     if (best) copyReplayLink(best, shareBestBtn);
   });
 }
@@ -5033,7 +5541,11 @@ if (overviewToggleBtn) {
   overviewToggleBtn.addEventListener('click', () => {
     isOverviewExpanded = !isOverviewExpanded;
     localStorage.setItem(STORAGE_KEYS.overviewExpanded, isOverviewExpanded ? '1' : '0');
-    updateOverviewCollapseUI();
+    if (isOverviewExpanded) {
+      renderOverview();
+    } else {
+      updateOverviewCollapseUI();
+    }
   });
 }
 
@@ -5078,7 +5590,11 @@ if (reviewToggleBtn) {
   reviewToggleBtn.addEventListener('click', () => {
     isReviewExpanded = !isReviewExpanded;
     localStorage.setItem(STORAGE_KEYS.reviewExpanded, isReviewExpanded ? '1' : '0');
-    updateReviewCollapseUI();
+    if (isReviewExpanded) {
+      renderReview();
+    } else {
+      updateReviewCollapseUI();
+    }
   });
 }
 
@@ -5270,6 +5786,7 @@ function initConfigs() {
   });
 
   configs = Array.from(byId.values());
+  rebuildConfigsIndex();
   const urlConfigParam = new URLSearchParams(window.location.search).get('config');
   const savedConfigId = urlConfigParam || localStorage.getItem(STORAGE_KEYS.activeConfigId);
   const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
@@ -5288,6 +5805,11 @@ initUsers();
 initConfigs();
 initInstallPrompt();
 syncFromFirebase();
+
+window.addEventListener('pagehide', () => flushQuestionStatsToStorage());
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flushQuestionStatsToStorage();
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
