@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   userId: 'math_user_id',
   username: 'math_username',
   activeCategory: 'math_active_category_v1',
+  activeLangFilter: 'math_active_lang_filter_v1',
   activeConfigId: 'math_active_config_id',
   localConfigs: 'math_local_configs_v1',
   gameHistory: 'math_game_history_v1',
@@ -64,6 +65,9 @@ const replayCacheMap = new Map();
 let firebaseReplaysPathSupported = true;
 const rawSavedCategory = localStorage.getItem(STORAGE_KEYS.activeCategory);
 let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory || 'math');
+const VALID_LANG_FILTERS = ['all', 'en', 'pt', 'es', 'fr', 'de'];
+const rawSavedLangFilter = localStorage.getItem(STORAGE_KEYS.activeLangFilter);
+let activeLangFilter = VALID_LANG_FILTERS.includes(rawSavedLangFilter) ? rawSavedLangFilter : 'all';
 let activeConfigId = '';
 let draftConfig = null;
 let leaderboardPage = 1;
@@ -118,6 +122,9 @@ const deleteUserBtn = document.getElementById('delete-user-btn');
 
 const categoryListEl = document.getElementById('category-list');
 const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll('[data-category]')) : [];
+const langSwitcherRow = document.getElementById('lang-switcher-row');
+const langFilterListEl = document.getElementById('lang-filter-list');
+const langFilterBtns = langFilterListEl ? Array.from(langFilterListEl.querySelectorAll('[data-lang]')) : [];
 const gameSwitcherRow = document.getElementById('game-switcher-row');
 const configListEl = document.getElementById('config-list');
 const partSwitcherRow = document.getElementById('part-switcher-row');
@@ -1070,6 +1077,11 @@ function appendPillPerfMeta(btn, cfgId) {
   }
 }
 
+function configMatchesLangFilter(cfg, langCode = activeLangFilter) {
+  if (!langCode || langCode === 'all') return true;
+  return Boolean(cfg && Array.isArray(cfg.langs) && cfg.langs.includes(langCode));
+}
+
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
   if (!activeCfg) return;
@@ -1096,6 +1108,19 @@ function renderConfigsUI() {
     btn.setAttribute('aria-selected', isCatActive ? 'true' : 'false');
   });
 
+  if (langSwitcherRow) {
+    langSwitcherRow.classList.toggle('hidden', activeCategory !== 'lang');
+  }
+  if (activeCategory === 'lang' && activeLangFilter !== 'all' && !configMatchesLangFilter(activeBaseCfg, activeLangFilter)) {
+    activeLangFilter = 'all';
+    localStorage.setItem(STORAGE_KEYS.activeLangFilter, activeLangFilter);
+  }
+  langFilterBtns.forEach((btn) => {
+    const isLangActive = btn.dataset.lang === activeLangFilter;
+    btn.classList.toggle('active', isLangActive);
+    btn.setAttribute('aria-selected', isLangActive ? 'true' : 'false');
+  });
+
   if (addConfigBtn) {
     addConfigBtn.classList.toggle('hidden', activeCategory !== 'math');
   }
@@ -1104,7 +1129,11 @@ function renderConfigsUI() {
   }
 
   configListEl.innerHTML = '';
-  const categoryConfigs = getBaseConfigsForCategory(activeCategory);
+  const allCategoryConfigs = getBaseConfigsForCategory(activeCategory);
+  const categoryConfigs =
+    activeCategory === 'lang'
+      ? allCategoryConfigs.filter((c) => configMatchesLangFilter(c, activeLangFilter))
+      : allCategoryConfigs;
   const canExpand = categoryConfigs.length > 2;
 
   if (gameSwitcherRow) {
@@ -1189,7 +1218,11 @@ async function switchCategory(targetCat) {
   const catConfigs = getBaseConfigsForCategory(targetCat);
   const currentCfg = getActiveConfig();
   if ((!currentCfg || getConfigCategory(currentCfg) !== targetCat) && catConfigs.length > 0) {
-    activeConfigId = catConfigs[0].id;
+    const preferredCfg =
+      targetCat === 'lang'
+        ? (catConfigs.find(c => configMatchesLangFilter(c, activeLangFilter)) || catConfigs[0])
+        : catConfigs[0];
+    activeConfigId = preferredCfg.id;
     leaderboardPage = 1;
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
   } else if (currentCfg) {
@@ -1199,6 +1232,31 @@ async function switchCategory(targetCat) {
   renderConfigsUI();
   renderLeaderboard();
   renderReview();
+}
+
+function switchLangFilter(targetLang) {
+  if (isPlaying || !VALID_LANG_FILTERS.includes(targetLang)) return;
+  activeLangFilter = targetLang;
+  localStorage.setItem(STORAGE_KEYS.activeLangFilter, activeLangFilter);
+  if (activeCategory !== 'lang') return;
+
+  const activeBaseCfg = getBaseConfig(getActiveConfig());
+  if (!configMatchesLangFilter(activeBaseCfg, activeLangFilter)) {
+    const matching = getBaseConfigsForCategory('lang').filter(c => configMatchesLangFilter(c, activeLangFilter));
+    if (matching.length > 0) {
+      activeConfigId = matching[0].id;
+      leaderboardPage = 1;
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      closeNewConfigPanel();
+      lastResult.classList.add('hidden');
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+      refreshSingleConfigLeaderboard(activeConfigId);
+      return;
+    }
+  }
+  renderConfigsUI();
 }
 
 function renderDraftConfigUI() {
@@ -5308,6 +5366,10 @@ deleteUserBtn.addEventListener('click', deleteCurrentUser);
 
 categoryBtns.forEach((btn) => {
   btn.addEventListener('click', () => switchCategory(btn.dataset.category));
+});
+
+langFilterBtns.forEach((btn) => {
+  btn.addEventListener('click', () => switchLangFilter(btn.dataset.lang));
 });
 
 if (expandConfigsBtn) {

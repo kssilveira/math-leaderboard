@@ -29,6 +29,14 @@ function svgEl(type, attrs, children) {
   };
 }
 
+const QUIZ_LANG_META = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', flag: '🇫🇷' },
+  { code: 'de', name: 'German', flag: '🇩🇪' },
+];
+
 const QUIZ_CONFIG_LABELS = {
   cfg_geo_flag_country: 'Flag → Country',
   cfg_geo_country_flag: 'Country → Flag',
@@ -42,34 +50,42 @@ const QUIZ_CONFIG_LABELS = {
   cfg_geo_flag_map: 'Flag → Map',
   cfg_geo_map_capital: 'Map → Capital',
   cfg_geo_capital_map: 'Capital → Map',
-  cfg_lang_pt_en: '🇧🇷 Portuguese → English',
-  cfg_lang_es_en: '🇪🇸 Spanish → English',
-  cfg_lang_fr_en: '🇫🇷 French → English',
-  cfg_lang_de_en: '🇩🇪 German → English',
-  cfg_lang_en_pt: 'English → 🇧🇷 Portuguese',
-  cfg_lang_en_es: 'English → 🇪🇸 Spanish',
-  cfg_lang_en_fr: 'English → 🇫🇷 French',
-  cfg_lang_en_de: 'English → 🇩🇪 German',
-  cfg_lang_emoji_en: '😀 Emoji → English',
-  cfg_lang_en_emoji: 'English → 😀 Emoji',
-  cfg_lang_synonym: 'Word → Synonym',
-  cfg_lang_antonym: 'Word → Antonym',
-  cfg_lang_idiom_meaning: 'Idiom → Meaning',
-  cfg_lang_meaning_idiom: 'Meaning → Idiom',
   cfg_chem_symbol_name: 'Symbol → Element',
   cfg_chem_name_symbol: 'Element → Symbol',
   cfg_other_morse_char: 'Morse → Character',
   cfg_other_char_morse: 'Character → Morse',
 };
 
+for (const src of QUIZ_LANG_META) {
+  for (const dst of QUIZ_LANG_META) {
+    if (src.code === dst.code) continue;
+    const srcLabel = src.code === 'en' ? src.name : `${src.flag} ${src.name}`;
+    const dstLabel = dst.code === 'en' ? dst.name : `${dst.flag} ${dst.name}`;
+    QUIZ_CONFIG_LABELS[`cfg_lang_${src.code}_${dst.code}`] = `${srcLabel} → ${dstLabel}`;
+  }
+}
+for (const lang of QUIZ_LANG_META) {
+  const langLabel = lang.code === 'en' ? lang.name : `${lang.flag} ${lang.name}`;
+  QUIZ_CONFIG_LABELS[`cfg_lang_emoji_${lang.code}`] = `😀 Emoji → ${langLabel}`;
+  QUIZ_CONFIG_LABELS[`cfg_lang_${lang.code}_emoji`] = `${langLabel} → 😀 Emoji`;
+  const synKey = lang.code === 'en' ? 'cfg_lang_synonym' : `cfg_lang_synonym_${lang.code}`;
+  const antKey = lang.code === 'en' ? 'cfg_lang_antonym' : `cfg_lang_antonym_${lang.code}`;
+  const idmKey = lang.code === 'en' ? 'cfg_lang_idiom_meaning' : `cfg_lang_idiom_meaning_${lang.code}`;
+  const mngKey = lang.code === 'en' ? 'cfg_lang_meaning_idiom' : `cfg_lang_meaning_idiom_${lang.code}`;
+  QUIZ_CONFIG_LABELS[synKey] = `${lang.flag} Word → Synonym`;
+  QUIZ_CONFIG_LABELS[antKey] = `${lang.flag} Word → Antonym`;
+  QUIZ_CONFIG_LABELS[idmKey] = `${lang.flag} Idiom → Meaning`;
+  QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
+}
+
 function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_geo_')) {
     return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
   }
-  if (baseId === 'cfg_lang_synonym' || baseId === 'cfg_lang_antonym') {
+  if (baseId.startsWith('cfg_lang_synonym') || baseId.startsWith('cfg_lang_antonym')) {
     return ['1–75', '76–150', '151–225', '226–300'][partNum - 1] || `Part ${partNum}`;
   }
-  if (baseId === 'cfg_lang_idiom_meaning' || baseId === 'cfg_lang_meaning_idiom') {
+  if (baseId.startsWith('cfg_lang_idiom_meaning') || baseId.startsWith('cfg_lang_meaning_idiom')) {
     return ['1–50', '51–100', '101–150', '151–200'][partNum - 1] || `Part ${partNum}`;
   }
   if (baseId.startsWith('cfg_lang_')) {
@@ -926,25 +942,63 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_geo_flag_map: { prompt: '🇧🇷', choices: ['map:Brazil', 'map:Argentina'] },
   cfg_geo_map_capital: { prompt: 'map:Brazil', choices: ['Brasília', 'Buenos Aires'] },
   cfg_geo_capital_map: { prompt: 'Brasília', choices: ['map:Brazil', 'map:Argentina'] },
-  cfg_lang_pt_en: { prompt: 'sempre', choices: ['always', 'never'] },
-  cfg_lang_es_en: { prompt: 'siempre', choices: ['always', 'never'] },
-  cfg_lang_fr_en: { prompt: 'toujours', choices: ['always', 'never'] },
-  cfg_lang_de_en: { prompt: 'immer', choices: ['always', 'never'] },
-  cfg_lang_en_pt: { prompt: 'always', choices: ['sempre', 'nunca'] },
-  cfg_lang_en_es: { prompt: 'always', choices: ['siempre', 'nunca'] },
-  cfg_lang_en_fr: { prompt: 'always', choices: ['toujours', 'jamais'] },
-  cfg_lang_en_de: { prompt: 'always', choices: ['immer', 'nie'] },
-  cfg_lang_emoji_en: { prompt: '🚀', choices: ['rocket', 'airplane'] },
-  cfg_lang_en_emoji: { prompt: 'rocket', choices: ['🚀', '✈️'] },
   cfg_lang_synonym: { prompt: 'ancient', choices: ['old', 'modern'] },
+  cfg_lang_synonym_pt: { prompt: 'antigo', choices: ['velho', 'moderno'] },
+  cfg_lang_synonym_es: { prompt: 'antiguo', choices: ['viejo', 'moderno'] },
+  cfg_lang_synonym_fr: { prompt: 'ancien', choices: ['vieux', 'moderne'] },
+  cfg_lang_synonym_de: { prompt: 'schnell', choices: ['rasch', 'langsam'] },
   cfg_lang_antonym: { prompt: 'expand', choices: ['shrink', 'grow'] },
+  cfg_lang_antonym_pt: { prompt: 'grande', choices: ['pequeno', 'enorme'] },
+  cfg_lang_antonym_es: { prompt: 'alto', choices: ['bajo', 'grande'] },
+  cfg_lang_antonym_fr: { prompt: 'grand', choices: ['petit', 'énorme'] },
+  cfg_lang_antonym_de: { prompt: 'groß', choices: ['klein', 'riesig'] },
   cfg_lang_idiom_meaning: { prompt: 'break the ice', choices: ['start a conversation', 'delay a decision'] },
   cfg_lang_meaning_idiom: { prompt: 'start a conversation', choices: ['break the ice', 'call it a day'] },
+  cfg_lang_idiom_meaning_pt: { prompt: 'quebrar o galho', choices: ['ajudar numa emergência', 'cometer um erro'] },
+  cfg_lang_meaning_idiom_pt: { prompt: 'ajudar numa emergência', choices: ['quebrar o galho', 'cair do cavalo'] },
+  cfg_lang_idiom_meaning_es: { prompt: 'tomar el pelo', choices: ['burlarse de alguien', 'cometer un error'] },
+  cfg_lang_meaning_idiom_es: { prompt: 'burlarse de alguien', choices: ['tomar el pelo', 'meter la pata'] },
+  cfg_lang_idiom_meaning_fr: { prompt: 'poser un lapin', choices: ['ne pas venir au rendez-vous', 'se sentir triste'] },
+  cfg_lang_meaning_idiom_fr: { prompt: 'ne pas venir au rendez-vous', choices: ['poser un lapin', 'tomber dans les pommes'] },
+  cfg_lang_idiom_meaning_de: { prompt: 'ins Fettnäpfchen treten', choices: ['etwas Peinliches sagen oder tun', 'viel Glück wünschen'] },
+  cfg_lang_meaning_idiom_de: { prompt: 'etwas Peinliches sagen oder tun', choices: ['ins Fettnäpfchen treten', 'auf dem Holzweg sein'] },
   cfg_chem_symbol_name: { prompt: 'Au', choices: ['Gold', 'Silver'] },
   cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
   cfg_other_morse_char: { prompt: '• • •', choices: ['S', 'O'] },
   cfg_other_char_morse: { prompt: 'S', choices: ['• • •', '− − −'] },
 };
+
+const PREVIEW_LANG_WORDS = {
+  en: ['always', 'never'],
+  pt: ['sempre', 'nunca'],
+  es: ['siempre', 'nunca'],
+  fr: ['toujours', 'jamais'],
+  de: ['immer', 'nie'],
+};
+const PREVIEW_EMOJI_WORDS = {
+  en: ['rocket', 'airplane'],
+  pt: ['foguete', 'avião'],
+  es: ['cohete', 'avión'],
+  fr: ['fusée', 'avion'],
+  de: ['Rakete', 'Flugzeug'],
+};
+for (const src of QUIZ_LANG_META) {
+  for (const dst of QUIZ_LANG_META) {
+    if (src.code === dst.code) continue;
+    QUIZ_PREVIEW_SAMPLES[`cfg_lang_${src.code}_${dst.code}`] = {
+      prompt: PREVIEW_LANG_WORDS[src.code][0],
+      choices: PREVIEW_LANG_WORDS[dst.code],
+    };
+  }
+  QUIZ_PREVIEW_SAMPLES[`cfg_lang_emoji_${src.code}`] = {
+    prompt: '🚀',
+    choices: PREVIEW_EMOJI_WORDS[src.code],
+  };
+  QUIZ_PREVIEW_SAMPLES[`cfg_lang_${src.code}_emoji`] = {
+    prompt: PREVIEW_EMOJI_WORDS[src.code][0],
+    choices: ['🚀', '✈️'],
+  };
+}
 
 async function fetchTop10Leaderboard(configId = DEFAULT_CONFIG_ID) {
   try {

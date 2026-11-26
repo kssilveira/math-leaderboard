@@ -325,6 +325,7 @@ html, body {
   flex-shrink: 0;
 }
 
+.lang-switcher-row .pill-btn,
 .part-switcher-row .pill-btn {
   padding: 4px 10px;
   font-size: 0.77rem;

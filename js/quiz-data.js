@@ -1,4 +1,139 @@
 // Built-in 2-Choice Quiz Configurations (datasets loaded from data/quiz-datasets.js)
+const QUIZ_LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇬🇧', col: 0, emojiCol: 1, synonyms: ENGLISH_SYNONYMS, antonyms: ENGLISH_ANTONYMS, idioms: ENGLISH_IDIOMS },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷', col: 1, emojiCol: 2, synonyms: PORTUGUESE_SYNONYMS, antonyms: PORTUGUESE_ANTONYMS, idioms: PORTUGUESE_IDIOMS },
+  { code: 'es', name: 'Spanish', flag: '🇪🇸', col: 2, emojiCol: 3, synonyms: SPANISH_SYNONYMS, antonyms: SPANISH_ANTONYMS, idioms: SPANISH_IDIOMS },
+  { code: 'fr', name: 'French', flag: '🇫🇷', col: 3, emojiCol: 4, synonyms: FRENCH_SYNONYMS, antonyms: FRENCH_ANTONYMS, idioms: FRENCH_IDIOMS },
+  { code: 'de', name: 'German', flag: '🇩🇪', col: 4, emojiCol: 5, synonyms: GERMAN_SYNONYMS, antonyms: GERMAN_ANTONYMS, idioms: GERMAN_IDIOMS }
+];
+
+function buildLanguageQuizConfigs() {
+  const configs = [];
+  const nonEn = QUIZ_LANGUAGES.filter(l => l.code !== 'en');
+
+  // 8 Foreign <-> English translation configs (preserving legacy IDs)
+  nonEn.forEach((lang) => {
+    configs.push({
+      id: `cfg_lang_${lang.code}_en`,
+      category: 'lang',
+      langs: [lang.code, 'en'],
+      type: 'quiz',
+      label: `${lang.flag} ${lang.name} → English`,
+      isFlagPrompt: false,
+      isFlagChoice: false,
+      items: COMMON_WORDS_1000.map(row => [row[lang.col], row[0]])
+    });
+  });
+  nonEn.forEach((lang) => {
+    configs.push({
+      id: `cfg_lang_en_${lang.code}`,
+      category: 'lang',
+      langs: ['en', lang.code],
+      type: 'quiz',
+      label: `English → ${lang.flag} ${lang.name}`,
+      isFlagPrompt: false,
+      isFlagChoice: false,
+      items: COMMON_WORDS_1000.map(row => [row[0], row[lang.col]])
+    });
+  });
+
+  // 12 cross-language translation configs across pt, es, fr, de
+  nonEn.forEach((src) => {
+    nonEn.forEach((dst) => {
+      if (src.code === dst.code) return;
+      configs.push({
+        id: `cfg_lang_${src.code}_${dst.code}`,
+        category: 'lang',
+        langs: [src.code, dst.code],
+        type: 'quiz',
+        label: `${src.flag} ${src.name} → ${dst.flag} ${dst.name}`,
+        isFlagPrompt: false,
+        isFlagChoice: false,
+        items: COMMON_WORDS_1000.map(row => [row[src.col], row[dst.col]])
+      });
+    });
+  });
+
+  // 10 Emoji <-> Language configs
+  QUIZ_LANGUAGES.forEach((lang) => {
+    const langLabel = lang.code === 'en' ? lang.name : `${lang.flag} ${lang.name}`;
+    configs.push({
+      id: `cfg_lang_emoji_${lang.code}`,
+      category: 'lang',
+      langs: [lang.code],
+      type: 'quiz',
+      label: `😀 Emoji → ${langLabel}`,
+      isFlagPrompt: true,
+      isFlagChoice: false,
+      items: TOP_EMOJIS_1000.map(row => [row[0], row[lang.emojiCol]])
+    });
+    configs.push({
+      id: `cfg_lang_${lang.code}_emoji`,
+      category: 'lang',
+      langs: [lang.code],
+      type: 'quiz',
+      label: `${langLabel} → 😀 Emoji`,
+      isFlagPrompt: false,
+      isFlagChoice: true,
+      items: TOP_EMOJIS_1000.map(row => [row[lang.emojiCol], row[0]])
+    });
+  });
+
+  // 5 Word -> Synonym configs
+  QUIZ_LANGUAGES.forEach((lang) => {
+    configs.push({
+      id: lang.code === 'en' ? 'cfg_lang_synonym' : `cfg_lang_synonym_${lang.code}`,
+      category: 'lang',
+      langs: [lang.code],
+      type: 'quiz',
+      label: `${lang.flag} Word → Synonym`,
+      isFlagPrompt: false,
+      isFlagChoice: false,
+      items: lang.synonyms
+    });
+  });
+
+  // 5 Word -> Antonym configs
+  QUIZ_LANGUAGES.forEach((lang) => {
+    configs.push({
+      id: lang.code === 'en' ? 'cfg_lang_antonym' : `cfg_lang_antonym_${lang.code}`,
+      category: 'lang',
+      langs: [lang.code],
+      type: 'quiz',
+      label: `${lang.flag} Word → Antonym`,
+      isFlagPrompt: false,
+      isFlagChoice: false,
+      items: lang.antonyms
+    });
+  });
+
+  // 10 Idiom <-> Meaning configs (monolingual per language)
+  QUIZ_LANGUAGES.forEach((lang) => {
+    configs.push({
+      id: lang.code === 'en' ? 'cfg_lang_idiom_meaning' : `cfg_lang_idiom_meaning_${lang.code}`,
+      category: 'lang',
+      langs: [lang.code],
+      type: 'quiz',
+      label: `${lang.flag} Idiom → Meaning`,
+      isFlagPrompt: false,
+      isFlagChoice: false,
+      items: lang.idioms.map(([idiom, meaning]) => [idiom, meaning])
+    });
+    configs.push({
+      id: lang.code === 'en' ? 'cfg_lang_meaning_idiom' : `cfg_lang_meaning_idiom_${lang.code}`,
+      category: 'lang',
+      langs: [lang.code],
+      type: 'quiz',
+      label: `${lang.flag} Meaning → Idiom`,
+      isFlagPrompt: false,
+      isFlagChoice: false,
+      items: lang.idioms.map(([idiom, meaning]) => [meaning, idiom])
+    });
+  });
+
+  return configs;
+}
+
 const BASE_QUIZ_CONFIGS = [
   // Geography (12 configs across 193 UN member states: Country, Flag, Capital, Map)
   {
@@ -110,133 +245,8 @@ const BASE_QUIZ_CONFIGS = [
     items: UN_MEMBER_STATES.map(([country, , capital]) => [capital, 'map:' + country])
   },
 
-  // Language (14 configs: 4 Foreign→English, 4 English→Foreign, 2 Emoji↔English, 4 English Vocabulary & Wordplay)
-  {
-    id: 'cfg_lang_pt_en',
-    category: 'lang',
-    type: 'quiz',
-    label: '🇧🇷 Portuguese → English',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, pt]) => [pt, en])
-  },
-  {
-    id: 'cfg_lang_es_en',
-    category: 'lang',
-    type: 'quiz',
-    label: '🇪🇸 Spanish → English',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, , es]) => [es, en])
-  },
-  {
-    id: 'cfg_lang_fr_en',
-    category: 'lang',
-    type: 'quiz',
-    label: '🇫🇷 French → English',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, , , fr]) => [fr, en])
-  },
-  {
-    id: 'cfg_lang_de_en',
-    category: 'lang',
-    type: 'quiz',
-    label: '🇩🇪 German → English',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, , , , de]) => [de, en])
-  },
-  {
-    id: 'cfg_lang_en_pt',
-    category: 'lang',
-    type: 'quiz',
-    label: 'English → 🇧🇷 Portuguese',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, pt]) => [en, pt])
-  },
-  {
-    id: 'cfg_lang_en_es',
-    category: 'lang',
-    type: 'quiz',
-    label: 'English → 🇪🇸 Spanish',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, , es]) => [en, es])
-  },
-  {
-    id: 'cfg_lang_en_fr',
-    category: 'lang',
-    type: 'quiz',
-    label: 'English → 🇫🇷 French',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, , , fr]) => [en, fr])
-  },
-  {
-    id: 'cfg_lang_en_de',
-    category: 'lang',
-    type: 'quiz',
-    label: 'English → 🇩🇪 German',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: COMMON_WORDS_1000.map(([en, , , , de]) => [en, de])
-  },
-  {
-    id: 'cfg_lang_emoji_en',
-    category: 'lang',
-    type: 'quiz',
-    label: '😀 Emoji → English',
-    isFlagPrompt: true,
-    isFlagChoice: false,
-    items: TOP_EMOJIS_1000.map(([emoji, en]) => [emoji, en])
-  },
-  {
-    id: 'cfg_lang_en_emoji',
-    category: 'lang',
-    type: 'quiz',
-    label: 'English → 😀 Emoji',
-    isFlagPrompt: false,
-    isFlagChoice: true,
-    items: TOP_EMOJIS_1000.map(([emoji, en]) => [en, emoji])
-  },
-  {
-    id: 'cfg_lang_synonym',
-    category: 'lang',
-    type: 'quiz',
-    label: 'Word → Synonym',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: ENGLISH_SYNONYMS
-  },
-  {
-    id: 'cfg_lang_antonym',
-    category: 'lang',
-    type: 'quiz',
-    label: 'Word → Antonym',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: ENGLISH_ANTONYMS
-  },
-  {
-    id: 'cfg_lang_idiom_meaning',
-    category: 'lang',
-    type: 'quiz',
-    label: 'Idiom → Meaning',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: ENGLISH_IDIOMS.map(([idiom, meaning]) => [idiom, meaning])
-  },
-  {
-    id: 'cfg_lang_meaning_idiom',
-    category: 'lang',
-    type: 'quiz',
-    label: 'Meaning → Idiom',
-    isFlagPrompt: false,
-    isFlagChoice: false,
-    items: ENGLISH_IDIOMS.map(([idiom, meaning]) => [meaning, idiom])
-  },
+  // Language (50 configs: 20 Translations, 10 Emoji↔Lang, 5 Synonym, 5 Antonym, 10 Idiom↔Meaning)
+  ...buildLanguageQuizConfigs(),
 
   // Other (4 configs: 118 IUPAC chemical elements & 36 International Morse Code characters)
   {
@@ -373,7 +383,7 @@ function getPartsForBaseQuizConfig(base) {
   if (base.id.includes('morse')) {
     return getMorseSignalParts();
   }
-  if (base.id === 'cfg_lang_synonym' || base.id === 'cfg_lang_antonym') {
+  if (base.id.startsWith('cfg_lang_synonym') || base.id.startsWith('cfg_lang_antonym')) {
     return [
       { label: '1–75', indices: buildRangeIndices(0, 75) },
       { label: '76–150', indices: buildRangeIndices(75, 150) },
@@ -381,7 +391,7 @@ function getPartsForBaseQuizConfig(base) {
       { label: '226–300', indices: buildRangeIndices(225, 300) }
     ];
   }
-  if (base.id === 'cfg_lang_idiom_meaning' || base.id === 'cfg_lang_meaning_idiom') {
+  if (base.id.startsWith('cfg_lang_idiom_meaning') || base.id.startsWith('cfg_lang_meaning_idiom')) {
     return [
       { label: '1–50', indices: buildRangeIndices(0, 50) },
       { label: '51–100', indices: buildRangeIndices(50, 100) },
@@ -410,6 +420,7 @@ function buildSplitQuizConfigs(baseConfigs) {
         partLabel: part.label,
         isMini: true,
         category: base.category,
+        ...(base.langs ? { langs: base.langs } : {}),
         type: 'quiz',
         label: `${base.label} · ${part.label}`,
         isFlagPrompt: base.isFlagPrompt,

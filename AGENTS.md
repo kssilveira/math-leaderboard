@@ -50,14 +50,15 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `data/quiz-datasets.js`: Defines raw quiz datasets:
     - `UN_MEMBER_STATES`: `[[country, flagEmoji, capital], ...]` (193 items)
     - `COMMON_WORDS_1000`: `[[en, pt, es, fr, de], ...]` (1,000 items)
-    - `TOP_EMOJIS_1000`: `[[emoji, enDescription], ...]` (1,000 items)
-    - `ENGLISH_SYNONYMS` / `ENGLISH_ANTONYMS`: `[[word, match], ...]` (300 items each)
-    - `ENGLISH_IDIOMS`: `[[idiom, meaning], ...]` (200 items)
+    - `TOP_EMOJIS_1000`: `[[emoji, en, pt, es, fr, de], ...]` (1,000 items)
+    - `ENGLISH_SYNONYMS` / `PORTUGUESE_SYNONYMS` / `SPANISH_SYNONYMS` / `FRENCH_SYNONYMS` / `GERMAN_SYNONYMS`: `[[word, match], ...]` (300 items each)
+    - `ENGLISH_ANTONYMS` / `PORTUGUESE_ANTONYMS` / `SPANISH_ANTONYMS` / `FRENCH_ANTONYMS` / `GERMAN_ANTONYMS`: `[[word, match], ...]` (300 items each)
+    - `ENGLISH_IDIOMS` / `PORTUGUESE_IDIOMS` / `SPANISH_IDIOMS` / `FRENCH_IDIOMS` / `GERMAN_IDIOMS`: `[[idiom, meaning], ...]` (200 items each, monolingual)
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
 - `js/`:
   - `js/geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
-  - `js/quiz-data.js`: Lightweight (~7 KB) config registry defining `BUILTIN_QUIZ_CONFIGS` with 30 built-in 2-choice quiz configurations:
+  - `js/quiz-data.js`: Lightweight (~7 KB) config registry defining `BUILTIN_QUIZ_CONFIGS` with 66 built-in 2-choice quiz base configurations (330 including 4 mini-parts each):
     - **🌍 Geography (`12` configs — 193 UN Member States)**:
       - `cfg_geo_flag_country` (`Flag → Country`)
       - `cfg_geo_country_flag` (`Country → Flag`)
@@ -71,13 +72,12 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_geo_flag_map` (`Flag → Map`)
       - `cfg_geo_map_capital` (`Map → Capital`)
       - `cfg_geo_capital_map` (`Capital → Map`)
-    - **💬 Language & Wordplay (`14` configs)**:
-      - `cfg_lang_pt_en`, `cfg_lang_es_en`, `cfg_lang_fr_en`, `cfg_lang_de_en` (`Portuguese/Spanish/French/German → English`, 1,000 most common words each)
-      - `cfg_lang_en_pt`, `cfg_lang_en_es`, `cfg_lang_en_fr`, `cfg_lang_en_de` (`English → Portuguese/Spanish/French/German`, 1,000 most common words each)
-      - `cfg_lang_emoji_en`, `cfg_lang_en_emoji` (`Emoji ↔ English`, 1,000 most used emojis)
-      - `cfg_lang_synonym` (`Word → Synonym`, 300 pairs)
-      - `cfg_lang_antonym` (`Word → Antonym`, 300 pairs)
-      - `cfg_lang_idiom_meaning`, `cfg_lang_meaning_idiom` (`Idiom ↔ Meaning`, 200 idioms & phrasal verbs)
+    - **💬 Language & Wordplay (`50` configs across `en`, `pt`, `es`, `fr`, `de`)**:
+      - `cfg_lang_{src}_{dst}` (all 20 directed translation pairs across `en`, `pt`, `es`, `fr`, `de`, 1,000 most common words each)
+      - `cfg_lang_emoji_{code}`, `cfg_lang_{code}_emoji` (`Emoji ↔ Language`, 10 configs, 1,000 most used emojis)
+      - `cfg_lang_synonym`, `cfg_lang_synonym_{pt,es,fr,de}` (`Word → Synonym`, 5 configs, 300 pairs each)
+      - `cfg_lang_antonym`, `cfg_lang_antonym_{pt,es,fr,de}` (`Word → Antonym`, 5 configs, 300 pairs each)
+      - `cfg_lang_idiom_meaning`, `cfg_lang_idiom_meaning_{pt,es,fr,de}`, `cfg_lang_meaning_idiom`, `cfg_lang_meaning_idiom_{pt,es,fr,de}` (`Idiom ↔ Meaning`, 10 monolingual configs, 200 idioms each)
     - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
       - `cfg_chem_symbol_name` (`Symbol → Element`)
       - `cfg_chem_name_symbol` (`Element → Symbol`)

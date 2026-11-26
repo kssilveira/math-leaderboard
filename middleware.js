@@ -50,6 +50,14 @@ function decodeReplaySummary(encoded) {
   }
 }
 
+const QUIZ_LANG_META = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', flag: '🇫🇷' },
+  { code: 'de', name: 'German', flag: '🇩🇪' },
+];
+
 const QUIZ_CONFIG_LABELS = {
   cfg_geo_flag_country: 'Flag → Country',
   cfg_geo_country_flag: 'Country → Flag',
@@ -63,34 +71,42 @@ const QUIZ_CONFIG_LABELS = {
   cfg_geo_flag_map: 'Flag → Map',
   cfg_geo_map_capital: 'Map → Capital',
   cfg_geo_capital_map: 'Capital → Map',
-  cfg_lang_pt_en: '🇧🇷 Portuguese → English',
-  cfg_lang_es_en: '🇪🇸 Spanish → English',
-  cfg_lang_fr_en: '🇫🇷 French → English',
-  cfg_lang_de_en: '🇩🇪 German → English',
-  cfg_lang_en_pt: 'English → 🇧🇷 Portuguese',
-  cfg_lang_en_es: 'English → 🇪🇸 Spanish',
-  cfg_lang_en_fr: 'English → 🇫🇷 French',
-  cfg_lang_en_de: 'English → 🇩🇪 German',
-  cfg_lang_emoji_en: '😀 Emoji → English',
-  cfg_lang_en_emoji: 'English → 😀 Emoji',
-  cfg_lang_synonym: 'Word → Synonym',
-  cfg_lang_antonym: 'Word → Antonym',
-  cfg_lang_idiom_meaning: 'Idiom → Meaning',
-  cfg_lang_meaning_idiom: 'Meaning → Idiom',
   cfg_chem_symbol_name: 'Symbol → Element',
   cfg_chem_name_symbol: 'Element → Symbol',
   cfg_other_morse_char: 'Morse → Character',
   cfg_other_char_morse: 'Character → Morse',
 };
 
+for (const src of QUIZ_LANG_META) {
+  for (const dst of QUIZ_LANG_META) {
+    if (src.code === dst.code) continue;
+    const srcLabel = src.code === 'en' ? src.name : `${src.flag} ${src.name}`;
+    const dstLabel = dst.code === 'en' ? dst.name : `${dst.flag} ${dst.name}`;
+    QUIZ_CONFIG_LABELS[`cfg_lang_${src.code}_${dst.code}`] = `${srcLabel} → ${dstLabel}`;
+  }
+}
+for (const lang of QUIZ_LANG_META) {
+  const langLabel = lang.code === 'en' ? lang.name : `${lang.flag} ${lang.name}`;
+  QUIZ_CONFIG_LABELS[`cfg_lang_emoji_${lang.code}`] = `😀 Emoji → ${langLabel}`;
+  QUIZ_CONFIG_LABELS[`cfg_lang_${lang.code}_emoji`] = `${langLabel} → 😀 Emoji`;
+  const synKey = lang.code === 'en' ? 'cfg_lang_synonym' : `cfg_lang_synonym_${lang.code}`;
+  const antKey = lang.code === 'en' ? 'cfg_lang_antonym' : `cfg_lang_antonym_${lang.code}`;
+  const idmKey = lang.code === 'en' ? 'cfg_lang_idiom_meaning' : `cfg_lang_idiom_meaning_${lang.code}`;
+  const mngKey = lang.code === 'en' ? 'cfg_lang_meaning_idiom' : `cfg_lang_meaning_idiom_${lang.code}`;
+  QUIZ_CONFIG_LABELS[synKey] = `${lang.flag} Word → Synonym`;
+  QUIZ_CONFIG_LABELS[antKey] = `${lang.flag} Word → Antonym`;
+  QUIZ_CONFIG_LABELS[idmKey] = `${lang.flag} Idiom → Meaning`;
+  QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
+}
+
 function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_geo_')) {
     return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
   }
-  if (baseId === 'cfg_lang_synonym' || baseId === 'cfg_lang_antonym') {
+  if (baseId.startsWith('cfg_lang_synonym') || baseId.startsWith('cfg_lang_antonym')) {
     return ['1–75', '76–150', '151–225', '226–300'][partNum - 1] || `Part ${partNum}`;
   }
-  if (baseId === 'cfg_lang_idiom_meaning' || baseId === 'cfg_lang_meaning_idiom') {
+  if (baseId.startsWith('cfg_lang_idiom_meaning') || baseId.startsWith('cfg_lang_meaning_idiom')) {
     return ['1–50', '51–100', '101–150', '151–200'][partNum - 1] || `Part ${partNum}`;
   }
   if (baseId.startsWith('cfg_lang_')) {
