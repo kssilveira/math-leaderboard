@@ -287,7 +287,7 @@ function buildConfigsForStudyCourse(course) {
 
   const monolingualConfigs = monolingualTracks.map((track) => ({
     ...baseMeta,
-    studyWith: 'any',
+    studyWith: learn,
     id: track.id || `cfg_study_${learn}_${learn}_${cefr}_${track.key}`,
     shortLabel: track.shortLabel,
     label: `${learnMeta.flag} ${cefrUpper} · ${track.shortLabel}`,
@@ -296,7 +296,7 @@ function buildConfigsForStudyCourse(course) {
     customParts: track.parts
   }));
 
-  return [...pairedConfigs, ...monolingualConfigs];
+  return [...monolingualConfigs, ...pairedConfigs];
 }
 
 function buildGermanA1StudyCourse() {
@@ -541,7 +541,7 @@ const BASE_QUIZ_CONFIGS = [
   // Language (50 configs: 20 Translations, 10 Emoji↔Lang, 5 Synonym, 5 Antonym, 10 Idiom↔Meaning)
   ...buildLanguageQuizConfigs(),
 
-  // Study (CEFR / Proficiency standards — German A1 with EN, PT-BR, ES & FR)
+  // Study (CEFR / Proficiency standards — German A1 with DE, EN, PT-BR, ES & FR)
   ...buildStudyQuizConfigs(),
 
   // Other (4 configs: 118 IUPAC chemical elements & 36 International Morse Code characters)

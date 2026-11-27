@@ -76,7 +76,7 @@ let activeLangFilter = VALID_LANG_FILTERS.includes(rawSavedLangFilter) ? rawSave
 const rawSavedLangWith = localStorage.getItem(STORAGE_KEYS.activeLangWith);
 let activeLangWith = VALID_LANG_FILTERS.includes(rawSavedLangWith) ? rawSavedLangWith : activeLangFilter;
 let activeStudyLearn = localStorage.getItem(STORAGE_KEYS.activeStudyLearn) || 'de';
-let activeStudyWith = localStorage.getItem(STORAGE_KEYS.activeStudyWith) || localStorage.getItem('math_active_study_from_v1') || 'en';
+let activeStudyWith = localStorage.getItem(STORAGE_KEYS.activeStudyWith) || localStorage.getItem('math_active_study_from_v1') || activeStudyLearn;
 let activeStudyCefr = localStorage.getItem(STORAGE_KEYS.activeStudyCefr) || 'a1';
 let activeConfigId = '';
 let draftConfig = null;
@@ -1171,7 +1171,7 @@ function configMatchesStudyFilters(
 ) {
   if (!cfg) return false;
   if (learn && cfg.studyLearn !== learn) return false;
-  if (withLang && cfg.studyWith && cfg.studyWith !== 'any' && cfg.studyWith !== withLang) return false;
+  if (withLang && cfg.studyWith !== withLang) return false;
   if (cefr && cfg.studyCefr !== cefr) return false;
   return true;
 }
@@ -1193,13 +1193,10 @@ function getAvailableStudyOptions() {
 
   const withSet = new Set();
   studyConfigs.forEach((c) => {
-    if (c.studyLearn === resolvedLearn && c.studyWith && c.studyWith !== 'any') {
+    if (c.studyLearn === resolvedLearn && c.studyWith) {
       withSet.add(c.studyWith);
     }
   });
-  if (withSet.size === 0 && resolvedLearn) {
-    withSet.add(resolvedLearn);
-  }
   const withOptions = Array.from(withSet).sort((a, b) => {
     if (a === resolvedLearn && b !== resolvedLearn) return -1;
     if (b === resolvedLearn && a !== resolvedLearn) return 1;
@@ -1217,7 +1214,7 @@ function getAvailableStudyOptions() {
   studyConfigs.forEach((c) => {
     if (
       c.studyLearn === resolvedLearn &&
-      (c.studyWith === resolvedWith || c.studyWith === 'any') &&
+      c.studyWith === resolvedWith &&
       c.studyCefr
     ) {
       cefrSet.add(c.studyCefr);
@@ -1413,7 +1410,7 @@ function renderConfigsUI() {
   if (isStudy) {
     if (!configMatchesStudyFilters(activeBaseCfg)) {
       if (activeBaseCfg.studyLearn) activeStudyLearn = activeBaseCfg.studyLearn;
-      if (activeBaseCfg.studyWith && activeBaseCfg.studyWith !== 'any') activeStudyWith = activeBaseCfg.studyWith;
+      if (activeBaseCfg.studyWith) activeStudyWith = activeBaseCfg.studyWith;
       if (activeBaseCfg.studyCefr) activeStudyCefr = activeBaseCfg.studyCefr;
       localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
       localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);

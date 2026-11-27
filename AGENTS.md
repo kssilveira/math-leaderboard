@@ -88,12 +88,12 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_lang_synonym`, `cfg_lang_synonym_{pt,es,fr,de}` (`Word → Synonym`, 5 configs, 300 pairs each)
       - `cfg_lang_antonym`, `cfg_lang_antonym_{pt,es,fr,de}` (`Word → Antonym`, 5 configs, 300 pairs each)
       - `cfg_lang_idiom_meaning`, `cfg_lang_idiom_meaning_{pt,es,fr,de}`, `cfg_lang_meaning_idiom`, `cfg_lang_meaning_idiom_{pt,es,fr,de}` (`Idiom ↔ Meaning`, 10 monolingual configs, 200 idioms each)
-    - **🎓 Study (`15` base configs / `100` including sets — German A1 with `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, `🇫🇷 FR`)**:
+    - **🎓 Study (`15` base configs / `100` including sets — German A1 with `🇩🇪 DE` default, `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, `🇫🇷 FR`)**:
       - `cfg_study_de_{en,pt,es,fr}_a1_vocab_de_{en,pt,es,fr}` (`Vocab (DE → EN / PT / ES / FR)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
       - `cfg_study_de_{en,pt,es,fr}_a1_vocab_{en,pt,es,fr}_de` (`Vocab (EN / PT / ES / FR → DE)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
-      - `cfg_study_de_de_a1_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets, `studyWith: 'any'`)
-      - `cfg_study_de_de_a1_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets, `studyWith: 'any'`)
-      - `cfg_study_de_de_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_VOCAB_CORE` + *Nom vs Akk*, `studyWith: 'any'`, 446 items)
+      - `cfg_study_de_de_a1_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets, `studyWith: 'de'`)
+      - `cfg_study_de_de_a1_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets, `studyWith: 'de'`)
+      - `cfg_study_de_de_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_VOCAB_CORE` + *Nom vs Akk*, `studyWith: 'de'`, 446 items)
       - `cfg_study_de_{en,pt,es,fr}_a1_phrases` (`Everyday Phrases`, `distractorMode: 'explicit'`, 4 sets)
       - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
     - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
