@@ -98,14 +98,17 @@
     <!-- HOME / LEADERBOARD VIEW -->
     <section id="home-view" class="view active">
       <!-- Shared Users Switcher -->
-      <div class="switcher-row" aria-label="Users on this device">
+      <div id="user-switcher-row" class="switcher-row" data-switcher-key="user" aria-label="Users on this device">
         <span class="switcher-label">User</span>
         <div id="user-list" class="pill-list" role="tablist"></div>
-        <button id="add-user-btn" class="add-pill-btn" type="button">+ User</button>
+        <div class="switcher-actions">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all users">▾ All</button>
+          <button id="add-user-btn" class="add-pill-btn" type="button">+ User</button>
+        </div>
       </div>
 
       <!-- Category Switcher -->
-      <div class="switcher-row" aria-label="Quiz Categories">
+      <div id="category-switcher-row" class="switcher-row" data-switcher-key="topic" aria-label="Quiz Categories">
         <span class="switcher-label">Topic</span>
         <div id="category-list" class="pill-list" role="tablist">
           <button type="button" class="pill-btn active" data-category="math" role="tab" aria-selected="true">🔢 Math</button>
@@ -114,10 +117,13 @@
           <button type="button" class="pill-btn" data-category="study" role="tab" aria-selected="false">🎓 Study</button>
           <button type="button" class="pill-btn" data-category="other" role="tab" aria-selected="false">🧩 Other</button>
         </div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all topics">▾ All</button>
+        </div>
       </div>
 
       <!-- Language Sub-Filter (shown only when Topic === 'lang') -->
-      <div id="lang-switcher-row" class="switcher-row lang-switcher-row hidden" aria-label="Language Filter">
+      <div id="lang-switcher-row" class="switcher-row lang-switcher-row hidden" data-switcher-key="lang" aria-label="Language Filter">
         <span class="switcher-label">Lang</span>
         <div id="lang-filter-list" class="pill-list" role="tablist">
           <button type="button" class="pill-btn active" data-lang="all" role="tab" aria-selected="true">All</button>
@@ -127,24 +133,36 @@
           <button type="button" class="pill-btn" data-lang="fr" role="tab" aria-selected="false">🇫🇷 FR</button>
           <button type="button" class="pill-btn" data-lang="de" role="tab" aria-selected="false">🇩🇪 DE</button>
         </div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all languages">▾ All</button>
+        </div>
       </div>
 
       <!-- Study Filters (shown only when Topic === 'study') -->
-      <div id="study-learn-row" class="switcher-row study-filter-row hidden" aria-label="Language to Learn">
+      <div id="study-learn-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyLearn" aria-label="Language to Learn">
         <span class="switcher-label">Learn</span>
         <div id="study-learn-list" class="pill-list" role="tablist"></div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all languages to learn">▾ All</button>
+        </div>
       </div>
-      <div id="study-from-row" class="switcher-row study-filter-row hidden" aria-label="Native Language">
+      <div id="study-from-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyFrom" aria-label="Native Language">
         <span class="switcher-label">From</span>
         <div id="study-from-list" class="pill-list" role="tablist"></div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all native languages">▾ All</button>
+        </div>
       </div>
-      <div id="study-cefr-row" class="switcher-row study-filter-row hidden" aria-label="CEFR Level">
+      <div id="study-cefr-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyCefr" aria-label="CEFR Level">
         <span class="switcher-label">CEFR</span>
         <div id="study-cefr-list" class="pill-list" role="tablist"></div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all CEFR levels">▾ All</button>
+        </div>
       </div>
 
       <!-- Game Configurations Switcher & New Game Creator -->
-      <div id="game-switcher-row" class="switcher-row game-switcher-row" aria-label="Game Configurations">
+      <div id="game-switcher-row" class="switcher-row game-switcher-row" data-switcher-key="game" aria-label="Game Configurations">
         <span class="switcher-label">Game</span>
         <div id="config-list" class="pill-list" role="tablist"></div>
         <div class="switcher-actions">
@@ -154,9 +172,12 @@
       </div>
 
       <!-- Sub-Game Set Switcher (All + 4 Mini Parts for Quiz Games) -->
-      <div id="part-switcher-row" class="switcher-row part-switcher-row hidden" aria-label="Game Set">
+      <div id="part-switcher-row" class="switcher-row part-switcher-row hidden" data-switcher-key="set" aria-label="Game Set">
         <span class="switcher-label">Set</span>
         <div id="part-list" class="pill-list" role="tablist"></div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all sets">▾ All</button>
+        </div>
       </div>
 
       <!-- New Game Creation Panel (shown only when adding a new game) -->

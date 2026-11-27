@@ -240,18 +240,12 @@ html, body {
   background: var(--wrong-bg);
 }
 
-/* Switcher Rows (Users & Game Configs) */
+/* Switcher Rows (Users, Topics, Filters & Game Configs) */
 .switcher-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-.switcher-row::-webkit-scrollbar {
-  display: none;
+  overflow-x: visible;
 }
 
 .switcher-label {
@@ -268,18 +262,6 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.game-switcher-row {
-  overflow-x: visible;
-  align-items: flex-start;
-}
-
-.game-switcher-row .switcher-label {
-  padding-top: 6px;
-}
-
-.game-switcher-row .pill-list {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
@@ -287,37 +269,47 @@ html, body {
   padding-bottom: 2px;
 }
 
-.game-switcher-row .pill-list::-webkit-scrollbar {
+.pill-list::-webkit-scrollbar {
   display: none;
 }
 
-.game-switcher-row.expanded {
+.switcher-row.expanded {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  align-items: start;
+  align-items: center;
+}
+
+.switcher-row.expanded .pill-list {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  width: 100%;
+  padding-bottom: 0;
+}
+
+.switcher-row.expanded .switcher-actions {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.switcher-row.expanded .pill-btn {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .game-switcher-row.expanded .pill-list {
-  grid-column: 1 / -1;
-  grid-row: 2;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  overflow-x: visible;
-  width: 100%;
-}
-
-.game-switcher-row.expanded .switcher-actions {
-  grid-column: 3;
-  grid-row: 1;
 }
 
 .game-switcher-row.expanded .pill-btn {
   padding: 6px 8px;
   font-size: 0.76rem;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .switcher-actions {
@@ -337,6 +329,13 @@ html, body {
 .expand-pill-btn {
   border-style: solid;
   background: var(--surface);
+}
+
+.lang-switcher-row .expand-pill-btn,
+.study-filter-row .expand-pill-btn,
+.part-switcher-row .expand-pill-btn {
+  padding: 4px 9px;
+  font-size: 0.75rem;
 }
 
 .pill-meta {

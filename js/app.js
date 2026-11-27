@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   reviewExpanded: 'math_review_expanded_v1',
   overviewExpanded: 'math_overview_expanded_v1',
   configsExpanded: 'math_configs_expanded_v1',
+  switchersExpanded: 'math_switchers_expanded_v1',
   soundEnabled: 'math_sound_enabled_v1',
   theme: 'math_theme_v1',
   landscapeConfigs: 'math_landscape_configs_v1',
@@ -118,7 +119,27 @@ let viewedUserId = null;
 let viewedUsername = '';
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
 let isOverviewExpanded = localStorage.getItem(STORAGE_KEYS.overviewExpanded) !== '0';
-let isConfigsExpanded = localStorage.getItem(STORAGE_KEYS.configsExpanded) === '1';
+
+function loadSwitcherExpandedState() {
+  let state = {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.switchersExpanded) || '{}');
+    if (parsed && typeof parsed === 'object') state = parsed;
+  } catch (_) {}
+  if (state.game === undefined && localStorage.getItem(STORAGE_KEYS.configsExpanded) === '1') {
+    state.game = true;
+  }
+  return state;
+}
+
+function saveSwitcherExpandedState() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.switchersExpanded, JSON.stringify(switcherExpandedState));
+    localStorage.setItem(STORAGE_KEYS.configsExpanded, switcherExpandedState.game ? '1' : '0');
+  } catch (_) {}
+}
+
+const switcherExpandedState = loadSwitcherExpandedState();
 let isSoundEnabled = localStorage.getItem(STORAGE_KEYS.soundEnabled) !== '0';
 let currentStreak = 0;
 let audioCtx = null;
@@ -127,6 +148,7 @@ let audioCtx = null;
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const soundToggleBtn = document.getElementById('sound-toggle-btn');
 const usernameInput = document.getElementById('username-input');
+const userSwitcherRow = document.getElementById('user-switcher-row');
 const userListEl = document.getElementById('user-list');
 const addUserBtn = document.getElementById('add-user-btn');
 const deleteUserBtn = document.getElementById('delete-user-btn');
@@ -142,11 +164,9 @@ const studyFromRow = document.getElementById('study-from-row');
 const studyFromListEl = document.getElementById('study-from-list');
 const studyCefrRow = document.getElementById('study-cefr-row');
 const studyCefrListEl = document.getElementById('study-cefr-list');
-const gameSwitcherRow = document.getElementById('game-switcher-row');
 const configListEl = document.getElementById('config-list');
 const partSwitcherRow = document.getElementById('part-switcher-row');
 const partListEl = document.getElementById('part-list');
-const expandConfigsBtn = document.getElementById('expand-configs-btn');
 const addConfigBtn = document.getElementById('add-config-btn');
 const newConfigPanel = document.getElementById('new-config-panel');
 const cancelConfigBtn = document.getElementById('cancel-config-btn');
@@ -686,6 +706,7 @@ function renderUserList() {
   if (addUserBtn) {
     addUserBtn.classList.toggle('hidden', users.length >= MAX_LOCAL_USERS);
   }
+  syncSwitcherRowOverflow(userSwitcherRow, { scrollActive: true });
 }
 
 function getUserSecret(targetUserId) {
@@ -1202,6 +1223,80 @@ function getStudyTrackSuffix(cfgId) {
   return m ? m[1] : '';
 }
 
+const switcherRows = Array.from(document.querySelectorAll('#home-view .switcher-row[data-switcher-key]'));
+
+function syncSwitcherActionsVisibility(actionsEl) {
+  if (!actionsEl) return;
+  const hasVisibleAction = Array.from(actionsEl.children).some(
+    (child) => !child.classList.contains('hidden')
+  );
+  actionsEl.classList.toggle('hidden', !hasVisibleAction);
+}
+
+function scrollActivePillIntoView(pillList) {
+  if (!pillList) return;
+  const activeBtn = pillList.querySelector('.pill-btn.active');
+  if (!activeBtn) return;
+  const listRect = pillList.getBoundingClientRect();
+  const btnRect = activeBtn.getBoundingClientRect();
+  if (listRect.width <= 0) return;
+  if (btnRect.left < listRect.left) {
+    pillList.scrollLeft += btnRect.left - listRect.left - 4;
+  } else if (btnRect.right > listRect.right) {
+    pillList.scrollLeft += btnRect.right - listRect.right + 4;
+  }
+}
+
+function syncSwitcherRowOverflow(row, { scrollActive = false } = {}) {
+  if (!row || row.classList.contains('hidden') || !homeView || !homeView.classList.contains('active') || row.offsetParent === null) {
+    return;
+  }
+  const pillList = row.querySelector('.pill-list');
+  const expandBtn = row.querySelector('.expand-pill-btn');
+  const actionsEl = row.querySelector('.switcher-actions');
+  const key = row.dataset.switcherKey;
+  if (!pillList || !expandBtn || !key) return;
+
+  const pills = Array.from(pillList.children).filter((el) => !el.classList.contains('hidden'));
+  const prevScrollLeft = pillList.scrollLeft;
+
+  // Measure pure single-line fit without the expand button so pills that fit on one line never trigger "All".
+  row.classList.remove('expanded');
+  expandBtn.classList.add('hidden');
+  syncSwitcherActionsVisibility(actionsEl);
+
+  if (pillList.clientWidth <= 0) return;
+
+  const overflows = pillList.scrollWidth > pillList.clientWidth + 1;
+  const canExpand = pills.length > 1 && overflows;
+  const isExpanded = canExpand && Boolean(switcherExpandedState[key]);
+
+  row.classList.toggle('expanded', isExpanded);
+  expandBtn.classList.toggle('hidden', !canExpand);
+  expandBtn.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+  expandBtn.textContent = isExpanded ? '▴ Less' : `▾ All (${pills.length})`;
+  syncSwitcherActionsVisibility(actionsEl);
+
+  if (!isExpanded) {
+    if (key === 'game' && canExpand) {
+      const activeBtn = pillList.querySelector('.pill-btn.active');
+      if (activeBtn && pillList.firstElementChild !== activeBtn) {
+        pillList.prepend(activeBtn);
+      }
+      pillList.scrollLeft = 0;
+    } else {
+      pillList.scrollLeft = prevScrollLeft;
+      if (scrollActive) {
+        scrollActivePillIntoView(pillList);
+      }
+    }
+  }
+}
+
+function updateAllSwitcherRowsOverflow(options = {}) {
+  switcherRows.forEach((row) => syncSwitcherRowOverflow(row, options));
+}
+
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
   if (!activeCfg) return;
@@ -1306,23 +1401,8 @@ function renderConfigsUI() {
       : activeCategory === 'study'
         ? allCategoryConfigs.filter((c) => configMatchesStudyFilters(c))
         : allCategoryConfigs;
-  const canExpand = categoryConfigs.length > 2;
 
-  if (gameSwitcherRow) {
-    gameSwitcherRow.classList.toggle('expanded', canExpand && isConfigsExpanded);
-  }
-  if (expandConfigsBtn) {
-    expandConfigsBtn.classList.toggle('hidden', !canExpand);
-    expandConfigsBtn.setAttribute('aria-expanded', canExpand && isConfigsExpanded ? 'true' : 'false');
-    expandConfigsBtn.textContent = isConfigsExpanded ? '▴ Less' : `▾ All (${categoryConfigs.length})`;
-  }
-
-  const orderedConfigs =
-    !isConfigsExpanded && categoryConfigs.some(c => c.id === activeBaseCfg.id)
-      ? [activeBaseCfg, ...categoryConfigs.filter(c => c.id !== activeBaseCfg.id)]
-      : categoryConfigs;
-
-  orderedConfigs.forEach((cfg) => {
+  categoryConfigs.forEach((cfg) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     const isBaseActive = cfg.id === activeBaseCfg.id;
@@ -1337,9 +1417,6 @@ function renderConfigsUI() {
     btn.addEventListener('click', () => switchConfig(cfg.id));
     configListEl.appendChild(btn);
   });
-  if (!isConfigsExpanded) {
-    configListEl.scrollLeft = 0;
-  }
 
   if (partSwitcherRow && partListEl) {
     const parts = getPartConfigsForBase(activeBaseCfg.id);
@@ -1367,6 +1444,8 @@ function renderConfigsUI() {
       });
     }
   }
+
+  updateAllSwitcherRowsOverflow({ scrollActive: true });
 
   leaderboardConfigBadge.textContent = formatConfigLabel(activeCfg);
 
@@ -2754,6 +2833,7 @@ function closeUserPage(selectConfigId = null) {
       renderReview();
     }
   }
+  updateAllSwitcherRowsOverflow();
   if (window.location.search.includes('user=')) {
     window.history.replaceState({}, '', window.location.pathname);
   }
@@ -4794,6 +4874,7 @@ async function finishGame(saveScore) {
   gameView.classList.remove('active', 'is-quiz-mode', 'is-math-mode', 'is-race-mode');
   applyGameplayOrientation();
   homeView.classList.add('active');
+  updateAllSwitcherRowsOverflow();
 
   if (saveScore) {
     let opponentRecord = null;
@@ -5708,6 +5789,7 @@ function stopReplay(returnHome = true) {
   if (returnHome) {
     gameView.classList.remove('active');
     homeView.classList.add('active');
+    updateAllSwitcherRowsOverflow();
   }
 }
 
@@ -5778,12 +5860,41 @@ langFilterBtns.forEach((btn) => {
   btn.addEventListener('click', () => switchLangFilter(btn.dataset.lang));
 });
 
-if (expandConfigsBtn) {
-  expandConfigsBtn.addEventListener('click', () => {
-    isConfigsExpanded = !isConfigsExpanded;
-    localStorage.setItem(STORAGE_KEYS.configsExpanded, isConfigsExpanded ? '1' : '0');
-    renderConfigsUI();
+switcherRows.forEach((row) => {
+  const expandBtn = row.querySelector('.expand-pill-btn');
+  const key = row.dataset.switcherKey;
+  if (!expandBtn || !key) return;
+  expandBtn.addEventListener('click', () => {
+    switcherExpandedState[key] = !switcherExpandedState[key];
+    saveSwitcherExpandedState();
+    if (key === 'game') {
+      renderConfigsUI();
+    } else {
+      syncSwitcherRowOverflow(row, { scrollActive: true });
+    }
   });
+});
+
+if (homeView && typeof ResizeObserver !== 'undefined') {
+  let lastObservedHomeWidth = Math.round(homeView.clientWidth);
+  const homeResizeObserver = new ResizeObserver(() => {
+    if (!homeView.classList.contains('active')) {
+      lastObservedHomeWidth = 0;
+      return;
+    }
+    const nextWidth = Math.round(homeView.clientWidth);
+    if (nextWidth > 0 && nextWidth !== lastObservedHomeWidth) {
+      lastObservedHomeWidth = nextWidth;
+      updateAllSwitcherRowsOverflow();
+    }
+  });
+  homeResizeObserver.observe(homeView);
+} else {
+  window.addEventListener('resize', () => updateAllSwitcherRowsOverflow());
+}
+
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => updateAllSwitcherRowsOverflow());
 }
 
 addConfigBtn.addEventListener('click', () => {
