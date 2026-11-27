@@ -136,6 +136,19 @@
           <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all languages">▾ All</button>
         </div>
       </div>
+      <div id="lang-with-row" class="switcher-row lang-switcher-row hidden" data-switcher-key="langWith" aria-label="Paired Language Filter">
+        <span class="switcher-label">With</span>
+        <div id="lang-with-list" class="pill-list" role="tablist">
+          <button type="button" class="pill-btn active" data-lang-with="en" role="tab" aria-selected="true">🇬🇧 EN</button>
+          <button type="button" class="pill-btn" data-lang-with="pt" role="tab" aria-selected="false">🇧🇷 PT</button>
+          <button type="button" class="pill-btn" data-lang-with="es" role="tab" aria-selected="false">🇪🇸 ES</button>
+          <button type="button" class="pill-btn" data-lang-with="fr" role="tab" aria-selected="false">🇫🇷 FR</button>
+          <button type="button" class="pill-btn" data-lang-with="de" role="tab" aria-selected="false">🇩🇪 DE</button>
+        </div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all paired languages">▾ All</button>
+        </div>
+      </div>
 
       <!-- Study Filters (shown only when Topic === 'study') -->
       <div id="study-learn-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyLearn" aria-label="Language to Learn">
@@ -145,11 +158,11 @@
           <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all languages to learn">▾ All</button>
         </div>
       </div>
-      <div id="study-from-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyFrom" aria-label="Native Language">
-        <span class="switcher-label">From</span>
-        <div id="study-from-list" class="pill-list" role="tablist"></div>
+      <div id="study-with-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyWith" aria-label="Paired Language">
+        <span class="switcher-label">With</span>
+        <div id="study-with-list" class="pill-list" role="tablist"></div>
         <div class="switcher-actions hidden">
-          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all native languages">▾ All</button>
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all paired languages">▾ All</button>
         </div>
       </div>
       <div id="study-cefr-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyCefr" aria-label="CEFR Level">

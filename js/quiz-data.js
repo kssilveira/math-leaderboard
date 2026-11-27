@@ -271,7 +271,7 @@ function buildStudyQuizConfigs() {
     category: 'study',
     type: 'quiz',
     studyLearn: 'de',
-    studyFrom: 'en',
+    studyWith: 'en',
     studyCefr: 'a1',
     isFlagPrompt: false,
     isFlagChoice: false
@@ -298,6 +298,7 @@ function buildStudyQuizConfigs() {
     },
     {
       ...baseMeta,
+      studyWith: 'de',
       id: 'cfg_study_de_en_a1_grammar',
       shortLabel: '📐 Grammar',
       label: '🇩🇪 A1 · 📐 Grammar',
@@ -307,6 +308,7 @@ function buildStudyQuizConfigs() {
     },
     {
       ...baseMeta,
+      studyWith: 'de',
       id: 'cfg_study_de_en_a1_verbs',
       shortLabel: '⚡ Verbs & Conjugation',
       label: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
@@ -316,6 +318,7 @@ function buildStudyQuizConfigs() {
     },
     {
       ...baseMeta,
+      studyWith: 'de',
       id: 'cfg_study_de_en_a1_articles',
       shortLabel: '🏷️ Articles & Gender',
       label: '🇩🇪 A1 · 🏷️ Articles & Gender',
@@ -629,7 +632,7 @@ function buildSplitQuizConfigs(baseConfigs) {
         category: base.category,
         ...(base.langs ? { langs: base.langs } : {}),
         ...(base.studyLearn ? { studyLearn: base.studyLearn } : {}),
-        ...(base.studyFrom ? { studyFrom: base.studyFrom } : {}),
+        ...(base.studyWith ? { studyWith: base.studyWith } : {}),
         ...(base.studyCefr ? { studyCefr: base.studyCefr } : {}),
         ...(base.distractorMode ? { distractorMode: base.distractorMode } : {}),
         ...(base.shortLabel ? { shortLabel: base.shortLabel } : {}),

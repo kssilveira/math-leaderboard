@@ -6,8 +6,9 @@ const STORAGE_KEYS = {
   username: 'math_username',
   activeCategory: 'math_active_category_v1',
   activeLangFilter: 'math_active_lang_filter_v1',
+  activeLangWith: 'math_active_lang_with_v1',
   activeStudyLearn: 'math_active_study_learn_v1',
-  activeStudyFrom: 'math_active_study_from_v1',
+  activeStudyWith: 'math_active_study_with_v1',
   activeStudyCefr: 'math_active_study_cefr_v1',
   activeConfigId: 'math_active_config_id',
   localConfigs: 'math_local_configs_v1',
@@ -72,8 +73,10 @@ let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory |
 const VALID_LANG_FILTERS = ['en', 'pt', 'es', 'fr', 'de'];
 const rawSavedLangFilter = localStorage.getItem(STORAGE_KEYS.activeLangFilter);
 let activeLangFilter = VALID_LANG_FILTERS.includes(rawSavedLangFilter) ? rawSavedLangFilter : 'en';
+const rawSavedLangWith = localStorage.getItem(STORAGE_KEYS.activeLangWith);
+let activeLangWith = VALID_LANG_FILTERS.includes(rawSavedLangWith) ? rawSavedLangWith : activeLangFilter;
 let activeStudyLearn = localStorage.getItem(STORAGE_KEYS.activeStudyLearn) || 'de';
-let activeStudyFrom = localStorage.getItem(STORAGE_KEYS.activeStudyFrom) || 'en';
+let activeStudyWith = localStorage.getItem(STORAGE_KEYS.activeStudyWith) || localStorage.getItem('math_active_study_from_v1') || 'en';
 let activeStudyCefr = localStorage.getItem(STORAGE_KEYS.activeStudyCefr) || 'a1';
 let activeConfigId = '';
 let draftConfig = null;
@@ -158,10 +161,13 @@ const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll
 const langSwitcherRow = document.getElementById('lang-switcher-row');
 const langFilterListEl = document.getElementById('lang-filter-list');
 const langFilterBtns = langFilterListEl ? Array.from(langFilterListEl.querySelectorAll('[data-lang]')) : [];
+const langWithRow = document.getElementById('lang-with-row');
+const langWithListEl = document.getElementById('lang-with-list');
+const langWithBtns = langWithListEl ? Array.from(langWithListEl.querySelectorAll('[data-lang-with]')) : [];
 const studyLearnRow = document.getElementById('study-learn-row');
 const studyLearnListEl = document.getElementById('study-learn-list');
-const studyFromRow = document.getElementById('study-from-row');
-const studyFromListEl = document.getElementById('study-from-list');
+const studyWithRow = document.getElementById('study-with-row');
+const studyWithListEl = document.getElementById('study-with-list');
 const studyCefrRow = document.getElementById('study-cefr-row');
 const studyCefrListEl = document.getElementById('study-cefr-list');
 const configListEl = document.getElementById('config-list');
@@ -1138,20 +1144,26 @@ function appendPillPerfMeta(btn, cfgId) {
   }
 }
 
-function configMatchesLangFilter(cfg, langCode = activeLangFilter) {
-  if (!langCode) return true;
-  return Boolean(cfg && Array.isArray(cfg.langs) && cfg.langs.includes(langCode));
+function configMatchesLangFilter(cfg, langCode = activeLangFilter, withCode = activeLangWith) {
+  if (!cfg || !Array.isArray(cfg.langs) || cfg.langs.length === 0) return false;
+  if (!langCode && !withCode) return true;
+  const a = langCode || withCode;
+  const b = withCode || langCode;
+  if (a === b) {
+    return cfg.langs.length === 1 && cfg.langs[0] === a;
+  }
+  return cfg.langs.length === 2 && cfg.langs.includes(a) && cfg.langs.includes(b);
 }
 
 function configMatchesStudyFilters(
   cfg,
   learn = activeStudyLearn,
-  from = activeStudyFrom,
+  withLang = activeStudyWith,
   cefr = activeStudyCefr
 ) {
   if (!cfg) return false;
   if (learn && cfg.studyLearn !== learn) return false;
-  if (from && cfg.studyFrom !== from) return false;
+  if (withLang && cfg.studyWith !== withLang) return false;
   if (cefr && cfg.studyCefr !== cefr) return false;
   return true;
 }
@@ -1171,17 +1183,24 @@ function getAvailableStudyOptions() {
   const learnOptions = Array.from(learnSet);
   const resolvedLearn = learnOptions.includes(activeStudyLearn) ? activeStudyLearn : (learnOptions[0] || '');
 
-  const fromSet = new Set();
+  const withSet = new Set();
   studyConfigs.forEach((c) => {
-    if (c.studyLearn === resolvedLearn && c.studyFrom) fromSet.add(c.studyFrom);
+    if (c.studyLearn === resolvedLearn && c.studyWith) withSet.add(c.studyWith);
   });
-  const fromOptions = Array.from(fromSet);
-  const resolvedFrom = fromOptions.includes(activeStudyFrom) ? activeStudyFrom : (fromOptions[0] || '');
+  const withOptions = Array.from(withSet).sort((a, b) => {
+    const ai = VALID_LANG_FILTERS.indexOf(a);
+    const bi = VALID_LANG_FILTERS.indexOf(b);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1;
+    if (bi >= 0) return 1;
+    return a.localeCompare(b);
+  });
+  const resolvedWith = withOptions.includes(activeStudyWith) ? activeStudyWith : (withOptions[0] || '');
 
   const cefrOrder = typeof STUDY_CEFR_ORDER !== 'undefined' ? STUDY_CEFR_ORDER : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
   const cefrSet = new Set();
   studyConfigs.forEach((c) => {
-    if (c.studyLearn === resolvedLearn && c.studyFrom === resolvedFrom && c.studyCefr) {
+    if (c.studyLearn === resolvedLearn && c.studyWith === resolvedWith && c.studyCefr) {
       cefrSet.add(c.studyCefr);
     }
   });
@@ -1194,10 +1213,10 @@ function getAvailableStudyOptions() {
 
   return {
     learnOptions,
-    fromOptions,
+    withOptions,
     cefrOptions,
     resolvedLearn,
-    resolvedFrom,
+    resolvedWith,
     resolvedCefr
   };
 }
@@ -1326,31 +1345,55 @@ function renderConfigsUI() {
   if (langSwitcherRow) {
     langSwitcherRow.classList.toggle('hidden', activeCategory !== 'lang');
   }
-  if (activeCategory === 'lang' && !configMatchesLangFilter(activeBaseCfg, activeLangFilter)) {
-    const fallbackLang = Array.isArray(activeBaseCfg.langs)
-      ? activeBaseCfg.langs.find((code) => VALID_LANG_FILTERS.includes(code))
-      : null;
-    activeLangFilter = fallbackLang || 'en';
+  if (langWithRow) {
+    langWithRow.classList.toggle('hidden', activeCategory !== 'lang');
+  }
+  if (activeCategory === 'lang' && !configMatchesLangFilter(activeBaseCfg, activeLangFilter, activeLangWith)) {
+    const cfgLangs = Array.isArray(activeBaseCfg.langs)
+      ? activeBaseCfg.langs.filter((code) => VALID_LANG_FILTERS.includes(code))
+      : [];
+    if (cfgLangs.length === 1) {
+      activeLangFilter = cfgLangs[0];
+      activeLangWith = cfgLangs[0];
+    } else if (cfgLangs.length >= 2) {
+      if (cfgLangs.includes(activeLangFilter)) {
+        activeLangWith = cfgLangs.find((code) => code !== activeLangFilter) || cfgLangs[0];
+      } else if (cfgLangs.includes(activeLangWith)) {
+        activeLangFilter = cfgLangs.find((code) => code !== activeLangWith) || cfgLangs[0];
+      } else {
+        activeLangFilter = cfgLangs[0];
+        activeLangWith = cfgLangs[1];
+      }
+    } else {
+      activeLangFilter = 'en';
+      activeLangWith = 'en';
+    }
     localStorage.setItem(STORAGE_KEYS.activeLangFilter, activeLangFilter);
+    localStorage.setItem(STORAGE_KEYS.activeLangWith, activeLangWith);
   }
   langFilterBtns.forEach((btn) => {
     const isLangActive = btn.dataset.lang === activeLangFilter;
     btn.classList.toggle('active', isLangActive);
     btn.setAttribute('aria-selected', isLangActive ? 'true' : 'false');
   });
+  langWithBtns.forEach((btn) => {
+    const isWithActive = btn.dataset.langWith === activeLangWith;
+    btn.classList.toggle('active', isWithActive);
+    btn.setAttribute('aria-selected', isWithActive ? 'true' : 'false');
+  });
 
   const isStudy = activeCategory === 'study';
   if (studyLearnRow) studyLearnRow.classList.toggle('hidden', !isStudy);
-  if (studyFromRow) studyFromRow.classList.toggle('hidden', !isStudy);
+  if (studyWithRow) studyWithRow.classList.toggle('hidden', !isStudy);
   if (studyCefrRow) studyCefrRow.classList.toggle('hidden', !isStudy);
 
   if (isStudy) {
     if (!configMatchesStudyFilters(activeBaseCfg)) {
       if (activeBaseCfg.studyLearn) activeStudyLearn = activeBaseCfg.studyLearn;
-      if (activeBaseCfg.studyFrom) activeStudyFrom = activeBaseCfg.studyFrom;
+      if (activeBaseCfg.studyWith) activeStudyWith = activeBaseCfg.studyWith;
       if (activeBaseCfg.studyCefr) activeStudyCefr = activeBaseCfg.studyCefr;
       localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
-      localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+      localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
       localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
     }
     const studyOpts = getAvailableStudyOptions();
@@ -1358,9 +1401,9 @@ function renderConfigsUI() {
       activeStudyLearn = studyOpts.resolvedLearn;
       localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
     }
-    if (studyOpts.resolvedFrom && studyOpts.resolvedFrom !== activeStudyFrom) {
-      activeStudyFrom = studyOpts.resolvedFrom;
-      localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+    if (studyOpts.resolvedWith && studyOpts.resolvedWith !== activeStudyWith) {
+      activeStudyWith = studyOpts.resolvedWith;
+      localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
     }
     if (studyOpts.resolvedCefr && studyOpts.resolvedCefr !== activeStudyCefr) {
       activeStudyCefr = studyOpts.resolvedCefr;
@@ -1374,11 +1417,11 @@ function renderConfigsUI() {
       'learn'
     );
     renderStudyFilterPills(
-      studyFromListEl,
-      studyOpts.fromOptions,
-      activeStudyFrom,
+      studyWithListEl,
+      studyOpts.withOptions,
+      activeStudyWith,
       (code) => getStudyLangDisplay(code),
-      'from'
+      'with'
     );
     renderStudyFilterPills(
       studyCefrListEl,
@@ -1400,7 +1443,7 @@ function renderConfigsUI() {
   const allCategoryConfigs = getBaseConfigsForCategory(activeCategory);
   const categoryConfigs =
     activeCategory === 'lang'
-      ? allCategoryConfigs.filter((c) => configMatchesLangFilter(c, activeLangFilter))
+      ? allCategoryConfigs.filter((c) => configMatchesLangFilter(c, activeLangFilter, activeLangWith))
       : activeCategory === 'study'
         ? allCategoryConfigs.filter((c) => configMatchesStudyFilters(c))
         : allCategoryConfigs;
@@ -1475,7 +1518,7 @@ async function switchCategory(targetCat) {
   if ((!currentCfg || getConfigCategory(currentCfg) !== targetCat) && catConfigs.length > 0) {
     const preferredCfg =
       targetCat === 'lang'
-        ? (catConfigs.find(c => configMatchesLangFilter(c, activeLangFilter)) || catConfigs[0])
+        ? (catConfigs.find(c => configMatchesLangFilter(c, activeLangFilter, activeLangWith)) || catConfigs[0])
         : targetCat === 'study'
           ? (catConfigs.find(c => configMatchesStudyFilters(c)) || catConfigs[0])
           : catConfigs[0];
@@ -1496,9 +1539,9 @@ function switchStudyFilter(filterType, targetValue) {
   if (filterType === 'learn') {
     activeStudyLearn = targetValue;
     localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
-  } else if (filterType === 'from') {
-    activeStudyFrom = targetValue;
-    localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+  } else if (filterType === 'with') {
+    activeStudyWith = targetValue;
+    localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
   } else if (filterType === 'cefr') {
     activeStudyCefr = targetValue;
     localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
@@ -1508,10 +1551,10 @@ function switchStudyFilter(filterType, targetValue) {
 
   const opts = getAvailableStudyOptions();
   activeStudyLearn = opts.resolvedLearn;
-  activeStudyFrom = opts.resolvedFrom;
+  activeStudyWith = opts.resolvedWith;
   activeStudyCefr = opts.resolvedCefr;
   localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
-  localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+  localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
   localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
 
   if (activeCategory !== 'study') return;
@@ -1537,15 +1580,12 @@ function switchStudyFilter(filterType, targetValue) {
   renderConfigsUI();
 }
 
-function switchLangFilter(targetLang) {
-  if (isPlaying || !VALID_LANG_FILTERS.includes(targetLang)) return;
-  activeLangFilter = targetLang;
-  localStorage.setItem(STORAGE_KEYS.activeLangFilter, activeLangFilter);
+function applyLangFilterChange() {
   if (activeCategory !== 'lang') return;
 
   const activeBaseCfg = getBaseConfig(getActiveConfig());
-  if (!configMatchesLangFilter(activeBaseCfg, activeLangFilter)) {
-    const matching = getBaseConfigsForCategory('lang').filter(c => configMatchesLangFilter(c, activeLangFilter));
+  if (!configMatchesLangFilter(activeBaseCfg, activeLangFilter, activeLangWith)) {
+    const matching = getBaseConfigsForCategory('lang').filter(c => configMatchesLangFilter(c, activeLangFilter, activeLangWith));
     if (matching.length > 0) {
       activeConfigId = matching[0].id;
       leaderboardPage = 1;
@@ -1560,6 +1600,20 @@ function switchLangFilter(targetLang) {
     }
   }
   renderConfigsUI();
+}
+
+function switchLangFilter(targetLang) {
+  if (isPlaying || !VALID_LANG_FILTERS.includes(targetLang)) return;
+  activeLangFilter = targetLang;
+  localStorage.setItem(STORAGE_KEYS.activeLangFilter, activeLangFilter);
+  applyLangFilterChange();
+}
+
+function switchLangWith(targetLang) {
+  if (isPlaying || !VALID_LANG_FILTERS.includes(targetLang)) return;
+  activeLangWith = targetLang;
+  localStorage.setItem(STORAGE_KEYS.activeLangWith, activeLangWith);
+  applyLangFilterChange();
 }
 
 function renderDraftConfigUI() {
@@ -5861,6 +5915,10 @@ categoryBtns.forEach((btn) => {
 
 langFilterBtns.forEach((btn) => {
   btn.addEventListener('click', () => switchLangFilter(btn.dataset.lang));
+});
+
+langWithBtns.forEach((btn) => {
+  btn.addEventListener('click', () => switchLangWith(btn.dataset.langWith));
 });
 
 switcherRows.forEach((row) => {

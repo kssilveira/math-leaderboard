@@ -38,7 +38,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 ## 2. Repository Structure
 
 - `index.html`: Single-page app markup containing three main views:
-  - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🎓 Study`, `🧩 Other`), Language sub-filter (`#lang-switcher-row`), Study filters (`#study-learn-row`, `#study-from-row`, `#study-cefr-row`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), Set switcher (`#part-switcher-row`), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
+  - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🎓 Study`, `🧩 Other`), Language sub-filters (`#lang-switcher-row`, `#lang-with-row`), Study filters (`#study-learn-row`, `#study-with-row`, `#study-cefr-row`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), Set switcher (`#part-switcher-row`), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
@@ -91,7 +91,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_study_de_en_a1_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets)
       - `cfg_study_de_en_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_EN_VOCAB` + *Nom vs Akk*)
       - `cfg_study_de_en_a1_phrases` (`Everyday Phrases`, `distractorMode: 'explicit'`, 4 sets)
-      - Study configs carry `studyLearn`, `studyFrom`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
+      - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
     - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
       - `cfg_chem_symbol_name` (`Symbol → Element`)
       - `cfg_chem_name_symbol` (`Element → Symbol`)
