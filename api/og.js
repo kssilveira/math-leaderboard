@@ -1021,8 +1021,8 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_study_de_en_a1_vocab_de_en: { prompt: 'der Bahnhof', choices: ['train station', 'airport'] },
   cfg_study_de_en_a1_vocab_en_de: { prompt: 'train station', choices: ['der Bahnhof', 'der Flughafen'] },
   cfg_study_de_en_a1_grammar: { prompt: 'Heute ___ ___ nach Berlin.', choices: ['fahre ich', 'ich fahre'] },
-  cfg_study_de_en_a1_verbs: { prompt: 'er ___ (fahren — to drive)', choices: ['fährt', 'fahrt'] },
-  cfg_study_de_en_a1_articles: { prompt: '___ Bahnhof (train station)', choices: ['der', 'die'] },
+  cfg_study_de_en_a1_verbs: { prompt: 'er ___ (fahren)', choices: ['fährt', 'fahrt'] },
+  cfg_study_de_en_a1_articles: { prompt: '___ Bahnhof', choices: ['der', 'die'] },
   cfg_study_de_en_a1_phrases: { prompt: 'Asking for the bill:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
 };
 

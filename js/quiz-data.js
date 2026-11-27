@@ -147,24 +147,24 @@ const STUDY_CEFR_ORDER = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
 function getGermanNounSuffixHint(noun, article) {
   if (article === 'die') {
-    if (noun.endsWith('ung')) return '-ung → feminine (die)';
-    if (noun.endsWith('heit')) return '-heit → feminine (die)';
-    if (noun.endsWith('keit')) return '-keit → feminine (die)';
-    if (noun.endsWith('schaft')) return '-schaft → feminine (die)';
-    if (noun.endsWith('tion')) return '-tion → feminine (die)';
-    if (noun.endsWith('tät')) return '-tät → feminine (die)';
-    if (noun.endsWith('in') && noun.length > 4) return '-in (female person) → die';
-    return 'feminine noun (die)';
+    if (noun.endsWith('ung')) return '-ung → feminin (die)';
+    if (noun.endsWith('heit')) return '-heit → feminin (die)';
+    if (noun.endsWith('keit')) return '-keit → feminin (die)';
+    if (noun.endsWith('schaft')) return '-schaft → feminin (die)';
+    if (noun.endsWith('tion')) return '-tion → feminin (die)';
+    if (noun.endsWith('tät')) return '-tät → feminin (die)';
+    if (noun.endsWith('in') && noun.length > 4) return '-in (weiblich) → die';
+    return 'feminin (die)';
   }
   if (article === 'das') {
-    if (noun.endsWith('chen')) return '-chen → always neuter (das)';
-    if (noun.endsWith('lein')) return '-lein → always neuter (das)';
-    return 'neuter noun (das)';
+    if (noun.endsWith('chen')) return '-chen → immer neutrum (das)';
+    if (noun.endsWith('lein')) return '-lein → immer neutrum (das)';
+    return 'neutrum (das)';
   }
   if (noun.endsWith('er') && ['der Lehrer', 'der Schüler', 'der Verkäufer', 'der Kellner', 'der Fahrer', 'der Arbeiter'].includes(`der ${noun}`)) {
-    return '-er (male person) → der';
+    return '-er (männlich) → der';
   }
-  return 'masculine noun (der)';
+  return 'maskulin (der)';
 }
 
 function buildPartsFromSetKeys(items, setDefs, setKeyIndex) {
@@ -244,7 +244,7 @@ function buildStudyQuizConfigs() {
     const distractors = allArticles.filter(a => a !== article);
     const hint = getGermanNounSuffixHint(noun, article);
     const idx = articleItems.length;
-    articleItems.push([`___ ${noun} (${en})`, article, distractors, hint]);
+    articleItems.push([`___ ${noun}`, article, distractors, hint]);
     if (setKey === 'basics' || setKey === 'people' || setKey === 'home') {
       artGroup1.push(idx);
     } else if (setKey === 'food' || setKey === 'city') {

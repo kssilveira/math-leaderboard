@@ -45,10 +45,10 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - `Word → Synonym` (300 pairs), `Word → Antonym` (300 pairs), and `Idiom ↔ Meaning` (200 idioms & phrasal verbs) for each language, with a **Lang** sub-filter and 4 mini-sets per game.
   - **🎓 Study (CEFR Tracks — German A1 for English Speakers)**:
     - Filterable by **Learn** (`🇩🇪 DE`), **From** (`🇬🇧 EN`), and **CEFR** (`A1`), with 6 tracks as games and thematic/topic splits as sets:
-      - `Vocab (DE → EN)` & `Vocab (EN → DE)` (621 Goethe-Zertifikat A1 words with noun articles, part-of-speech–matched distractors, and 7 thematic sets).
+      - `Vocab (DE → EN)` & `Vocab (EN → DE)` (693 Goethe-Zertifikat A1 words with noun articles, part-of-speech–matched distractors, and 7 thematic sets).
       - `Grammar` (214 cloze & structure drills with rule notes across 5 topic sets).
       - `Verbs & Conjugation` (188 drills across core/modals, regular present, stem-changing, and separable/Perfekt across 4 sets).
-      - `Articles & Gender` (437 drills across 3 noun-gender sets + Nominative vs. Accusative cloze set).
+      - `Articles & Gender` (444 drills across 3 noun-gender sets + Nominative vs. Accusative cloze set).
       - `Everyday Phrases` (106 functional A1 phrases across 4 sets).
     - Features highlighted inline cloze blanks (`___`) during play and concise grammar rule notes in **Progress & Review**.
   - **🧩 Other (4 built-in configs — Chemical Elements & Morse Code)**:

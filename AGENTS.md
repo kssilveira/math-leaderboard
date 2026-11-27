@@ -57,7 +57,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
   - `data/study-de-a1-en.js`: Defines Goethe-Zertifikat A1 German-for-English-speakers datasets:
-    - `STUDY_DE_A1_EN_VOCAB`: `[[de, en, pos, setKey], ...]` (621 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
+    - `STUDY_DE_A1_EN_VOCAB`: `[[de, en, pos, setKey], ...]` (693 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
     - `STUDY_DE_A1_EN_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
     - `STUDY_DE_A1_EN_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
     - `STUDY_DE_A1_EN_GRAMMAR`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (214 items; 5 `setKey`s)
