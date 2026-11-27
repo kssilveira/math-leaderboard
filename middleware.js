@@ -75,13 +75,21 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_en_a1_vocab_de_en: '🇩🇪 A1 · 🇩🇪 DE → 🇬🇧 EN',
-  cfg_study_de_en_a1_vocab_en_de: '🇩🇪 A1 · 🇬🇧 EN → 🇩🇪 DE',
   cfg_study_de_en_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
   cfg_study_de_en_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
   cfg_study_de_en_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
-  cfg_study_de_en_a1_phrases: '🇩🇪 A1 · 🗣️ Everyday Phrases',
 };
+
+const STUDY_DE_A1_WITH_META = [
+  { code: 'en', flag: '🇬🇧' },
+];
+for (const lang of STUDY_DE_A1_WITH_META) {
+  const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🇩🇪 DE → ${withTag}`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · ${withTag} → 🇩🇪 DE`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] =
+    lang.code === 'en' ? '🇩🇪 A1 · 🗣️ Everyday Phrases' : `🇩🇪 A1 (${withTag}) · 🗣️ Everyday Phrases`;
+}
 
 for (const src of QUIZ_LANG_META) {
   for (const dst of QUIZ_LANG_META) {
@@ -206,7 +214,7 @@ export default async function middleware(request) {
 
   let ogTitle = '1-Minute Quiz — Global Leaderboards';
   let ogDesc =
-    '1-minute mobile quiz game (Math, Geography, Language & Other) with replays, ghost races, and global leaderboards.';
+    '1-minute mobile quiz game (Math, Geography, Language, Study & Other) with replays, ghost races, and global leaderboards.';
   let ogImage = `${origin}/api/og?v=2`;
   let targetUrl = CANONICAL_APP_URL + url.search;
 
@@ -233,7 +241,7 @@ export default async function middleware(request) {
   } else if (userParam) {
     const playerName = uParam || 'Player';
     ogTitle = `${playerName}'s Ranks & Scores — 1-Minute Quiz`;
-    ogDesc = `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language & Other.`;
+    ogDesc = `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language, Study & Other.`;
     const imgParams = new URLSearchParams();
     imgParams.set('user', userParam);
     if (uParam) imgParams.set('u', uParam);

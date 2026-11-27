@@ -3,7 +3,7 @@
 This document provides complete technical context for AI coding agents working on this repository. Keep this repository strictly free of any proprietary, internal, or machine-specific paths/credentials.
 
 > **Context & Token Hygiene Rule (`data/` directory)**:
-> **NEVER** read, view, or grep large minified files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas (along with `data/study-de-a1-en.js`) are documented in Section 2 below.
+> **NEVER** read, view, or grep large minified files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas (along with `data/study-de-a1-core.js` and `data/study-de-a1-en.js`) are documented in Section 2 below.
 
 ---
 
@@ -15,7 +15,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-en.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-core.js`, `data/study-de-a1-en.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -56,12 +56,13 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `ENGLISH_IDIOMS` / `PORTUGUESE_IDIOMS` / `SPANISH_IDIOMS` / `FRENCH_IDIOMS` / `GERMAN_IDIOMS`: `[[idiom, meaning], ...]` (200 items each, monolingual)
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
-  - `data/study-de-a1-en.js`: Defines Goethe-Zertifikat A1 German-for-English-speakers datasets:
-    - `STUDY_DE_A1_EN_VOCAB`: `[[de, en, pos, setKey], ...]` (693 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
-    - `STUDY_DE_A1_EN_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
-    - `STUDY_DE_A1_EN_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
-    - `STUDY_DE_A1_EN_GRAMMAR`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (214 items; 5 `setKey`s)
-    - `STUDY_DE_A1_EN_PHRASES`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (106 items; 4 `setKey`s)
+  - `data/study-de-a1-core.js`: Defines shared, language-independent Goethe-Zertifikat A1 German datasets and initializes `STUDY_DE_A1_PACKS`:
+    - `STUDY_DE_A1_VOCAB_CORE`: `[[de, pos, setKey], ...]` (693 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
+    - `STUDY_DE_A1_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
+    - `STUDY_DE_A1_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
+    - `STUDY_DE_A1_GRAMMAR`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (214 items; 5 `setKey`s)
+    - `STUDY_DE_A1_PHRASES_CORE`: `[[correct, distractors, setKey], ...]` (106 items; 4 `setKey`s)
+  - `data/study-de-a1-en.js`: Registers `STUDY_DE_A1_PACKS.en` (`{ code: 'en', vocab: [...], phrases: [[prompt, ruleNote], ...] }`), aligned 1:1 with `STUDY_DE_A1_VOCAB_CORE` and `STUDY_DE_A1_PHRASES_CORE`.
 - `js/`:
   - `js/geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
   - `js/quiz-data.js`: Config registry defining `BUILTIN_QUIZ_CONFIGS` with **72** built-in 2-choice quiz base configurations (**367** total including mini-parts/sets):
@@ -89,7 +90,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_study_de_en_a1_vocab_en_de` (`Vocab (EN → DE)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
       - `cfg_study_de_en_a1_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets)
       - `cfg_study_de_en_a1_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets)
-      - `cfg_study_de_en_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_EN_VOCAB` + *Nom vs Akk*)
+      - `cfg_study_de_en_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_VOCAB_CORE` + *Nom vs Akk*)
       - `cfg_study_de_en_a1_phrases` (`Everyday Phrases`, `distractorMode: 'explicit'`, 4 sets)
       - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
     - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:

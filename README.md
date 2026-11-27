@@ -43,8 +43,8 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - All 20 directed translation pairs across English, Portuguese, Spanish, French, and German (1,000 most common words each).
     - `😀 Emoji ↔ Language` across all 5 languages (top 1,000 most used emojis).
     - `Word → Synonym` (300 pairs), `Word → Antonym` (300 pairs), and `Idiom ↔ Meaning` (200 idioms & phrasal verbs) for each language, with a **Lang** sub-filter and 4 mini-sets per game.
-  - **🎓 Study (CEFR Tracks — German A1 for English Speakers)**:
-    - Filterable by **Learn** (`🇩🇪 DE`), **From** (`🇬🇧 EN`), and **CEFR** (`A1`), with 6 tracks as games and thematic/topic splits as sets:
+  - **🎓 Study (CEFR Tracks — German A1)**:
+    - Filterable by **Learn** (`🇩🇪 DE`), **With** (`🇩🇪 DE` for monolingual grammar/verbs/articles, `🇬🇧 EN` for bilingual vocab/phrases), and **CEFR** (`A1`), with 6 tracks as games and thematic/topic splits as sets:
       - `Vocab (DE → EN)` & `Vocab (EN → DE)` (693 Goethe-Zertifikat A1 words with noun articles, part-of-speech–matched distractors, and 7 thematic sets).
       - `Grammar` (214 cloze & structure drills with rule notes across 5 topic sets).
       - `Verbs & Conjugation` (188 drills across core/modals, regular present, stem-changing, and separable/Perfekt across 4 sets).

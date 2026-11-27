@@ -1188,6 +1188,8 @@ function getAvailableStudyOptions() {
     if (c.studyLearn === resolvedLearn && c.studyWith) withSet.add(c.studyWith);
   });
   const withOptions = Array.from(withSet).sort((a, b) => {
+    if (a === resolvedLearn && b !== resolvedLearn) return -1;
+    if (b === resolvedLearn && a !== resolvedLearn) return 1;
     const ai = VALID_LANG_FILTERS.indexOf(a);
     const bi = VALID_LANG_FILTERS.indexOf(b);
     if (ai >= 0 && bi >= 0) return ai - bi;
@@ -1238,8 +1240,12 @@ function renderStudyFilterPills(listEl, options, activeVal, labelFn, filterType)
 }
 
 function getStudyTrackSuffix(cfgId) {
-  const m = String(cfgId || '').match(/^cfg_study_[a-z]+_[a-z]+_[a-z0-9]+_(.+?)(?:_p\d+)?$/);
-  return m ? m[1] : '';
+  const m = String(cfgId || '').match(/^cfg_study_([a-z]+)_([a-z]+)_[a-z0-9]+_(.+?)(?:_p\d+)?$/);
+  if (!m) return '';
+  const [, learn, withLang, track] = m;
+  if (track === `vocab_${learn}_${withLang}`) return 'vocab_from_learn';
+  if (track === `vocab_${withLang}_${learn}`) return 'vocab_to_learn';
+  return track;
 }
 
 const switcherRows = Array.from(document.querySelectorAll('#home-view .switcher-row[data-switcher-key]'));
@@ -1559,13 +1565,19 @@ function switchStudyFilter(filterType, targetValue) {
 
   if (activeCategory !== 'study') return;
 
-  const activeBaseCfg = getBaseConfig(getActiveConfig());
+  const activeCfg = getActiveConfig();
+  const activeBaseCfg = getBaseConfig(activeCfg);
+  const activePartIdx = activeCfg && activeCfg.isMini ? activeCfg.partIndex : 0;
   if (!configMatchesStudyFilters(activeBaseCfg)) {
     const matching = getBaseConfigsForCategory('study').filter(c => configMatchesStudyFilters(c));
     if (matching.length > 0) {
       const suffix = getStudyTrackSuffix(activeBaseCfg && activeBaseCfg.id);
       const sameTrack = suffix ? matching.find(c => getStudyTrackSuffix(c.id) === suffix) : null;
-      activeConfigId = (sameTrack || matching[0]).id;
+      const targetBase = sameTrack || matching[0];
+      const matchingPart = sameTrack && activePartIdx > 0
+        ? getPartConfigsForBase(targetBase.id).find(p => p.partIndex === activePartIdx)
+        : null;
+      activeConfigId = (matchingPart || targetBase).id;
       leaderboardPage = 1;
       localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
       closeNewConfigPanel();

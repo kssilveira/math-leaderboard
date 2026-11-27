@@ -145,15 +145,18 @@ const STUDY_LANGUAGE_META = {
 };
 const STUDY_CEFR_ORDER = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
+const GERMAN_PLURAL_ONLY_NOUNS = new Set(['Leute', 'Eltern', 'Geschwister', 'Großeltern']);
+
 function getGermanNounSuffixHint(noun, article) {
   if (article === 'die') {
+    if (GERMAN_PLURAL_ONLY_NOUNS.has(noun)) return 'Plural (die)';
     if (noun.endsWith('ung')) return '-ung → feminin (die)';
     if (noun.endsWith('heit')) return '-heit → feminin (die)';
     if (noun.endsWith('keit')) return '-keit → feminin (die)';
     if (noun.endsWith('schaft')) return '-schaft → feminin (die)';
     if (noun.endsWith('tion')) return '-tion → feminin (die)';
     if (noun.endsWith('tät')) return '-tät → feminin (die)';
-    if (noun.endsWith('in') && noun.length > 4) return '-in (weiblich) → die';
+    if (noun.endsWith('in') && noun.length > 4 && noun !== 'Medizin') return '-in (weiblich) → die';
     return 'feminin (die)';
   }
   if (article === 'das') {
@@ -182,11 +185,12 @@ function buildPartsFromSetKeys(items, setDefs, setKeyIndex) {
 
 function buildStudyQuizConfigs() {
   if (
-    typeof STUDY_DE_A1_EN_VOCAB === 'undefined' ||
-    typeof STUDY_DE_A1_EN_ARTICLES_AKK === 'undefined' ||
-    typeof STUDY_DE_A1_EN_VERBS === 'undefined' ||
-    typeof STUDY_DE_A1_EN_GRAMMAR === 'undefined' ||
-    typeof STUDY_DE_A1_EN_PHRASES === 'undefined'
+    typeof STUDY_DE_A1_VOCAB_CORE === 'undefined' ||
+    typeof STUDY_DE_A1_ARTICLES_AKK === 'undefined' ||
+    typeof STUDY_DE_A1_VERBS === 'undefined' ||
+    typeof STUDY_DE_A1_GRAMMAR === 'undefined' ||
+    typeof STUDY_DE_A1_PHRASES_CORE === 'undefined' ||
+    typeof STUDY_DE_A1_PACKS === 'undefined'
   ) {
     return [];
   }
@@ -200,7 +204,7 @@ function buildStudyQuizConfigs() {
     { keys: ['work'], label: '💼 Work & Free Time' },
     { keys: ['verbs_adj'], label: '✨ Verbs & Qualities' }
   ];
-  const vocabParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_VOCAB, vocabSetDefs, 3);
+  const vocabParts = buildPartsFromSetKeys(STUDY_DE_A1_VOCAB_CORE, vocabSetDefs, 2);
 
   const verbSetDefs = [
     { keys: ['core'], label: '⭐ sein, haben & Modals' },
@@ -208,7 +212,7 @@ function buildStudyQuizConfigs() {
     { keys: ['stem'], label: '🔀 Stem-Changing' },
     { keys: ['perfekt'], label: '⏪ Separable & Perfekt' }
   ];
-  const verbParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_VERBS, verbSetDefs, 4);
+  const verbParts = buildPartsFromSetKeys(STUDY_DE_A1_VERBS, verbSetDefs, 4);
 
   const grammarSetDefs = [
     { keys: ['word_order'], label: '❓ Word Order & Questions' },
@@ -217,7 +221,7 @@ function buildStudyQuizConfigs() {
     { keys: ['preps'], label: '📍 Prepositions' },
     { keys: ['modals'], label: '🔗 Modals & Connectors' }
   ];
-  const grammarParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_GRAMMAR, grammarSetDefs, 4);
+  const grammarParts = buildPartsFromSetKeys(STUDY_DE_A1_GRAMMAR, grammarSetDefs, 4);
 
   const phraseSetDefs = [
     { keys: ['intro'], label: '👋 Greetings & Intro' },
@@ -225,9 +229,9 @@ function buildStudyQuizConfigs() {
     { keys: ['travel'], label: '🧭 Directions & Travel' },
     { keys: ['daily'], label: '🏥 Time & Health' }
   ];
-  const phraseParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_PHRASES, phraseSetDefs, 4);
+  const phraseParts = buildPartsFromSetKeys(STUDY_DE_A1_PHRASES_CORE, phraseSetDefs, 2);
 
-  // Build Articles & Gender items: 3 noun gender groups derived from VOCAB + Set 4 Nom vs Akk
+  // Build Articles & Gender items: 3 noun gender groups derived from VOCAB_CORE + Set 4 Nom vs Akk
   const articleItems = [];
   const artGroup1 = [];
   const artGroup2 = [];
@@ -235,7 +239,7 @@ function buildStudyQuizConfigs() {
   const artGroup4 = [];
   const allArticles = ['der', 'die', 'das'];
 
-  STUDY_DE_A1_EN_VOCAB.forEach(([de, en, pos, setKey]) => {
+  STUDY_DE_A1_VOCAB_CORE.forEach(([de, pos, setKey]) => {
     if (pos !== 'n') return;
     const match = de.match(/^(der|die|das)\s+(.+)$/);
     if (!match) return;
@@ -245,7 +249,7 @@ function buildStudyQuizConfigs() {
     const hint = getGermanNounSuffixHint(noun, article);
     const idx = articleItems.length;
     articleItems.push([`___ ${noun}`, article, distractors, hint]);
-    if (setKey === 'basics' || setKey === 'people' || setKey === 'home') {
+    if (setKey === 'people' || setKey === 'home') {
       artGroup1.push(idx);
     } else if (setKey === 'food' || setKey === 'city') {
       artGroup2.push(idx);
@@ -254,7 +258,7 @@ function buildStudyQuizConfigs() {
     }
   });
 
-  STUDY_DE_A1_EN_ARTICLES_AKK.forEach(([prompt, correct, distractors, ruleNote]) => {
+  STUDY_DE_A1_ARTICLES_AKK.forEach(([prompt, correct, distractors, ruleNote]) => {
     const idx = articleItems.length;
     articleItems.push([prompt, correct, distractors, ruleNote]);
     artGroup4.push(idx);
@@ -271,31 +275,70 @@ function buildStudyQuizConfigs() {
     category: 'study',
     type: 'quiz',
     studyLearn: 'de',
-    studyWith: 'en',
     studyCefr: 'a1',
     isFlagPrompt: false,
     isFlagChoice: false
   };
 
-  return [
-    {
-      ...baseMeta,
-      id: 'cfg_study_de_en_a1_vocab_de_en',
-      shortLabel: '🇩🇪 DE → 🇬🇧 EN',
-      label: '🇩🇪 A1 · 🇩🇪 DE → 🇬🇧 EN',
-      distractorMode: 'pos_pool',
-      items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [de, en, pos]),
-      customParts: vocabParts
-    },
-    {
-      ...baseMeta,
-      id: 'cfg_study_de_en_a1_vocab_en_de',
-      shortLabel: '🇬🇧 EN → 🇩🇪 DE',
-      label: '🇩🇪 A1 · 🇬🇧 EN → 🇩🇪 DE',
-      distractorMode: 'pos_pool',
-      items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [en, de, pos]),
-      customParts: vocabParts
-    },
+  const preferredPackOrder = ['en', 'pt', 'es', 'fr'];
+  const packCodes = [
+    ...preferredPackOrder.filter(code => Boolean(STUDY_DE_A1_PACKS[code])),
+    ...Object.keys(STUDY_DE_A1_PACKS).filter(code => !preferredPackOrder.includes(code))
+  ];
+
+  const pairedConfigs = [];
+  packCodes.forEach((code) => {
+    const pack = STUDY_DE_A1_PACKS[code];
+    if (
+      !pack ||
+      !Array.isArray(pack.vocab) ||
+      !Array.isArray(pack.phrases) ||
+      pack.vocab.length !== STUDY_DE_A1_VOCAB_CORE.length ||
+      pack.phrases.length !== STUDY_DE_A1_PHRASES_CORE.length
+    ) {
+      return;
+    }
+    const langMeta = STUDY_LANGUAGE_META[code] || { name: code.toUpperCase(), flag: '🏳️' };
+    const withTag = `${langMeta.flag} ${code.toUpperCase()}`;
+    pairedConfigs.push(
+      {
+        ...baseMeta,
+        studyWith: code,
+        id: `cfg_study_de_${code}_a1_vocab_de_${code}`,
+        shortLabel: `🇩🇪 DE → ${withTag}`,
+        label: `🇩🇪 A1 · 🇩🇪 DE → ${withTag}`,
+        distractorMode: 'pos_pool',
+        items: STUDY_DE_A1_VOCAB_CORE.map(([de, pos], i) => [de, pack.vocab[i], pos]),
+        customParts: vocabParts
+      },
+      {
+        ...baseMeta,
+        studyWith: code,
+        id: `cfg_study_de_${code}_a1_vocab_${code}_de`,
+        shortLabel: `${withTag} → 🇩🇪 DE`,
+        label: `🇩🇪 A1 · ${withTag} → 🇩🇪 DE`,
+        distractorMode: 'pos_pool',
+        items: STUDY_DE_A1_VOCAB_CORE.map(([de, pos], i) => [pack.vocab[i], de, pos]),
+        customParts: vocabParts
+      },
+      {
+        ...baseMeta,
+        studyWith: code,
+        id: `cfg_study_de_${code}_a1_phrases`,
+        shortLabel: '🗣️ Everyday Phrases',
+        label: code === 'en' ? '🇩🇪 A1 · 🗣️ Everyday Phrases' : `🇩🇪 A1 (${withTag}) · 🗣️ Everyday Phrases`,
+        distractorMode: 'explicit',
+        items: STUDY_DE_A1_PHRASES_CORE.map(([correct, distractors], i) => {
+          const [prompt, ruleNote] = pack.phrases[i];
+          return [prompt, correct, distractors, ruleNote];
+        }),
+        customParts: phraseParts
+      }
+    );
+  });
+
+  // Monolingual German A1 tracks (preserving existing Firebase config IDs)
+  const monolingualDeConfigs = [
     {
       ...baseMeta,
       studyWith: 'de',
@@ -303,7 +346,7 @@ function buildStudyQuizConfigs() {
       shortLabel: '📐 Grammar',
       label: '🇩🇪 A1 · 📐 Grammar',
       distractorMode: 'explicit',
-      items: STUDY_DE_A1_EN_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
+      items: STUDY_DE_A1_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
       customParts: grammarParts
     },
     {
@@ -313,7 +356,7 @@ function buildStudyQuizConfigs() {
       shortLabel: '⚡ Verbs & Conjugation',
       label: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
       distractorMode: 'explicit',
-      items: STUDY_DE_A1_EN_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
+      items: STUDY_DE_A1_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
       customParts: verbParts
     },
     {
@@ -325,17 +368,10 @@ function buildStudyQuizConfigs() {
       distractorMode: 'explicit',
       items: articleItems,
       customParts: articleParts
-    },
-    {
-      ...baseMeta,
-      id: 'cfg_study_de_en_a1_phrases',
-      shortLabel: '🗣️ Everyday Phrases',
-      label: '🇩🇪 A1 · 🗣️ Everyday Phrases',
-      distractorMode: 'explicit',
-      items: STUDY_DE_A1_EN_PHRASES.map(([p, c, d, note]) => [p, c, d, note]),
-      customParts: phraseParts
     }
   ];
+
+  return [...pairedConfigs, ...monolingualDeConfigs];
 }
 
 const BASE_QUIZ_CONFIGS = [

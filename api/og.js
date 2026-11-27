@@ -54,13 +54,21 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_en_a1_vocab_de_en: '🇩🇪 A1 · 🇩🇪 DE → 🇬🇧 EN',
-  cfg_study_de_en_a1_vocab_en_de: '🇩🇪 A1 · 🇬🇧 EN → 🇩🇪 DE',
   cfg_study_de_en_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
   cfg_study_de_en_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
   cfg_study_de_en_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
-  cfg_study_de_en_a1_phrases: '🇩🇪 A1 · 🗣️ Everyday Phrases',
 };
+
+const STUDY_DE_A1_WITH_META = [
+  { code: 'en', flag: '🇬🇧' },
+];
+for (const lang of STUDY_DE_A1_WITH_META) {
+  const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🇩🇪 DE → ${withTag}`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · ${withTag} → 🇩🇪 DE`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] =
+    lang.code === 'en' ? '🇩🇪 A1 · 🗣️ Everyday Phrases' : `🇩🇪 A1 (${withTag}) · 🗣️ Everyday Phrases`;
+}
 
 for (const src of QUIZ_LANG_META) {
   for (const dst of QUIZ_LANG_META) {
@@ -1018,13 +1026,30 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
   cfg_other_morse_char: { prompt: '• • •', choices: ['S', 'O'] },
   cfg_other_char_morse: { prompt: 'S', choices: ['• • •', '− − −'] },
-  cfg_study_de_en_a1_vocab_de_en: { prompt: 'der Bahnhof', choices: ['train station', 'airport'] },
-  cfg_study_de_en_a1_vocab_en_de: { prompt: 'train station', choices: ['der Bahnhof', 'der Flughafen'] },
   cfg_study_de_en_a1_grammar: { prompt: 'Heute ___ ___ nach Berlin.', choices: ['fahre ich', 'ich fahre'] },
   cfg_study_de_en_a1_verbs: { prompt: 'er ___ (fahren)', choices: ['fährt', 'fahrt'] },
   cfg_study_de_en_a1_articles: { prompt: '___ Bahnhof', choices: ['der', 'die'] },
-  cfg_study_de_en_a1_phrases: { prompt: 'Asking for the bill:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
 };
+
+const PREVIEW_STUDY_DE_SAMPLES = {
+  en: {
+    trainStation: ['train station', 'airport'],
+    phrases: { prompt: 'Asking for the bill:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+  },
+};
+for (const lang of STUDY_DE_A1_WITH_META) {
+  const sample = PREVIEW_STUDY_DE_SAMPLES[lang.code];
+  if (!sample) continue;
+  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = {
+    prompt: 'der Bahnhof',
+    choices: sample.trainStation,
+  };
+  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = {
+    prompt: sample.trainStation[0],
+    choices: ['der Bahnhof', 'der Flughafen'],
+  };
+  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_phrases`] = sample.phrases;
+}
 
 const PREVIEW_LANG_WORDS = {
   en: ['always', 'never'],
@@ -1913,7 +1938,7 @@ async function fetchHomeOverviewStats() {
     const res = await fetch(`${FIREBASE_BASE_URL}/leaderboards.json`);
     const allBoards = res.ok ? await res.json() : {};
     const uniqueUserIds = new Set();
-    const byCategory = { math: [], geo: [], lang: [], other: [] };
+    const byCategory = { math: [], geo: [], lang: [], study: [], other: [] };
     let activeGames = 0;
 
     Object.entries(allBoards || {}).forEach(([cfgId, boardObj]) => {
@@ -1931,6 +1956,7 @@ async function fetchHomeOverviewStats() {
         return (a.updatedAt || 0) - (b.updatedAt || 0);
       });
       const cat = getConfigCategory(cfgId);
+      if (!byCategory[cat]) byCategory[cat] = [];
       byCategory[cat].push({
         cfgId,
         category: cat,
@@ -1938,7 +1964,7 @@ async function fetchHomeOverviewStats() {
         playerCount: entries.length,
         leaderName: String(entries[0].username || 'Player'),
         topScore: entries[0].score,
-        isFullGame: !/_p[1-4]$/.test(cfgId),
+        isFullGame: !/_p\d+$/.test(cfgId),
         isStandardMath: cat !== 'math' || isStandardMathShowcaseConfig(cfgId),
       });
     });
@@ -1948,7 +1974,7 @@ async function fetchHomeOverviewStats() {
       return (b.topScore || 0) - (a.topScore || 0);
     };
 
-    const categories = ['math', 'geo', 'lang', 'other'];
+    const categories = ['math', 'geo', 'lang', 'study', 'other'];
     categories.forEach((cat) => {
       byCategory[cat].sort((a, b) => {
         if (a.isFullGame !== b.isFullGame) {
@@ -1964,10 +1990,11 @@ async function fetchHomeOverviewStats() {
     const selected = [];
     const seen = new Set();
     categories.forEach((cat) => {
-      byCategory[cat].slice(0, 2).forEach((g) => {
+      if (byCategory[cat].length > 0) {
+        const g = byCategory[cat][0];
         selected.push(g);
         seen.add(g.cfgId);
-      });
+      }
     });
 
     if (selected.length < 8) {
