@@ -9,6 +9,7 @@ const QUIZ_LANGUAGES = [
 
 function buildLanguageQuizConfigs() {
   const configs = [];
+  const enLang = QUIZ_LANGUAGES.find(l => l.code === 'en');
   const nonEn = QUIZ_LANGUAGES.filter(l => l.code !== 'en');
 
   // 8 Foreign <-> English translation configs (preserving legacy IDs)
@@ -18,7 +19,7 @@ function buildLanguageQuizConfigs() {
       category: 'lang',
       langs: [lang.code, 'en'],
       type: 'quiz',
-      label: `${lang.flag} ${lang.name} → English`,
+      label: `${lang.flag} ${lang.name} → ${enLang.flag} ${enLang.name}`,
       isFlagPrompt: false,
       isFlagChoice: false,
       items: COMMON_WORDS_1000.map(row => [row[lang.col], row[0]])
@@ -30,7 +31,7 @@ function buildLanguageQuizConfigs() {
       category: 'lang',
       langs: ['en', lang.code],
       type: 'quiz',
-      label: `English → ${lang.flag} ${lang.name}`,
+      label: `${enLang.flag} ${enLang.name} → ${lang.flag} ${lang.name}`,
       isFlagPrompt: false,
       isFlagChoice: false,
       items: COMMON_WORDS_1000.map(row => [row[0], row[lang.col]])
@@ -56,7 +57,7 @@ function buildLanguageQuizConfigs() {
 
   // 10 Emoji <-> Language configs
   QUIZ_LANGUAGES.forEach((lang) => {
-    const langLabel = lang.code === 'en' ? lang.name : `${lang.flag} ${lang.name}`;
+    const langLabel = `${lang.flag} ${lang.name}`;
     configs.push({
       id: `cfg_lang_emoji_${lang.code}`,
       category: 'lang',

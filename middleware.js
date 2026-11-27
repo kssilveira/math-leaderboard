@@ -86,13 +86,13 @@ const QUIZ_CONFIG_LABELS = {
 for (const src of QUIZ_LANG_META) {
   for (const dst of QUIZ_LANG_META) {
     if (src.code === dst.code) continue;
-    const srcLabel = src.code === 'en' ? src.name : `${src.flag} ${src.name}`;
-    const dstLabel = dst.code === 'en' ? dst.name : `${dst.flag} ${dst.name}`;
+    const srcLabel = `${src.flag} ${src.name}`;
+    const dstLabel = `${dst.flag} ${dst.name}`;
     QUIZ_CONFIG_LABELS[`cfg_lang_${src.code}_${dst.code}`] = `${srcLabel} → ${dstLabel}`;
   }
 }
 for (const lang of QUIZ_LANG_META) {
-  const langLabel = lang.code === 'en' ? lang.name : `${lang.flag} ${lang.name}`;
+  const langLabel = `${lang.flag} ${lang.name}`;
   QUIZ_CONFIG_LABELS[`cfg_lang_emoji_${lang.code}`] = `😀 Emoji → ${langLabel}`;
   QUIZ_CONFIG_LABELS[`cfg_lang_${lang.code}_emoji`] = `${langLabel} → 😀 Emoji`;
   const synKey = lang.code === 'en' ? 'cfg_lang_synonym' : `cfg_lang_synonym_${lang.code}`;
