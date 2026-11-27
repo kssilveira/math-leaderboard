@@ -1,6 +1,6 @@
 # 1-Minute Quiz (Math, Geography, Language, Study & Other)
 
-Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — starting with German A1 with English & Brazilian Portuguese), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — starting with German A1 with English, Brazilian Portuguese, Spanish & French), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
 - **Android App (Google Play Closed Testing)**:
@@ -44,11 +44,11 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - `😀 Emoji ↔ Language` across all 5 languages (top 1,000 most used emojis).
     - `Word → Synonym` (300 pairs), `Word → Antonym` (300 pairs), and `Idiom ↔ Meaning` (200 idioms & phrasal verbs) for each language, with a **Lang** sub-filter and 4 mini-sets per game.
   - **🎓 Study (CEFR Tracks — German A1)**:
-    - Filterable by **Learn** (`🇩🇪 DE`), **With** (`🇩🇪 DE` for monolingual grammar/verbs/articles, `🇬🇧 EN` or `🇧🇷 PT` for bilingual vocab/phrases), and **CEFR** (`A1`), with tracks as games and thematic/topic splits as sets:
-      - `Vocab (DE ↔ EN / PT)` (693 Goethe-Zertifikat A1 words with noun articles, part-of-speech–matched distractors, and 7 thematic sets).
+    - Filterable by **Learn** (`🇩🇪 DE`), **With** (`🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, or `🇫🇷 FR`), and **CEFR** (`A1`), with tracks as games and thematic/topic splits as sets:
+      - `Vocab (DE ↔ EN / PT / ES / FR)` (717 Goethe-Zertifikat A1 words with noun articles, part-of-speech–matched distractors, and 7 thematic sets).
       - `Grammar` (214 cloze & structure drills with rule notes across 5 topic sets).
       - `Verbs & Conjugation` (188 drills across core/modals, regular present, stem-changing, and separable/Perfekt across 4 sets).
-      - `Articles & Gender` (444 drills across 3 noun-gender sets + Nominative vs. Accusative cloze set).
+      - `Articles & Gender` (446 drills across 3 noun-gender sets + Nominative vs. Accusative cloze set).
       - `Everyday Phrases` (106 functional A1 phrases across 4 sets).
     - Features highlighted inline cloze blanks (`___`) during play and concise grammar rule notes in **Progress & Review**.
   - **🧩 Other (4 built-in configs — Chemical Elements & Morse Code)**:
