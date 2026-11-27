@@ -1,4 +1,12 @@
 import { ImageResponse } from '@vercel/og';
+import {
+  STUDY_CONFIG_LABELS,
+  STUDY_PREVIEW_SAMPLES,
+  getStudyMiniPartLabel,
+  resolveStudyConfigIdAlias as resolveConfigIdAlias,
+  toLegacyDeEnAlias,
+  getStudyOgHomeBadge,
+} from '../lib/study-meta.js';
 
 export const config = {
   runtime: 'edge',
@@ -54,24 +62,8 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_de_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
-  cfg_study_de_de_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
-  cfg_study_de_de_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
+  ...STUDY_CONFIG_LABELS,
 };
-
-const STUDY_DE_A1_WITH_META = [
-  { code: 'en', flag: '🇬🇧' },
-  { code: 'pt', flag: '🇧🇷' },
-  { code: 'es', flag: '🇪🇸' },
-  { code: 'fr', flag: '🇫🇷' },
-];
-for (const lang of STUDY_DE_A1_WITH_META) {
-  const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🔤 Words 🇩🇪 DE → ${withTag}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · 🔤 Words ${withTag} → 🇩🇪 DE`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases_de_${lang.code}`] = `🇩🇪 A1 · 🗣️ Phrases 🇩🇪 DE → ${withTag}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 · 🗣️ Phrases ${withTag} → 🇩🇪 DE`;
-}
 
 for (const src of QUIZ_LANG_META) {
   for (const dst of QUIZ_LANG_META) {
@@ -95,61 +87,9 @@ for (const lang of QUIZ_LANG_META) {
   QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
 }
 
-const STUDY_MINI_PART_LABELS = {
-  de_a1: {
-    vocab: [
-      '⏰ Basics & Time',
-      '👪 People & Family',
-      '🏠 Home & Routine',
-      '🍎 Food & Shopping',
-      '🚆 City & Travel',
-      '💼 Work & Free Time',
-      '✨ Verbs & Qualities',
-    ],
-    grammar: [
-      '❓ Word Order & Questions',
-      '🚫 Pronouns & Negation',
-      '📚 Cases & Plurals',
-      '📍 Prepositions',
-      '🔗 Modals & Connectors',
-    ],
-    verbs: [
-      '⭐ sein, haben & Modals',
-      '✅ Regular Present',
-      '🔀 Stem-Changing',
-      '⏪ Separable & Perfekt',
-    ],
-    articles: [
-      '🏠 People & Home',
-      '🍎 Food & City',
-      '💼 Work & Time',
-      '⚖️ Nom vs Akk',
-    ],
-    phrases: [
-      '👋 Greetings & Intro',
-      '☕ Café & Shopping',
-      '🧭 Directions & Travel',
-      '🏥 Time & Health',
-    ],
-  },
-};
-
 function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_study_')) {
-    const m = baseId.match(/^cfg_study_([a-z]+)_[a-z]+_([a-z0-9]+)_(.+)$/);
-    if (m) {
-      const courseLabels = STUDY_MINI_PART_LABELS[`${m[1]}_${m[2]}`];
-      const trackKey = m[3].startsWith('vocab_')
-        ? 'vocab'
-        : m[3].startsWith('phrases_')
-          ? 'phrases'
-          : m[3];
-      const list = courseLabels && courseLabels[trackKey];
-      if (Array.isArray(list) && list[partNum - 1]) {
-        return list[partNum - 1];
-      }
-    }
-    return `Part ${partNum}`;
+    return getStudyMiniPartLabel(baseId, partNum);
   }
   if (baseId.startsWith('cfg_geo_')) {
     return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
@@ -170,19 +110,6 @@ function getMiniPartLabel(baseId, partNum) {
     return ['1–2 Signals', '3 Signals', '4 Signals', '5 Signals'][partNum - 1] || `Part ${partNum}`;
   }
   return `Part ${partNum}`;
-}
-
-const RENAMED_CONFIG_ID_RE = /^cfg_study_de_en_a1_(grammar|verbs|articles)(_p\d+)?$/;
-
-function resolveConfigIdAlias(configId) {
-  if (typeof configId !== 'string' || !configId) return configId;
-  return configId.replace(RENAMED_CONFIG_ID_RE, 'cfg_study_de_de_a1_$1$2');
-}
-
-function toLegacyDeEnAlias(configId) {
-  if (typeof configId !== 'string' || !configId) return '';
-  const m = configId.match(/^cfg_study_de_de_a1_(grammar|verbs|articles)(_p\d+)?$/);
-  return m ? `cfg_study_de_en_a1_${m[1]}${m[2] || ''}` : '';
 }
 
 function mergeLeaderboardsWithAliases(rawBoards) {
@@ -1076,47 +1003,8 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
   cfg_other_morse_char: { prompt: '• • •', choices: ['S', 'O'] },
   cfg_other_char_morse: { prompt: 'S', choices: ['• • •', '− − −'] },
-  cfg_study_de_de_a1_grammar: { prompt: 'Heute ___ ___ nach Berlin.', choices: ['fahre ich', 'ich fahre'] },
-  cfg_study_de_de_a1_verbs: { prompt: 'er ___ (fahren)', choices: ['fährt', 'fahrt'] },
-  cfg_study_de_de_a1_articles: { prompt: '___ Bahnhof', choices: ['der', 'die'] },
+  ...STUDY_PREVIEW_SAMPLES,
 };
-
-const PREVIEW_STUDY_DE_SAMPLES = {
-  en: {
-    trainStation: ['train station', 'airport'],
-    phrases: { prompt: 'The bill, please!', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
-    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['The bill, please!', 'The menu, please!'] },
-  },
-  pt: {
-    trainStation: ['estação de trem', 'aeroporto'],
-    phrases: { prompt: 'A conta, por favor!', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
-    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['A conta, por favor!', 'O cardápio, por favor!'] },
-  },
-  es: {
-    trainStation: ['estación de tren', 'aeropuerto'],
-    phrases: { prompt: '¡La cuenta, por favor!', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
-    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['¡La cuenta, por favor!', '¡La carta, por favor!'] },
-  },
-  fr: {
-    trainStation: ['gare', 'aéroport'],
-    phrases: { prompt: 'L’addition, s’il vous plaît !', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
-    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['L’addition, s’il vous plaît !', 'La carte, s’il vous plaît !'] },
-  },
-};
-for (const lang of STUDY_DE_A1_WITH_META) {
-  const sample = PREVIEW_STUDY_DE_SAMPLES[lang.code];
-  if (!sample) continue;
-  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = {
-    prompt: 'der Bahnhof',
-    choices: sample.trainStation,
-  };
-  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = {
-    prompt: sample.trainStation[0],
-    choices: ['der Bahnhof', 'der Flughafen'],
-  };
-  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_phrases_de_${lang.code}`] = sample.phrasesReverse;
-  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_phrases`] = sample.phrases;
-}
 
 const PREVIEW_LANG_WORDS = {
   en: ['always', 'never'],
@@ -2304,7 +2192,7 @@ function renderHomeOverviewCard(overview) {
     ]),
   ]);
 
-  const studyCard = cardShell('🎓 Study', '🇩🇪 DE A1 · CEFR', [
+  const studyCard = cardShell('🎓 Study', getStudyOgHomeBadge(), [
     h(
       'div',
       {

@@ -1589,7 +1589,7 @@ function switchStudyFilter(filterType, targetValue) {
       const suffix = getStudyTrackSuffix(activeBaseCfg && activeBaseCfg.id);
       const sameTrack = suffix ? matching.find(c => getStudyTrackSuffix(c.id) === suffix) : null;
       const targetBase = sameTrack || matching[0];
-      const matchingPart = sameTrack && activePartIdx > 0
+      const matchingPart = sameTrack && filterType === 'with' && activePartIdx > 0
         ? getPartConfigsForBase(targetBase.id).find(p => p.partIndex === activePartIdx)
         : null;
       activeConfigId = (matchingPart || targetBase).id;

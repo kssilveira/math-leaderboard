@@ -154,7 +154,15 @@ const GERMAN_MASC_TIME_NOUNS = new Set([
 const GERMAN_MASC_COMPASS_NOUNS = new Set(['Norden', 'Süden', 'Osten', 'Westen']);
 const GERMAN_NEUT_LANG_NOUNS = new Set(['Deutsch', 'Englisch', 'Spanisch', 'Französisch', 'Portugiesisch']);
 const GERMAN_MASC_ER_AGENT_NOUNS = new Set([
-  'Lehrer', 'Schüler', 'Verkäufer', 'Kellner', 'Fahrer', 'Partner'
+  'Lehrer', 'Schüler', 'Verkäufer', 'Kellner', 'Fahrer', 'Partner',
+  'Arbeiter', 'Mitarbeiter', 'Besucher', 'Bäcker', 'Rentner', 'Raucher',
+  'Mieter', 'Vermieter', 'Absender', 'Empfänger', 'Anfänger', 'Sportler',
+  'Künstler', 'Musiker', 'Techniker', 'Handwerker', 'Mechaniker',
+  'Apotheker', 'Politiker'
+]);
+const GERMAN_MASC_ER_DEVICE_NOUNS = new Set([
+  'Fernseher', 'Computer', 'Drucker', 'Wecker', 'Kugelschreiber',
+  'Stecker', 'Schalter', 'Staubsauger', 'Toaster', 'Trockner'
 ]);
 const GERMAN_ARTICLE_PROMPT_DISAMBIG = {
   See: '___ See (≠ Meer)',
@@ -172,6 +180,10 @@ function getGermanNounSuffixHint(noun, article) {
     if (noun.endsWith('tät')) return '-tät → feminin (die)';
     if (noun.endsWith('ei')) return '-ei → feminin (die)';
     if (noun.endsWith('ik')) return '-ik → feminin (die)';
+    if (noun.endsWith('ie') && noun.length > 4) return '-ie → feminin (die)';
+    if (noun.endsWith('age') && !/(?:frage|sage|lage|waage|klage|plage)$/i.test(noun)) return '-age → feminin (die)';
+    if (noun.endsWith('ur') && noun.length > 4) return '-ur → feminin (die)';
+    if (noun.endsWith('anz') || noun.endsWith('enz')) return '-anz/-enz → feminin (die)';
     if (noun.endsWith('in') && noun.length > 4 && noun !== 'Medizin') return '-in (weiblich) → die';
     return 'feminin (die)';
   }
@@ -180,11 +192,21 @@ function getGermanNounSuffixHint(noun, article) {
     if (noun.endsWith('chen')) return '-chen → immer neutrum (das)';
     if (noun.endsWith('lein')) return '-lein → immer neutrum (das)';
     if (noun.endsWith('um')) return '-um → neutrum (das)';
+    if (noun.endsWith('ment')) return '-ment → neutrum (das)';
+    if (noun.endsWith('tum')) return '-tum → neutrum (das)';
+    if (noun.endsWith('nis')) return '-nis → meist neutrum (das)';
     return 'neutrum (das)';
   }
   if (GERMAN_MASC_TIME_NOUNS.has(noun)) return 'Tage/Monate/Jahreszeiten → der';
   if (GERMAN_MASC_COMPASS_NOUNS.has(noun)) return 'Himmelsrichtungen → der';
   if (GERMAN_MASC_ER_AGENT_NOUNS.has(noun)) return '-er (männlich) → der';
+  if (GERMAN_MASC_ER_DEVICE_NOUNS.has(noun)) return '-er (Gerät) → der';
+  if (noun.endsWith('ling')) return '-ling → maskulin (der)';
+  if (noun.endsWith('ist')) return '-ist → maskulin (der)';
+  if (noun.endsWith('or') && noun.length > 4) return '-or → maskulin (der)';
+  if (noun.endsWith('ismus')) return '-ismus → maskulin (der)';
+  if (noun.endsWith('ant') && noun.length > 4) return '-ant → maskulin (der)';
+  if (noun.endsWith('ent') && noun.length > 4 && noun !== 'Moment') return '-ent → maskulin (der)';
   return 'maskulin (der)';
 }
 
@@ -367,7 +389,7 @@ function buildGermanA1StudyCourse() {
   const artGroup4 = [];
   const allArticles = ['der', 'die', 'das'];
 
-  STUDY_DE_A1_VOCAB_CORE.forEach(([de, pos, setKey]) => {
+  const pushNounArticleItem = ([de, pos, setKey]) => {
     if (pos !== 'n') return;
     const match = de.match(/^(der|die|das)\s+(.+)$/);
     if (!match) return;
@@ -385,13 +407,19 @@ function buildGermanA1StudyCourse() {
     } else {
       artGroup3.push(idx);
     }
-  });
+  };
+
+  // Preserve original qIdx ordering: initial 717 vocab entries [0..375], Akk [376..445], appended nouns [446+].
+  const A1_INITIAL_VOCAB_COUNT = 717;
+  STUDY_DE_A1_VOCAB_CORE.slice(0, A1_INITIAL_VOCAB_COUNT).forEach(pushNounArticleItem);
 
   STUDY_DE_A1_ARTICLES_AKK.forEach(([prompt, correct, distractors, ruleNote]) => {
     const idx = articleItems.length;
     articleItems.push([prompt, correct, distractors, ruleNote]);
     artGroup4.push(idx);
   });
+
+  STUDY_DE_A1_VOCAB_CORE.slice(A1_INITIAL_VOCAB_COUNT).forEach(pushNounArticleItem);
 
   const articleParts = [
     { label: '🏠 People & Home', indices: artGroup1 },

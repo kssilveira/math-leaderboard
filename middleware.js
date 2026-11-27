@@ -1,3 +1,9 @@
+import {
+  STUDY_CONFIG_LABELS,
+  getStudyMiniPartLabel,
+  resolveStudyConfigIdAlias,
+} from './lib/study-meta.js';
+
 export const config = {
   matcher: ['/', '/index.html'],
 };
@@ -75,24 +81,8 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_de_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
-  cfg_study_de_de_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
-  cfg_study_de_de_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
+  ...STUDY_CONFIG_LABELS,
 };
-
-const STUDY_DE_A1_WITH_META = [
-  { code: 'en', flag: '🇬🇧' },
-  { code: 'pt', flag: '🇧🇷' },
-  { code: 'es', flag: '🇪🇸' },
-  { code: 'fr', flag: '🇫🇷' },
-];
-for (const lang of STUDY_DE_A1_WITH_META) {
-  const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🔤 Words 🇩🇪 DE → ${withTag}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · 🔤 Words ${withTag} → 🇩🇪 DE`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases_de_${lang.code}`] = `🇩🇪 A1 · 🗣️ Phrases 🇩🇪 DE → ${withTag}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 · 🗣️ Phrases ${withTag} → 🇩🇪 DE`;
-}
 
 for (const src of QUIZ_LANG_META) {
   for (const dst of QUIZ_LANG_META) {
@@ -116,61 +106,9 @@ for (const lang of QUIZ_LANG_META) {
   QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
 }
 
-const STUDY_MINI_PART_LABELS = {
-  de_a1: {
-    vocab: [
-      '⏰ Basics & Time',
-      '👪 People & Family',
-      '🏠 Home & Routine',
-      '🍎 Food & Shopping',
-      '🚆 City & Travel',
-      '💼 Work & Free Time',
-      '✨ Verbs & Qualities',
-    ],
-    grammar: [
-      '❓ Word Order & Questions',
-      '🚫 Pronouns & Negation',
-      '📚 Cases & Plurals',
-      '📍 Prepositions',
-      '🔗 Modals & Connectors',
-    ],
-    verbs: [
-      '⭐ sein, haben & Modals',
-      '✅ Regular Present',
-      '🔀 Stem-Changing',
-      '⏪ Separable & Perfekt',
-    ],
-    articles: [
-      '🏠 People & Home',
-      '🍎 Food & City',
-      '💼 Work & Time',
-      '⚖️ Nom vs Akk',
-    ],
-    phrases: [
-      '👋 Greetings & Intro',
-      '☕ Café & Shopping',
-      '🧭 Directions & Travel',
-      '🏥 Time & Health',
-    ],
-  },
-};
-
 function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_study_')) {
-    const m = baseId.match(/^cfg_study_([a-z]+)_[a-z]+_([a-z0-9]+)_(.+)$/);
-    if (m) {
-      const courseLabels = STUDY_MINI_PART_LABELS[`${m[1]}_${m[2]}`];
-      const trackKey = m[3].startsWith('vocab_')
-        ? 'vocab'
-        : m[3].startsWith('phrases_')
-          ? 'phrases'
-          : m[3];
-      const list = courseLabels && courseLabels[trackKey];
-      if (Array.isArray(list) && list[partNum - 1]) {
-        return list[partNum - 1];
-      }
-    }
-    return `Part ${partNum}`;
+    return getStudyMiniPartLabel(baseId, partNum);
   }
   if (baseId.startsWith('cfg_geo_')) {
     return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
@@ -193,11 +131,8 @@ function getMiniPartLabel(baseId, partNum) {
   return `Part ${partNum}`;
 }
 
-const RENAMED_CONFIG_ID_RE = /^cfg_study_de_en_a1_(grammar|verbs|articles)(_p\d+)?$/;
-
 function resolveConfigIdAlias(configId) {
-  if (typeof configId !== 'string' || !configId) return configId;
-  return configId.replace(RENAMED_CONFIG_ID_RE, 'cfg_study_de_de_a1_$1$2');
+  return resolveStudyConfigIdAlias(configId);
 }
 
 function formatConfigId(configId) {

@@ -57,7 +57,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
   - `data/study-de-a1-core.js`: Defines shared, language-independent Goethe-Zertifikat A1 German datasets and initializes `STUDY_DE_A1_PACKS`:
-    - `STUDY_DE_A1_VOCAB_CORE`: `[[de, pos, setKey], ...]` (717 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
+    - `STUDY_DE_A1_VOCAB_CORE`: `[[de, pos, setKey], ...]` (738 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
     - `STUDY_DE_A1_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
     - `STUDY_DE_A1_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
     - `STUDY_DE_A1_GRAMMAR`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (214 items; 5 `setKey`s)
@@ -93,7 +93,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_study_de_{en,pt,es,fr}_a1_vocab_{en,pt,es,fr}_de` (`Words (EN / PT / ES / FR → DE)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
       - `cfg_study_de_de_a1_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets, `studyWith: 'de'`)
       - `cfg_study_de_de_a1_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets, `studyWith: 'de'`)
-      - `cfg_study_de_de_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_VOCAB_CORE` + *Nom vs Akk*, `studyWith: 'de'`, 446 items)
+      - `cfg_study_de_de_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_VOCAB_CORE` + *Nom vs Akk*, `studyWith: 'de'`, 454 items)
       - `cfg_study_de_{en,pt,es,fr}_a1_phrases_de_{en,pt,es,fr}` (`Phrases (DE → EN / PT / ES / FR)`, `distractorMode: 'pos_pool'`, 4 sets)
       - `cfg_study_de_{en,pt,es,fr}_a1_phrases` (`Phrases (EN / PT / ES / FR → DE)`, `distractorMode: 'explicit'`, 4 sets)
       - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
@@ -103,6 +103,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_other_morse_char` (`Morse → Character`)
       - `cfg_other_char_morse` (`Character → Morse`)
   - `js/app.js`: All client-side application logic.
+- `lib/study-meta.js`: Shared Study metadata, labels, mini-part names, preview samples, and config ID aliases imported by `middleware.js` and `api/og.js`.
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
@@ -146,7 +147,7 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 
 1. **Adding New Quiz or Study Configs**:
    - Add raw dataset arrays to `data/quiz-datasets.js` (general quizzes) or a dedicated pack file such as `data/study-<learn>-<cefr>-<from>.js` (loaded in `index.html` and precached in `sw.js`), and register the config entries in `js/quiz-data.js` (`BUILTIN_QUIZ_CONFIGS`).
-   - Add human-readable labels to `QUIZ_CONFIG_LABELS` and set labels to `getMiniPartLabel()` in both `middleware.js` and `api/og.js`, and add preview samples to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
+   - Add human-readable labels to `QUIZ_CONFIG_LABELS` and set labels to `getMiniPartLabel()` in both `middleware.js` and `api/og.js` (or to `STUDY_COURSES_META` in `lib/study-meta.js` for Study courses), and add preview samples to `QUIZ_PREVIEW_SAMPLES` in `api/og.js` (or `lib/study-meta.js`).
 2. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:

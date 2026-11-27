@@ -720,7 +720,28 @@ const STUDY_DE_A1_VOCAB_CORE = [
   ['einfach', 'adj', 'work'],
   ['schwierig', 'adj', 'work'],
   ['interessant', 'adj', 'work'],
-  ['langweilig', 'adj', 'work']
+  ['langweilig', 'adj', 'work'],
+  ['aussteigen', 'v', 'city'],
+  ['die Abfahrt', 'n', 'city'],
+  ['die Ankunft', 'n', 'city'],
+  ['die Ampel', 'n', 'city'],
+  ['das Rathaus', 'n', 'city'],
+  ['das Theater', 'n', 'city'],
+  ['die Brücke', 'n', 'city'],
+  ['ausfüllen', 'v', 'work'],
+  ['anmelden', 'v', 'work'],
+  ['die Anmeldung', 'n', 'work'],
+  ['das Medikament', 'n', 'people'],
+  ['sitzen', 'v', 'home'],
+  ['denken', 'v', 'verbs_adj'],
+  ['fehlen', 'v', 'verbs_adj'],
+  ['gehören', 'v', 'verbs_adj'],
+  ['passen', 'v', 'verbs_adj'],
+  ['entschuldigen', 'v', 'verbs_adj'],
+  ['nichts', 'fn', 'verbs_adj'],
+  ['etwas', 'fn', 'verbs_adj'],
+  ['draußen', 'adj', 'home'],
+  ['drinnen', 'adj', 'home']
 ];
 
 // Nominative vs. Accusative cloze items for Set 4 of Articles & Gender
@@ -947,7 +968,7 @@ const STUDY_DE_A1_VERBS = [
   ['Der Zug ___ um 9 Uhr ab. (abfahren)', 'fährt', ['abfahrt', 'fahrt'], 'trennbar + Vokalwechsel a → ä', 'perfekt'],
   ['Wann ___ du in Berlin an? (ankommen)', 'kommst', ['ankommst', 'kommt'], 'trennbares Präfix an- am Satzende', 'perfekt'],
   ['Wir ___ im Supermarkt ein. (einkaufen)', 'kaufen', ['einkaufen', 'kauft'], 'trennbares Präfix ein- am Satzende', 'perfekt'],
-  ['Sie ___ ihre Mutter an. (anrufen)', 'ruft', ['anruft', 'rufen'], 'trennbares Präfix an- am Satzende', 'perfekt'],
+  ['Anna ___ ihre Mutter an. (anrufen)', 'ruft', ['anruft', 'rufen'], 'trennbares Präfix an- am Satzende', 'perfekt'],
   ['Er ___ am Abend fern. (fernsehen)', 'sieht', ['fernsieht', 'seht'], 'trennbar + Vokalwechsel e → ie', 'perfekt'],
   ['Ich ___ meine Freundin ein. (einladen)', 'lade', ['einlade', 'lädt'], 'trennbares Präfix ein- am Satzende', 'perfekt'],
   ['Der Film ___ um 20 Uhr an. (anfangen)', 'fängt', ['anfängt', 'fangt'], 'trennbar + Vokalwechsel a → ä', 'perfekt'],
@@ -972,7 +993,7 @@ const STUDY_DE_A1_VERBS = [
   ['Er ___ zu Hause geblieben. (Perfekt)', 'ist', ['hat', 'war'], 'bleiben im Perfekt mit sein', 'perfekt'],
   ['Wann ___ du aufgestanden? (Perfekt)', 'bist', ['hast', 'warst'], 'aufstehen im Perfekt mit sein', 'perfekt'],
   ['Ich ___ heute früh aufgewacht. (Perfekt)', 'bin', ['habe', 'war'], 'aufwachen im Perfekt mit sein', 'perfekt'],
-  ['Sie ___ nach München geflogen. (Perfekt)', 'ist', ['hat', 'wird'], 'Bewegungsverb fliegen mit sein', 'perfekt'],
+  ['Anna ___ nach München geflogen. (Perfekt)', 'ist', ['hat', 'wird'], 'Bewegungsverb fliegen mit sein', 'perfekt'],
   ['Ich ___ den Bus genommen. (Perfekt)', 'habe', ['bin', 'hat'], 'nehmen im Perfekt mit haben', 'perfekt'],
   ['Er hat den Bus ___. (nehmen)', 'genommen', ['genehmt', 'genimmt'], 'unregelmäßiges Perfekt: genommen', 'perfekt'],
   ['Ich habe dir ___. (helfen)', 'geholfen', ['gehelft', 'gehilft'], 'unregelmäßiges Perfekt: geholfen', 'perfekt'],
@@ -1188,15 +1209,15 @@ const STUDY_DE_A1_GRAMMAR = [
   ['Er kocht ___ und hört Musik.', 'gern', ['sehr', 'viel'], 'gern + Verb = Vorliebe', 'modals'],
   ['Ich trinke gern Tee, aber Kaffee trinke ich ___.', 'lieber', ['gerner', 'mehr'], 'Komparativ von gern: lieber (nicht gerner)', 'modals'],
   ['Am ___ esse ich Schokolade.', 'liebsten', ['lieber', 'gern'], 'Superlativ von gern: am liebsten', 'modals'],
-  ['Dieser Tisch ist ___ als der Stuhl.', 'größer', ['groß', 'großer'], 'Komparativ von groß: größer (mit Umlaut)', 'modals'],
-  ['Das Kleid ist ___ als die Jacke.', 'teurer', ['teuer', 'teuersten'], 'Komparativ von teuer: teurer', 'modals'],
-  ['Der Zug ist ___ als das Auto.', 'schneller', ['schnell', 'schnellsten'], 'Komparativ: schneller als', 'modals'],
-  ['Deutsch ist so schön ___ Englisch.', 'wie', ['als', 'denn'], 'Gleichheit im Vergleich: so ... wie', 'modals'],
-  ['Mein Bruder ist älter ___ ich.', 'als', ['wie', 'denn'], 'Ungleichheit im Vergleich: älter als', 'modals'],
+  ['Darf ich hier sitzen? — Ja, natürlich ___ Sie!', 'dürfen', ['darf', 'dürft'], 'Erlaubnis (Sie): dürfen Sie', 'modals'],
+  ['Er ___ sehr gut Gitarre spielen.', 'kann', ['könnt', 'können'], 'Fähigkeit: können (3. Sg. kann)', 'modals'],
+  ['___ bitte das Buch! (ihr, öffnen)', 'Öffnet', ['Öffnen', 'Öffne'], 'Imperativ ihr: Verbform von ihr (Öffnet!)', 'modals'],
+  ['Möchtest du Tee ___ lieber Kaffee?', 'oder', ['und', 'denn'], 'oder = Wahl zwischen zwei Optionen', 'modals'],
+  ['Ich lerne Deutsch, ___ ich wohne in Berlin.', 'denn', ['aber', 'oder'], 'denn = Begründung mit V2-Wortstellung', 'modals'],
   ['Ich finde den Film ___ gut.', 'sehr', ['viel', 'gern'], 'sehr verstärkt Adjektive / Adverbien', 'modals'],
   ['Er arbeitet ___ und hat wenig Freizeit.', 'viel', ['sehr', 'groß'], 'viel = große Menge / oft beim Verb', 'modals'],
   ['Das ist mir ___ teuer!', 'zu', ['sehr', 'viel'], 'zu + Adjektiv = Übermaß', 'modals'],
-  ['Ich ___ leider absagen, weil ich krank bin.', 'muss', ['müssen', 'musst'], 'Modalverb 1. Sg.', 'modals'],
+  ['Ich ___ leider absagen, denn ich bin krank.', 'muss', ['müssen', 'musst'], 'Modalverb 1. Sg. + denn (Hauptsatz)', 'modals'],
   ['Hier ist es verboten: Man ___ hier nicht fotografieren.', 'darf', ['kann', 'muss'], 'Verbot = nicht dürfen', 'modals'],
   ['Möchtest du mitkommen? — Ich ___ leider lernen.', 'muss', ['darf', 'will'], 'Pflicht / Notwendigkeit = müssen', 'modals'],
   ['___ wir heute ins Kino gehen?', 'Wollen', ['Will', 'Wollt'], 'Vorschlag: Wollen wir ...?', 'modals'],
@@ -1207,7 +1228,7 @@ const STUDY_DE_A1_GRAMMAR = [
   ['Er fährt mit dem Bus, ___ sein Auto ist kaputt.', 'denn', ['aber', 'oder'], 'denn = Grund', 'modals'],
   ['___ bitte langsam! (ihr, fahren)', 'Fahrt', ['Fährt', 'Fahren'], 'Imperativ ihr: Fahrt!', 'modals'],
   ['___ Sie bitte einen Moment! (Sie, warten)', 'Warten', ['Wartet', 'Warte'], 'Imperativ Sie: Warten Sie!', 'modals'],
-  ['Der Kaffee schmeckt ___ als der Tee.', 'besser', ['guter', 'lieber'], 'Komparativ von gut: besser', 'modals']
+  ['Sie will heute früh schlafen ___.', 'gehen', ['geht', 'gegangen'], 'Modalverb + Infinitiv am Satzende', 'modals']
 ];
 
 // Everyday Phrases & Functional German A1 (core German choices)
