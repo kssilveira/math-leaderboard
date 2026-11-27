@@ -1163,7 +1163,7 @@ function configMatchesStudyFilters(
 ) {
   if (!cfg) return false;
   if (learn && cfg.studyLearn !== learn) return false;
-  if (withLang && cfg.studyWith !== withLang) return false;
+  if (withLang && cfg.studyWith && cfg.studyWith !== 'any' && cfg.studyWith !== withLang) return false;
   if (cefr && cfg.studyCefr !== cefr) return false;
   return true;
 }
@@ -1185,8 +1185,13 @@ function getAvailableStudyOptions() {
 
   const withSet = new Set();
   studyConfigs.forEach((c) => {
-    if (c.studyLearn === resolvedLearn && c.studyWith) withSet.add(c.studyWith);
+    if (c.studyLearn === resolvedLearn && c.studyWith && c.studyWith !== 'any') {
+      withSet.add(c.studyWith);
+    }
   });
+  if (withSet.size === 0 && resolvedLearn) {
+    withSet.add(resolvedLearn);
+  }
   const withOptions = Array.from(withSet).sort((a, b) => {
     if (a === resolvedLearn && b !== resolvedLearn) return -1;
     if (b === resolvedLearn && a !== resolvedLearn) return 1;
@@ -1202,7 +1207,11 @@ function getAvailableStudyOptions() {
   const cefrOrder = typeof STUDY_CEFR_ORDER !== 'undefined' ? STUDY_CEFR_ORDER : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
   const cefrSet = new Set();
   studyConfigs.forEach((c) => {
-    if (c.studyLearn === resolvedLearn && c.studyWith === resolvedWith && c.studyCefr) {
+    if (
+      c.studyLearn === resolvedLearn &&
+      (c.studyWith === resolvedWith || c.studyWith === 'any') &&
+      c.studyCefr
+    ) {
       cefrSet.add(c.studyCefr);
     }
   });
@@ -1396,7 +1405,7 @@ function renderConfigsUI() {
   if (isStudy) {
     if (!configMatchesStudyFilters(activeBaseCfg)) {
       if (activeBaseCfg.studyLearn) activeStudyLearn = activeBaseCfg.studyLearn;
-      if (activeBaseCfg.studyWith) activeStudyWith = activeBaseCfg.studyWith;
+      if (activeBaseCfg.studyWith && activeBaseCfg.studyWith !== 'any') activeStudyWith = activeBaseCfg.studyWith;
       if (activeBaseCfg.studyCefr) activeStudyCefr = activeBaseCfg.studyCefr;
       localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
       localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
@@ -3991,17 +4000,29 @@ function getQuizPosBuckets(items) {
   if (!Array.isArray(items)) return null;
   let buckets = quizPosBucketsCache.get(items);
   if (!buckets) {
-    buckets = new Map();
+    const byPos = new Map();
+    const bySetPos = new Map();
     items.forEach((row, idx) => {
       const pos = row && row[2];
       if (!pos) return;
-      let arr = buckets.get(pos);
+      let arr = byPos.get(pos);
       if (!arr) {
         arr = [];
-        buckets.set(pos, arr);
+        byPos.set(pos, arr);
       }
       arr.push(idx);
+      const setKey = row[3];
+      if (setKey) {
+        const spKey = `${setKey}|${pos}`;
+        let spArr = bySetPos.get(spKey);
+        if (!spArr) {
+          spArr = [];
+          bySetPos.set(spKey, spArr);
+        }
+        spArr.push(idx);
+      }
     });
+    buckets = { byPos, bySetPos };
     quizPosBucketsCache.set(items, buckets);
   }
   return buckets;
@@ -4044,8 +4065,20 @@ function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
   const targetAns = items[qIdx][1];
   if (cfg && cfg.distractorMode === 'pos_pool') {
     const pos = items[qIdx][2];
+    const setKey = items[qIdx][3];
     const buckets = pos ? getQuizPosBuckets(items) : null;
-    const pool = buckets ? buckets.get(pos) : null;
+    if (buckets && setKey && Math.random() < 0.7) {
+      const setPosPool = buckets.bySetPos.get(`${setKey}|${pos}`);
+      if (setPosPool && setPosPool.length > 1) {
+        for (let attempt = 0; attempt < 25; attempt++) {
+          const idx = setPosPool[randomInt(0, setPosPool.length - 1)];
+          if (idx !== qIdx && items[idx][1] !== targetAns) {
+            return idx;
+          }
+        }
+      }
+    }
+    const pool = buckets ? buckets.byPos.get(pos) : null;
     if (pool && pool.length > 1) {
       for (let attempt = 0; attempt < 25; attempt++) {
         const idx = pool[randomInt(0, pool.length - 1)];
@@ -4320,6 +4353,7 @@ function renderQuestion() {
       quizPromptText.classList.toggle('is-flag', isFlagPrompt);
       quizPromptText.classList.toggle('is-map', promptIsMap);
       quizPromptText.classList.toggle('is-sentence', !promptIsMap && !isFlagPrompt && promptVal.length > 26);
+      quizPromptText.classList.toggle('is-very-long', !promptIsMap && !isFlagPrompt && promptVal.length > 42);
       if (promptIsMap) {
         quizPromptText.innerHTML = renderGeoMapSvg(promptVal, { variant: 'prompt' });
       } else if (promptVal.includes('___')) {
@@ -4331,6 +4365,11 @@ function renderQuestion() {
     if (quizChoice0Btn && quizChoice1Btn) {
       const choices = currentQuestion.choices || ['', ''];
       const isFlagChoice = Boolean(activeCfg && activeCfg.isFlagChoice);
+      const anyMapChoice = choices.some(c => isMapVal(String(c ?? '')));
+      const maxChoiceLen = choices.reduce((max, c) => Math.max(max, String(c ?? '').length), 0);
+      if (quizChoicesEl) {
+        quizChoicesEl.classList.toggle('is-stacked', !isFlagChoice && !anyMapChoice && maxChoiceLen > 24);
+      }
       [quizChoice0Btn, quizChoice1Btn].forEach((btn, idx) => {
         const cText = String(choices[idx] ?? '');
         const choiceIsMap = isMapVal(cText);

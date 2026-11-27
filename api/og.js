@@ -67,8 +67,7 @@ for (const lang of STUDY_DE_A1_WITH_META) {
   const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🇩🇪 DE → ${withTag}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · ${withTag} → 🇩🇪 DE`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] =
-    lang.code === 'en' ? '🇩🇪 A1 · 🗣️ Everyday Phrases' : `🇩🇪 A1 (${withTag}) · 🗣️ Everyday Phrases`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 (${withTag}) · 🗣️ Everyday Phrases`;
 }
 
 for (const src of QUIZ_LANG_META) {
@@ -93,52 +92,57 @@ for (const lang of QUIZ_LANG_META) {
   QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
 }
 
+const STUDY_MINI_PART_LABELS = {
+  de_a1: {
+    vocab: [
+      '⏰ Basics & Time',
+      '👪 People & Family',
+      '🏠 Home & Routine',
+      '🍎 Food & Shopping',
+      '🚆 City & Travel',
+      '💼 Work & Free Time',
+      '✨ Verbs & Qualities',
+    ],
+    grammar: [
+      '❓ Word Order & Questions',
+      '🚫 Pronouns & Negation',
+      '📚 Cases & Plurals',
+      '📍 Prepositions',
+      '🔗 Modals & Connectors',
+    ],
+    verbs: [
+      '⭐ sein, haben & Modals',
+      '✅ Regular Present',
+      '🔀 Stem-Changing',
+      '⏪ Separable & Perfekt',
+    ],
+    articles: [
+      '🏠 People & Home',
+      '🍎 Food & City',
+      '💼 Work & Time',
+      '⚖️ Nom vs Akk',
+    ],
+    phrases: [
+      '👋 Greetings & Intro',
+      '☕ Café & Shopping',
+      '🧭 Directions & Travel',
+      '🏥 Time & Health',
+    ],
+  },
+};
+
 function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_study_')) {
-    if (baseId.includes('_vocab_')) {
-      return [
-        '⏰ Basics & Time',
-        '👪 People & Family',
-        '🏠 Home & Routine',
-        '🍎 Food & Shopping',
-        '🚆 City & Travel',
-        '💼 Work & Free Time',
-        '✨ Verbs & Qualities'
-      ][partNum - 1] || `Part ${partNum}`;
+    const m = baseId.match(/^cfg_study_([a-z]+)_[a-z]+_([a-z0-9]+)_(.+)$/);
+    if (m) {
+      const courseLabels = STUDY_MINI_PART_LABELS[`${m[1]}_${m[2]}`];
+      const trackKey = m[3].startsWith('vocab_') ? 'vocab' : m[3];
+      const list = courseLabels && courseLabels[trackKey];
+      if (Array.isArray(list) && list[partNum - 1]) {
+        return list[partNum - 1];
+      }
     }
-    if (baseId.endsWith('_grammar')) {
-      return [
-        '❓ Word Order & Questions',
-        '🚫 Pronouns & Negation',
-        '📚 Cases & Plurals',
-        '📍 Prepositions',
-        '🔗 Modals & Connectors'
-      ][partNum - 1] || `Part ${partNum}`;
-    }
-    if (baseId.endsWith('_verbs')) {
-      return [
-        '⭐ sein, haben & Modals',
-        '✅ Regular Present',
-        '🔀 Stem-Changing',
-        '⏪ Separable & Perfekt'
-      ][partNum - 1] || `Part ${partNum}`;
-    }
-    if (baseId.endsWith('_articles')) {
-      return [
-        '🏠 People & Home',
-        '🍎 Food & City',
-        '💼 Work & Time',
-        '⚖️ Nom vs Akk'
-      ][partNum - 1] || `Part ${partNum}`;
-    }
-    if (baseId.endsWith('_phrases')) {
-      return [
-        '👋 Greetings & Intro',
-        '☕ Café & Shopping',
-        '🧭 Directions & Travel',
-        '🏥 Time & Health'
-      ][partNum - 1] || `Part ${partNum}`;
-    }
+    return `Part ${partNum}`;
   }
   if (baseId.startsWith('cfg_geo_')) {
     return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
@@ -1904,6 +1908,7 @@ const HOME_FALLBACK_CONFIGS = [
   'cfg_geo_map_country',
   'cfg_lang_pt_en',
   'cfg_lang_emoji_en',
+  'cfg_study_de_en_a1_grammar',
   'cfg_chem_symbol_name',
   'cfg_other_morse_char',
 ];
@@ -2198,7 +2203,7 @@ function renderHomeOverviewCard(overview) {
     ]),
   ]);
 
-  const langCard = cardShell('💬 Language', '14 Games', [
+  const langCard = cardShell('💬 Language', '50 Games', [
     h(
       'div',
       {
@@ -2232,7 +2237,7 @@ function renderHomeOverviewCard(overview) {
     ]),
   ]);
 
-  const otherCard = cardShell('🧩 Other', 'Elements · Morse', [
+  const studyCard = cardShell('🎓 Study', '🇩🇪 DE A1 · CEFR', [
     h(
       'div',
       {
@@ -2251,18 +2256,18 @@ function renderHomeOverviewCard(overview) {
         h(
           'span',
           { fontSize: '11px', fontWeight: 800, color: '#627084' },
-          '118 ELEMENTS & MORSE CODE'
+          'VOCAB · GRAMMAR · VERBS · ARTICLES'
         ),
         h(
           'span',
-          { fontSize: '30px', fontWeight: 900, color: '#1b222c' },
-          'Au'
+          { fontSize: '24px', fontWeight: 900, color: '#1b222c' },
+          'er ___ (fahren)'
         ),
       ]
     ),
     h('div', { display: 'flex', gap: '8px' }, [
-      miniChoiceBtn('Gold', true),
-      miniChoiceBtn('Silver', false),
+      miniChoiceBtn('fährt', true),
+      miniChoiceBtn('fahrt', false),
     ]),
   ]);
 
@@ -2363,7 +2368,7 @@ function renderHomeOverviewCard(overview) {
   const rightHeaderBadge =
     overview.activeGames > 0 && overview.uniquePlayers > 0
       ? `${overview.activeGames} Games · ${overview.uniquePlayers} Players`
-      : '30+ Leaderboards';
+      : '75+ Leaderboards';
 
   return h(
     'div',
@@ -2411,7 +2416,7 @@ function renderHomeOverviewCard(overview) {
                   padding: '6px 14px',
                   borderRadius: '999px',
                 },
-                '30+ Games · 60s Sprints'
+                '75+ Games · 60s Sprints'
               ),
             ]
           ),
@@ -2448,7 +2453,7 @@ function renderHomeOverviewCard(overview) {
               ]),
               h('div', { display: 'flex', gap: '12px', flex: 1 }, [
                 langCard,
-                otherCard,
+                studyCard,
               ]),
             ]
           ),
