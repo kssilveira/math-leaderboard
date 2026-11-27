@@ -11,6 +11,7 @@ function buildLanguageQuizConfigs() {
   const configs = [];
   const enLang = QUIZ_LANGUAGES.find(l => l.code === 'en');
   const nonEn = QUIZ_LANGUAGES.filter(l => l.code !== 'en');
+  const formatLangTag = (lang) => `${lang.flag} ${lang.code.toUpperCase()}`;
 
   // 8 Foreign <-> English translation configs (preserving legacy IDs)
   nonEn.forEach((lang) => {
@@ -19,7 +20,7 @@ function buildLanguageQuizConfigs() {
       category: 'lang',
       langs: [lang.code, 'en'],
       type: 'quiz',
-      label: `${lang.flag} ${lang.name} → ${enLang.flag} ${enLang.name}`,
+      label: `${formatLangTag(lang)} → ${formatLangTag(enLang)}`,
       isFlagPrompt: false,
       isFlagChoice: false,
       items: COMMON_WORDS_1000.map(row => [row[lang.col], row[0]])
@@ -31,7 +32,7 @@ function buildLanguageQuizConfigs() {
       category: 'lang',
       langs: ['en', lang.code],
       type: 'quiz',
-      label: `${enLang.flag} ${enLang.name} → ${lang.flag} ${lang.name}`,
+      label: `${formatLangTag(enLang)} → ${formatLangTag(lang)}`,
       isFlagPrompt: false,
       isFlagChoice: false,
       items: COMMON_WORDS_1000.map(row => [row[0], row[lang.col]])
@@ -47,7 +48,7 @@ function buildLanguageQuizConfigs() {
         category: 'lang',
         langs: [src.code, dst.code],
         type: 'quiz',
-        label: `${src.flag} ${src.name} → ${dst.flag} ${dst.name}`,
+        label: `${formatLangTag(src)} → ${formatLangTag(dst)}`,
         isFlagPrompt: false,
         isFlagChoice: false,
         items: COMMON_WORDS_1000.map(row => [row[src.col], row[dst.col]])
@@ -57,7 +58,7 @@ function buildLanguageQuizConfigs() {
 
   // 10 Emoji <-> Language configs
   QUIZ_LANGUAGES.forEach((lang) => {
-    const langLabel = `${lang.flag} ${lang.name}`;
+    const langLabel = formatLangTag(lang);
     configs.push({
       id: `cfg_lang_emoji_${lang.code}`,
       category: 'lang',
