@@ -2975,7 +2975,7 @@ function renderUserPage() {
     const nameSpan = document.createElement('span');
     nameSpan.className = 'overview-game-name';
     const labelStr = formatConfigLabel(cfg);
-    const hasLeadingEmoji = /^[\u{1F1E6}-\u{1F6FF}]/u.test(labelStr);
+    const hasLeadingEmoji = /^(?:\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}])/u.test(labelStr);
     nameSpan.textContent = hasLeadingEmoji ? labelStr : `${getCategoryIcon(cat)} ${labelStr}`;
 
     const rankSpan = document.createElement('span');
@@ -3170,7 +3170,7 @@ function renderOverview() {
     const nameSpan = document.createElement('span');
     nameSpan.className = 'overview-game-name';
     const labelStr = formatConfigLabel(cfg);
-    const hasLeadingEmoji = /^[\u{1F1E6}-\u{1F6FF}]/u.test(labelStr);
+    const hasLeadingEmoji = /^(?:\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}])/u.test(labelStr);
     nameSpan.textContent = hasLeadingEmoji ? labelStr : `${getCategoryIcon(cat)} ${labelStr}`;
 
     const rankSpan = document.createElement('span');

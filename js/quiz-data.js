@@ -457,7 +457,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_chem_symbol_name',
     category: 'other',
     type: 'quiz',
-    label: 'Symbol → Element',
+    label: '🏷️ Symbol → ⚛️ Element',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: CHEMICAL_ELEMENTS_118.map(([sym, name]) => [sym, name])
@@ -466,7 +466,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_chem_name_symbol',
     category: 'other',
     type: 'quiz',
-    label: 'Element → Symbol',
+    label: '⚛️ Element → 🏷️ Symbol',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: CHEMICAL_ELEMENTS_118.map(([sym, name]) => [name, sym])
@@ -475,7 +475,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_other_morse_char',
     category: 'other',
     type: 'quiz',
-    label: 'Morse → Character',
+    label: '📡 Morse → 🔤 Character',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: MORSE_CODE_36.map(([ch, morse]) => [morse, ch])
@@ -484,7 +484,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_other_char_morse',
     category: 'other',
     type: 'quiz',
-    label: 'Character → Morse',
+    label: '🔤 Character → 📡 Morse',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: MORSE_CODE_36.map(([ch, morse]) => [ch, morse])
