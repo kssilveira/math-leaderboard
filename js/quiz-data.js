@@ -253,8 +253,8 @@ function buildConfigsForStudyCourse(course) {
         ...baseMeta,
         studyWith: code,
         id: `cfg_study_${learn}_${code}_${cefr}_vocab_${learn}_${code}`,
-        shortLabel: `${learnTag} → ${withTag}`,
-        label: `${learnMeta.flag} ${cefrUpper} · ${learnTag} → ${withTag}`,
+        shortLabel: `🔤 Words ${learnTag} → ${withTag}`,
+        label: `${learnMeta.flag} ${cefrUpper} · 🔤 Words ${learnTag} → ${withTag}`,
         distractorMode: 'pos_pool',
         items: vocabCore.map(([word, pos, setKey], i) => [word, pack.vocab[i], pos, setKey]),
         customParts: vocabParts
@@ -263,8 +263,8 @@ function buildConfigsForStudyCourse(course) {
         ...baseMeta,
         studyWith: code,
         id: `cfg_study_${learn}_${code}_${cefr}_vocab_${code}_${learn}`,
-        shortLabel: `${withTag} → ${learnTag}`,
-        label: `${learnMeta.flag} ${cefrUpper} · ${withTag} → ${learnTag}`,
+        shortLabel: `🔤 Words ${withTag} → ${learnTag}`,
+        label: `${learnMeta.flag} ${cefrUpper} · 🔤 Words ${withTag} → ${learnTag}`,
         distractorMode: 'pos_pool',
         items: vocabCore.map(([word, pos, setKey], i) => [pack.vocab[i], word, pos, setKey]),
         customParts: vocabParts
@@ -273,8 +273,8 @@ function buildConfigsForStudyCourse(course) {
         ...baseMeta,
         studyWith: code,
         id: `cfg_study_${learn}_${code}_${cefr}_phrases`,
-        shortLabel: `🗣️ Everyday Phrases (${withTag} → ${learnTag})`,
-        label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Everyday Phrases (${withTag} → ${learnTag})`,
+        shortLabel: `🗣️ Phrases ${withTag} → ${learnTag}`,
+        label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Phrases ${withTag} → ${learnTag}`,
         distractorMode: 'explicit',
         items: phrasesCore.map(([correct, distractors], i) => {
           const [prompt, ruleNote] = pack.phrases[i];

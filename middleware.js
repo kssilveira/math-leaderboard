@@ -88,9 +88,9 @@ const STUDY_DE_A1_WITH_META = [
 ];
 for (const lang of STUDY_DE_A1_WITH_META) {
   const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🇩🇪 DE → ${withTag}`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · ${withTag} → 🇩🇪 DE`;
-  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 · 🗣️ Everyday Phrases (${withTag} → 🇩🇪 DE)`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🔤 Words 🇩🇪 DE → ${withTag}`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · 🔤 Words ${withTag} → 🇩🇪 DE`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 · 🗣️ Phrases ${withTag} → 🇩🇪 DE`;
 }
 
 for (const src of QUIZ_LANG_META) {
