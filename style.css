@@ -319,23 +319,9 @@ html, body {
   flex-shrink: 0;
 }
 
-.lang-switcher-row .pill-btn,
-.study-filter-row .pill-btn,
-.part-switcher-row .pill-btn {
-  padding: 4px 10px;
-  font-size: 0.77rem;
-}
-
 .expand-pill-btn {
   border-style: solid;
   background: var(--surface);
-}
-
-.lang-switcher-row .expand-pill-btn,
-.study-filter-row .expand-pill-btn,
-.part-switcher-row .expand-pill-btn {
-  padding: 4px 9px;
-  font-size: 0.75rem;
 }
 
 .pill-meta {
