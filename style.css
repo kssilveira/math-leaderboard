@@ -64,6 +64,8 @@ html, body {
   color: var(--text);
   touch-action: manipulation;
   user-select: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .sr-only {
@@ -2251,11 +2253,11 @@ body.game-landscape #game-view.is-quiz-mode .quiz-prompt-label {
 }
 
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text {
-  font-size: clamp(1.2rem, 3.4vw, 1.8rem);
+  font-size: clamp(1.2rem, 3.4vmax, 1.8rem);
 }
 
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text.is-flag {
-  font-size: clamp(2.3rem, 6.8vw, 3.3rem);
+  font-size: clamp(2.3rem, 6.8vmax, 3.3rem);
 }
 
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text.is-map {
@@ -2284,12 +2286,12 @@ body.game-landscape #game-view.is-quiz-mode .choice-btn {
   min-height: 0;
   height: 100%;
   padding: 8px 14px;
-  font-size: clamp(1.05rem, 2.8vw, 1.35rem);
+  font-size: clamp(1.05rem, 2.8vmax, 1.35rem);
   overflow: hidden;
 }
 
 body.game-landscape #game-view.is-quiz-mode .choice-btn.is-flag {
-  font-size: clamp(2.1rem, 6.2vw, 3rem);
+  font-size: clamp(2.1rem, 6.2vmax, 3rem);
 }
 
 body.game-landscape #game-view.is-quiz-mode .choice-btn.is-map {
@@ -2334,7 +2336,7 @@ body.game-landscape #game-view.is-math-mode .equation-card {
   flex: 1;
   min-height: 0;
   padding: 10px;
-  font-size: clamp(1.6rem, 4.2vw, 2.25rem);
+  font-size: clamp(1.6rem, 4.2vmax, 2.25rem);
 }
 
 body.game-landscape #game-view.is-math-mode .eq-item {

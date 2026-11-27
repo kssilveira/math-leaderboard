@@ -333,6 +333,7 @@ function initTheme() {
 // --- Per-Game Landscape Mode (Active Only During Play) ---
 
 let landscapeCssFallbackTimer = null;
+let gameplayOrientationSeq = 0;
 
 function getLandscapeConfigsMap() {
   if (landscapeConfigsCache) return landscapeConfigsCache;
@@ -409,6 +410,9 @@ function lockPortraitOrientation() {
 }
 
 function applyGameplayOrientation() {
+  gameplayOrientationSeq += 1;
+  const reqSeq = gameplayOrientationSeq;
+
   if (landscapeCssFallbackTimer) {
     clearTimeout(landscapeCssFallbackTimer);
     landscapeCssFallbackTimer = null;
@@ -425,21 +429,38 @@ function applyGameplayOrientation() {
   document.documentElement.classList.add('game-landscape-lock');
   document.body.classList.add('game-landscape');
 
+  const isStillCurrent = () =>
+    reqSeq === gameplayOrientationSeq && isPlaying && !isReplaying && isConfigLandscape(activeConfigId);
+
   const canLockNative = Boolean(window.screen && screen.orientation && typeof screen.orientation.lock === 'function');
   if (canLockNative) {
     enterAndroidImmersiveFullscreen()
-      .then(() => screen.orientation.lock('landscape'))
-      .catch(() => {
-        if (isPlaying && !isReplaying && isConfigLandscape(activeConfigId)) {
-          document.body.classList.add('game-css-rotated');
+      .then(() => {
+        if (!isStillCurrent()) return;
+        return screen.orientation.lock('landscape');
+      })
+      .then(() => {
+        if (!isStillCurrent()) return;
+        if (landscapeCssFallbackTimer) {
+          clearTimeout(landscapeCssFallbackTimer);
+          landscapeCssFallbackTimer = null;
         }
+        document.body.classList.remove('game-css-rotated');
+      })
+      .catch(() => {
+        if (!isStillCurrent()) return;
+        if (landscapeCssFallbackTimer) {
+          clearTimeout(landscapeCssFallbackTimer);
+          landscapeCssFallbackTimer = null;
+        }
+        document.body.classList.add('game-css-rotated');
       });
     landscapeCssFallbackTimer = setTimeout(() => {
       landscapeCssFallbackTimer = null;
-      if (isPlaying && !isReplaying && isConfigLandscape(activeConfigId)) {
+      if (isStillCurrent() && window.matchMedia('(orientation: portrait)').matches) {
         document.body.classList.add('game-css-rotated');
       }
-    }, 200);
+    }, 350);
   } else {
     document.body.classList.add('game-css-rotated');
   }
@@ -4325,11 +4346,21 @@ function triggerCelebration(isNewHigh = false) {
   celebrationRafId = requestAnimationFrame(frame);
 }
 
+let pendingFullscreenPromise = null;
+
 function enterAndroidImmersiveFullscreen() {
   if (!/Android/i.test(navigator.userAgent)) return Promise.resolve();
+  if (document.fullscreenElement) return Promise.resolve();
+  if (pendingFullscreenPromise) return pendingFullscreenPromise;
   const docEl = document.documentElement;
-  if (!document.fullscreenElement && docEl.requestFullscreen) {
-    return docEl.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  if (docEl.requestFullscreen) {
+    pendingFullscreenPromise = docEl
+      .requestFullscreen({ navigationUI: 'hide' })
+      .catch(() => {})
+      .finally(() => {
+        pendingFullscreenPromise = null;
+      });
+    return pendingFullscreenPromise;
   }
   return Promise.resolve();
 }
