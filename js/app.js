@@ -3281,7 +3281,7 @@ function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
   if (q.op === '?') {
     const promptStr = String(q.prompt || '');
     const mainHtml = (!isMapVal(promptStr) && promptStr.includes('___'))
-      ? escapeHtml(promptStr).replace('___', renderInlineQuizValHtml(q.expected, true))
+      ? escapeHtml(promptStr).replace(/___(?:\s+___)*/, renderInlineQuizValHtml(q.expected, true))
       : `${renderInlineQuizValHtml(q.prompt, false)} → ${renderInlineQuizValHtml(q.expected, true)}`;
     const cfg = getConfigById(targetConfigId);
     const note = q.note || getQuizItemNote(cfg, Array.isArray(q.nums) ? (Number(q.nums[0]) || 0) : 0);
