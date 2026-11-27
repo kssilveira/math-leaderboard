@@ -272,6 +272,19 @@ function buildConfigsForStudyCourse(course) {
       {
         ...baseMeta,
         studyWith: code,
+        id: `cfg_study_${learn}_${code}_${cefr}_phrases_${learn}_${code}`,
+        shortLabel: `🗣️ Phrases ${learnTag} → ${withTag}`,
+        label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Phrases ${learnTag} → ${withTag}`,
+        distractorMode: 'pos_pool',
+        items: phrasesCore.map(([correct, , setKey], i) => {
+          const [phrase, ruleNote] = pack.phrases[i];
+          return [correct, phrase, setKey, null, ruleNote];
+        }),
+        customParts: phraseParts
+      },
+      {
+        ...baseMeta,
+        studyWith: code,
         id: `cfg_study_${learn}_${code}_${cefr}_phrases`,
         shortLabel: `🗣️ Phrases ${withTag} → ${learnTag}`,
         label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Phrases ${withTag} → ${learnTag}`,

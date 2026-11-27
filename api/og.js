@@ -69,6 +69,7 @@ for (const lang of STUDY_DE_A1_WITH_META) {
   const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🔤 Words 🇩🇪 DE → ${withTag}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · 🔤 Words ${withTag} → 🇩🇪 DE`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases_de_${lang.code}`] = `🇩🇪 A1 · 🗣️ Phrases 🇩🇪 DE → ${withTag}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 · 🗣️ Phrases ${withTag} → 🇩🇪 DE`;
 }
 
@@ -138,7 +139,11 @@ function getMiniPartLabel(baseId, partNum) {
     const m = baseId.match(/^cfg_study_([a-z]+)_[a-z]+_([a-z0-9]+)_(.+)$/);
     if (m) {
       const courseLabels = STUDY_MINI_PART_LABELS[`${m[1]}_${m[2]}`];
-      const trackKey = m[3].startsWith('vocab_') ? 'vocab' : m[3];
+      const trackKey = m[3].startsWith('vocab_')
+        ? 'vocab'
+        : m[3].startsWith('phrases_')
+          ? 'phrases'
+          : m[3];
       const list = courseLabels && courseLabels[trackKey];
       if (Array.isArray(list) && list[partNum - 1]) {
         return list[partNum - 1];
@@ -1079,19 +1084,23 @@ const QUIZ_PREVIEW_SAMPLES = {
 const PREVIEW_STUDY_DE_SAMPLES = {
   en: {
     trainStation: ['train station', 'airport'],
-    phrases: { prompt: 'Asking for the bill:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrases: { prompt: 'The bill, please!', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['The bill, please!', 'The menu, please!'] },
   },
   pt: {
     trainStation: ['estação de trem', 'aeroporto'],
-    phrases: { prompt: 'Pedindo a conta:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrases: { prompt: 'A conta, por favor!', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['A conta, por favor!', 'O cardápio, por favor!'] },
   },
   es: {
     trainStation: ['estación de tren', 'aeropuerto'],
-    phrases: { prompt: 'Pidiendo la cuenta:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrases: { prompt: '¡La cuenta, por favor!', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['¡La cuenta, por favor!', '¡La carta, por favor!'] },
   },
   fr: {
     trainStation: ['gare', 'aéroport'],
-    phrases: { prompt: 'Demander l’addition :', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrases: { prompt: 'L’addition, s’il vous plaît !', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+    phrasesReverse: { prompt: 'Zahlen, bitte!', choices: ['L’addition, s’il vous plaît !', 'La carte, s’il vous plaît !'] },
   },
 };
 for (const lang of STUDY_DE_A1_WITH_META) {
@@ -1105,6 +1114,7 @@ for (const lang of STUDY_DE_A1_WITH_META) {
     prompt: sample.trainStation[0],
     choices: ['der Bahnhof', 'der Flughafen'],
   };
+  QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_phrases_de_${lang.code}`] = sample.phrasesReverse;
   QUIZ_PREVIEW_SAMPLES[`cfg_study_de_${lang.code}_a1_phrases`] = sample.phrases;
 }
 

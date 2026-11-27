@@ -90,6 +90,7 @@ for (const lang of STUDY_DE_A1_WITH_META) {
   const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_de_${lang.code}`] = `🇩🇪 A1 · 🔤 Words 🇩🇪 DE → ${withTag}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_vocab_${lang.code}_de`] = `🇩🇪 A1 · 🔤 Words ${withTag} → 🇩🇪 DE`;
+  QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases_de_${lang.code}`] = `🇩🇪 A1 · 🗣️ Phrases 🇩🇪 DE → ${withTag}`;
   QUIZ_CONFIG_LABELS[`cfg_study_de_${lang.code}_a1_phrases`] = `🇩🇪 A1 · 🗣️ Phrases ${withTag} → 🇩🇪 DE`;
 }
 
@@ -159,7 +160,11 @@ function getMiniPartLabel(baseId, partNum) {
     const m = baseId.match(/^cfg_study_([a-z]+)_[a-z]+_([a-z0-9]+)_(.+)$/);
     if (m) {
       const courseLabels = STUDY_MINI_PART_LABELS[`${m[1]}_${m[2]}`];
-      const trackKey = m[3].startsWith('vocab_') ? 'vocab' : m[3];
+      const trackKey = m[3].startsWith('vocab_')
+        ? 'vocab'
+        : m[3].startsWith('phrases_')
+          ? 'phrases'
+          : m[3];
       const list = courseLabels && courseLabels[trackKey];
       if (Array.isArray(list) && list[partNum - 1]) {
         return list[partNum - 1];

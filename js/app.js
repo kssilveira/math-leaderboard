@@ -1259,6 +1259,7 @@ function getStudyTrackSuffix(cfgId) {
   const [, learn, withLang, track] = m;
   if (track === `vocab_${learn}_${withLang}`) return 'vocab_from_learn';
   if (track === `vocab_${withLang}_${learn}`) return 'vocab_to_learn';
+  if (track === `phrases_${learn}_${withLang}`) return 'phrases_from_learn';
   return track;
 }
 
@@ -4073,10 +4074,16 @@ function getQuizDistractorFromIndices(cfg, qIdx, dIdx) {
 }
 
 function getQuizItemNote(cfg, qIdx) {
-  if (!isExplicitDistractorConfig(cfg)) return '';
   const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
   const row = items[qIdx];
-  return row && typeof row[3] === 'string' ? row[3] : '';
+  if (!row) return '';
+  if (isExplicitDistractorConfig(cfg)) {
+    return typeof row[3] === 'string' ? row[3] : '';
+  }
+  if (cfg && cfg.distractorMode === 'pos_pool') {
+    return typeof row[4] === 'string' ? row[4] : '';
+  }
+  return '';
 }
 
 function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
