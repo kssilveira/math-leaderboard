@@ -54,6 +54,12 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: 'Element → Symbol',
   cfg_other_morse_char: 'Morse → Character',
   cfg_other_char_morse: 'Character → Morse',
+  cfg_study_de_en_a1_vocab_de_en: '🇩🇪 A1 · Vocab (DE → EN)',
+  cfg_study_de_en_a1_vocab_en_de: '🇩🇪 A1 · Vocab (EN → DE)',
+  cfg_study_de_en_a1_grammar: '🇩🇪 A1 · Grammar',
+  cfg_study_de_en_a1_verbs: '🇩🇪 A1 · Verbs & Conjugation',
+  cfg_study_de_en_a1_articles: '🇩🇪 A1 · Articles & Gender',
+  cfg_study_de_en_a1_phrases: '🇩🇪 A1 · Everyday Phrases',
 };
 
 for (const src of QUIZ_LANG_META) {
@@ -79,6 +85,52 @@ for (const lang of QUIZ_LANG_META) {
 }
 
 function getMiniPartLabel(baseId, partNum) {
+  if (baseId.startsWith('cfg_study_')) {
+    if (baseId.includes('_vocab_')) {
+      return [
+        'Basics & Time',
+        'People & Family',
+        'Home & Routine',
+        'Food & Shopping',
+        'City & Travel',
+        'Work & Free Time',
+        'Verbs & Qualities'
+      ][partNum - 1] || `Part ${partNum}`;
+    }
+    if (baseId.endsWith('_grammar')) {
+      return [
+        'Word Order & Questions',
+        'Pronouns & Negation',
+        'Cases & Plurals',
+        'Prepositions',
+        'Modals & Connectors'
+      ][partNum - 1] || `Part ${partNum}`;
+    }
+    if (baseId.endsWith('_verbs')) {
+      return [
+        'sein, haben & Modals',
+        'Regular Present',
+        'Stem-Changing',
+        'Separable & Perfekt'
+      ][partNum - 1] || `Part ${partNum}`;
+    }
+    if (baseId.endsWith('_articles')) {
+      return [
+        'People & Home',
+        'Food & City',
+        'Work & Time',
+        'Nom vs Akk'
+      ][partNum - 1] || `Part ${partNum}`;
+    }
+    if (baseId.endsWith('_phrases')) {
+      return [
+        'Greetings & Intro',
+        'Café & Shopping',
+        'Directions & Travel',
+        'Time & Health'
+      ][partNum - 1] || `Part ${partNum}`;
+    }
+  }
   if (baseId.startsWith('cfg_geo_')) {
     return ['Americas', 'Europe', 'Africa', 'Asia & Oceania'][partNum - 1] || `Part ${partNum}`;
   }
@@ -102,7 +154,7 @@ function getMiniPartLabel(baseId, partNum) {
 
 function formatConfigId(configId) {
   if (typeof configId === 'string') {
-    const miniMatch = configId.match(/^(.+)_p([1-4])$/);
+    const miniMatch = configId.match(/^(.+)_p(\d+)$/);
     if (miniMatch && QUIZ_CONFIG_LABELS[miniMatch[1]]) {
       return `${QUIZ_CONFIG_LABELS[miniMatch[1]]} · ${getMiniPartLabel(miniMatch[1], Number(miniMatch[2]))}`;
     }
@@ -966,6 +1018,12 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
   cfg_other_morse_char: { prompt: '• • •', choices: ['S', 'O'] },
   cfg_other_char_morse: { prompt: 'S', choices: ['• • •', '− − −'] },
+  cfg_study_de_en_a1_vocab_de_en: { prompt: 'der Bahnhof', choices: ['train station', 'airport'] },
+  cfg_study_de_en_a1_vocab_en_de: { prompt: 'train station', choices: ['der Bahnhof', 'der Flughafen'] },
+  cfg_study_de_en_a1_grammar: { prompt: 'Heute ___ ich nach Berlin.', choices: ['fahre', 'ich fahre'] },
+  cfg_study_de_en_a1_verbs: { prompt: 'er ___ (fahren — to drive)', choices: ['fährt', 'fahrt'] },
+  cfg_study_de_en_a1_articles: { prompt: '___ Bahnhof (train station)', choices: ['der', 'die'] },
+  cfg_study_de_en_a1_phrases: { prompt: 'Asking for the bill:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
 };
 
 const PREVIEW_LANG_WORDS = {
@@ -1378,7 +1436,7 @@ function renderUserProfileCard(profile) {
 function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
   const safeCfgId = configId || DEFAULT_CONFIG_ID;
   const cfgLabel = formatConfigId(safeCfgId);
-  const baseSampleId = safeCfgId.replace(/_p[1-4]$/, '');
+  const baseSampleId = safeCfgId.replace(/_p\d+$/, '');
   const quizSample = QUIZ_PREVIEW_SAMPLES[safeCfgId] || QUIZ_PREVIEW_SAMPLES[baseSampleId] || null;
   const rows =
     top10.length > 0
@@ -1824,6 +1882,7 @@ function getConfigCategory(cfgId) {
   if (!cfgId) return 'math';
   if (cfgId.startsWith('cfg_geo_')) return 'geo';
   if (cfgId.startsWith('cfg_lang_')) return 'lang';
+  if (cfgId.startsWith('cfg_study_')) return 'study';
   if (cfgId.startsWith('cfg_chem_') || cfgId.startsWith('cfg_other_')) return 'other';
   return 'math';
 }
@@ -1831,6 +1890,7 @@ function getConfigCategory(cfgId) {
 function getCategoryIcon(cat) {
   if (cat === 'geo') return '🌍';
   if (cat === 'lang') return '💬';
+  if (cat === 'study') return '🎓';
   if (cat === 'other') return '🧩';
   return '🔢';
 }

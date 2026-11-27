@@ -6,6 +6,9 @@ const STORAGE_KEYS = {
   username: 'math_username',
   activeCategory: 'math_active_category_v1',
   activeLangFilter: 'math_active_lang_filter_v1',
+  activeStudyLearn: 'math_active_study_learn_v1',
+  activeStudyFrom: 'math_active_study_from_v1',
+  activeStudyCefr: 'math_active_study_cefr_v1',
   activeConfigId: 'math_active_config_id',
   localConfigs: 'math_local_configs_v1',
   gameHistory: 'math_game_history_v1',
@@ -68,6 +71,9 @@ let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory |
 const VALID_LANG_FILTERS = ['all', 'en', 'pt', 'es', 'fr', 'de'];
 const rawSavedLangFilter = localStorage.getItem(STORAGE_KEYS.activeLangFilter);
 let activeLangFilter = VALID_LANG_FILTERS.includes(rawSavedLangFilter) ? rawSavedLangFilter : 'all';
+let activeStudyLearn = localStorage.getItem(STORAGE_KEYS.activeStudyLearn) || 'de';
+let activeStudyFrom = localStorage.getItem(STORAGE_KEYS.activeStudyFrom) || 'en';
+let activeStudyCefr = localStorage.getItem(STORAGE_KEYS.activeStudyCefr) || 'a1';
 let activeConfigId = '';
 let draftConfig = null;
 let leaderboardPage = 1;
@@ -130,6 +136,12 @@ const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll
 const langSwitcherRow = document.getElementById('lang-switcher-row');
 const langFilterListEl = document.getElementById('lang-filter-list');
 const langFilterBtns = langFilterListEl ? Array.from(langFilterListEl.querySelectorAll('[data-lang]')) : [];
+const studyLearnRow = document.getElementById('study-learn-row');
+const studyLearnListEl = document.getElementById('study-learn-list');
+const studyFromRow = document.getElementById('study-from-row');
+const studyFromListEl = document.getElementById('study-from-list');
+const studyCefrRow = document.getElementById('study-cefr-row');
+const studyCefrListEl = document.getElementById('study-cefr-list');
 const gameSwitcherRow = document.getElementById('game-switcher-row');
 const configListEl = document.getElementById('config-list');
 const partSwitcherRow = document.getElementById('part-switcher-row');
@@ -873,6 +885,7 @@ function getConfigCategory(cfg) {
   if (typeof cfg.id === 'string') {
     if (cfg.id.startsWith('cfg_geo_')) return 'geo';
     if (cfg.id.startsWith('cfg_lang_')) return 'lang';
+    if (cfg.id.startsWith('cfg_study_')) return 'study';
     if (cfg.id.startsWith('cfg_chem_') || cfg.id.startsWith('cfg_other_')) return 'other';
   }
   return 'math';
@@ -881,7 +894,7 @@ function getConfigCategory(cfg) {
 function isQuizConfig(cfg) {
   if (!cfg) return false;
   const cat = getConfigCategory(cfg);
-  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang' || cat === 'other';
+  return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang' || cat === 'study' || cat === 'other';
 }
 
 function getConfigById(cfgId) {
@@ -932,6 +945,7 @@ function isConfigPlayable(cfg) {
 function getCategoryIcon(cat) {
   if (cat === 'geo') return '🌍';
   if (cat === 'lang') return '💬';
+  if (cat === 'study') return '🎓';
   if (cat === 'other' || cat === 'chem') return '🧩';
   return '🔢';
 }
@@ -991,7 +1005,7 @@ function getUserConfigPerformance(targetUserId, cfgId) {
   };
 }
 
-const CATEGORY_DEFAULT_ORDER = ['math', 'geo', 'lang', 'other'];
+const CATEGORY_DEFAULT_ORDER = ['math', 'geo', 'lang', 'study', 'other'];
 
 function isMiniConfig(cfg) {
   return Boolean(cfg && (cfg.isMini || cfg.parentId));
@@ -1108,6 +1122,86 @@ function configMatchesLangFilter(cfg, langCode = activeLangFilter) {
   return Boolean(cfg && Array.isArray(cfg.langs) && cfg.langs.includes(langCode));
 }
 
+function configMatchesStudyFilters(
+  cfg,
+  learn = activeStudyLearn,
+  from = activeStudyFrom,
+  cefr = activeStudyCefr
+) {
+  if (!cfg) return false;
+  if (learn && cfg.studyLearn !== learn) return false;
+  if (from && cfg.studyFrom !== from) return false;
+  if (cefr && cfg.studyCefr !== cefr) return false;
+  return true;
+}
+
+function getStudyLangDisplay(code, fallbackFlag = '') {
+  const meta = typeof STUDY_LANGUAGE_META !== 'undefined' ? STUDY_LANGUAGE_META[code] : null;
+  const upper = String(code || '').toUpperCase();
+  return meta && meta.flag ? `${meta.flag} ${upper}` : (fallbackFlag ? `${fallbackFlag} ${upper}` : upper);
+}
+
+function getAvailableStudyOptions() {
+  const studyConfigs = getBaseConfigsForCategory('study');
+  const learnSet = new Set();
+  studyConfigs.forEach((c) => {
+    if (c.studyLearn) learnSet.add(c.studyLearn);
+  });
+  const learnOptions = Array.from(learnSet);
+  const resolvedLearn = learnOptions.includes(activeStudyLearn) ? activeStudyLearn : (learnOptions[0] || '');
+
+  const fromSet = new Set();
+  studyConfigs.forEach((c) => {
+    if (c.studyLearn === resolvedLearn && c.studyFrom) fromSet.add(c.studyFrom);
+  });
+  const fromOptions = Array.from(fromSet);
+  const resolvedFrom = fromOptions.includes(activeStudyFrom) ? activeStudyFrom : (fromOptions[0] || '');
+
+  const cefrOrder = typeof STUDY_CEFR_ORDER !== 'undefined' ? STUDY_CEFR_ORDER : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+  const cefrSet = new Set();
+  studyConfigs.forEach((c) => {
+    if (c.studyLearn === resolvedLearn && c.studyFrom === resolvedFrom && c.studyCefr) {
+      cefrSet.add(c.studyCefr);
+    }
+  });
+  const cefrOptions = Array.from(cefrSet).sort((a, b) => {
+    const ai = cefrOrder.indexOf(a);
+    const bi = cefrOrder.indexOf(b);
+    return (ai >= 0 ? ai : 99) - (bi >= 0 ? bi : 99);
+  });
+  const resolvedCefr = cefrOptions.includes(activeStudyCefr) ? activeStudyCefr : (cefrOptions[0] || '');
+
+  return {
+    learnOptions,
+    fromOptions,
+    cefrOptions,
+    resolvedLearn,
+    resolvedFrom,
+    resolvedCefr
+  };
+}
+
+function renderStudyFilterPills(listEl, options, activeVal, labelFn, filterType) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  options.forEach((val) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = val === activeVal;
+    btn.className = 'pill-btn' + (isActive ? ' active' : '');
+    btn.textContent = labelFn(val);
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.addEventListener('click', () => switchStudyFilter(filterType, val));
+    listEl.appendChild(btn);
+  });
+}
+
+function getStudyTrackSuffix(cfgId) {
+  const m = String(cfgId || '').match(/^cfg_study_[a-z]+_[a-z]+_[a-z0-9]+_(.+?)(?:_p\d+)?$/);
+  return m ? m[1] : '';
+}
+
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
   if (!activeCfg) return;
@@ -1147,6 +1241,56 @@ function renderConfigsUI() {
     btn.setAttribute('aria-selected', isLangActive ? 'true' : 'false');
   });
 
+  const isStudy = activeCategory === 'study';
+  if (studyLearnRow) studyLearnRow.classList.toggle('hidden', !isStudy);
+  if (studyFromRow) studyFromRow.classList.toggle('hidden', !isStudy);
+  if (studyCefrRow) studyCefrRow.classList.toggle('hidden', !isStudy);
+
+  if (isStudy) {
+    if (!configMatchesStudyFilters(activeBaseCfg)) {
+      if (activeBaseCfg.studyLearn) activeStudyLearn = activeBaseCfg.studyLearn;
+      if (activeBaseCfg.studyFrom) activeStudyFrom = activeBaseCfg.studyFrom;
+      if (activeBaseCfg.studyCefr) activeStudyCefr = activeBaseCfg.studyCefr;
+      localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
+      localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+      localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
+    }
+    const studyOpts = getAvailableStudyOptions();
+    if (studyOpts.resolvedLearn && studyOpts.resolvedLearn !== activeStudyLearn) {
+      activeStudyLearn = studyOpts.resolvedLearn;
+      localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
+    }
+    if (studyOpts.resolvedFrom && studyOpts.resolvedFrom !== activeStudyFrom) {
+      activeStudyFrom = studyOpts.resolvedFrom;
+      localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+    }
+    if (studyOpts.resolvedCefr && studyOpts.resolvedCefr !== activeStudyCefr) {
+      activeStudyCefr = studyOpts.resolvedCefr;
+      localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
+    }
+    renderStudyFilterPills(
+      studyLearnListEl,
+      studyOpts.learnOptions,
+      activeStudyLearn,
+      (code) => getStudyLangDisplay(code),
+      'learn'
+    );
+    renderStudyFilterPills(
+      studyFromListEl,
+      studyOpts.fromOptions,
+      activeStudyFrom,
+      (code) => getStudyLangDisplay(code),
+      'from'
+    );
+    renderStudyFilterPills(
+      studyCefrListEl,
+      studyOpts.cefrOptions,
+      activeStudyCefr,
+      (lvl) => String(lvl || '').toUpperCase(),
+      'cefr'
+    );
+  }
+
   if (addConfigBtn) {
     addConfigBtn.classList.toggle('hidden', activeCategory !== 'math');
   }
@@ -1159,7 +1303,9 @@ function renderConfigsUI() {
   const categoryConfigs =
     activeCategory === 'lang'
       ? allCategoryConfigs.filter((c) => configMatchesLangFilter(c, activeLangFilter))
-      : allCategoryConfigs;
+      : activeCategory === 'study'
+        ? allCategoryConfigs.filter((c) => configMatchesStudyFilters(c))
+        : allCategoryConfigs;
   const canExpand = categoryConfigs.length > 2;
 
   if (gameSwitcherRow) {
@@ -1181,7 +1327,8 @@ function renderConfigsUI() {
     btn.type = 'button';
     const isBaseActive = cfg.id === activeBaseCfg.id;
     btn.className = 'pill-btn' + (isBaseActive ? ' active' : '');
-    const labelText = document.createTextNode(formatConfigLabel(cfg));
+    const pillLabel = activeCategory === 'study' && cfg.shortLabel ? cfg.shortLabel : formatConfigLabel(cfg);
+    const labelText = document.createTextNode(pillLabel);
     btn.appendChild(labelText);
     appendPillPerfMeta(btn, cfg.id);
 
@@ -1247,7 +1394,9 @@ async function switchCategory(targetCat) {
     const preferredCfg =
       targetCat === 'lang'
         ? (catConfigs.find(c => configMatchesLangFilter(c, activeLangFilter)) || catConfigs[0])
-        : catConfigs[0];
+        : targetCat === 'study'
+          ? (catConfigs.find(c => configMatchesStudyFilters(c)) || catConfigs[0])
+          : catConfigs[0];
     activeConfigId = preferredCfg.id;
     leaderboardPage = 1;
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
@@ -1258,6 +1407,52 @@ async function switchCategory(targetCat) {
   renderConfigsUI();
   renderLeaderboard();
   renderReview();
+}
+
+function switchStudyFilter(filterType, targetValue) {
+  if (isPlaying) return;
+  if (filterType === 'learn') {
+    activeStudyLearn = targetValue;
+    localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
+  } else if (filterType === 'from') {
+    activeStudyFrom = targetValue;
+    localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+  } else if (filterType === 'cefr') {
+    activeStudyCefr = targetValue;
+    localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
+  } else {
+    return;
+  }
+
+  const opts = getAvailableStudyOptions();
+  activeStudyLearn = opts.resolvedLearn;
+  activeStudyFrom = opts.resolvedFrom;
+  activeStudyCefr = opts.resolvedCefr;
+  localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
+  localStorage.setItem(STORAGE_KEYS.activeStudyFrom, activeStudyFrom);
+  localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
+
+  if (activeCategory !== 'study') return;
+
+  const activeBaseCfg = getBaseConfig(getActiveConfig());
+  if (!configMatchesStudyFilters(activeBaseCfg)) {
+    const matching = getBaseConfigsForCategory('study').filter(c => configMatchesStudyFilters(c));
+    if (matching.length > 0) {
+      const suffix = getStudyTrackSuffix(activeBaseCfg && activeBaseCfg.id);
+      const sameTrack = suffix ? matching.find(c => getStudyTrackSuffix(c.id) === suffix) : null;
+      activeConfigId = (sameTrack || matching[0]).id;
+      leaderboardPage = 1;
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      closeNewConfigPanel();
+      lastResult.classList.add('hidden');
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+      refreshSingleConfigLeaderboard(activeConfigId);
+      return;
+    }
+  }
+  renderConfigsUI();
 }
 
 function switchLangFilter(targetLang) {
@@ -1605,9 +1800,16 @@ function normalizeQuestionRecord(q, targetConfigId = activeConfigId) {
   if (op === '?' || isQuizConfig(cfg)) {
     const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
     const qIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, Number(nums[0]) || 0)) : (Number(nums[0]) || 0);
-    let dIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, Number(nums[1]) || 0)) : (Number(nums[1]) || 0);
-    if (items.length > 1 && dIdx === qIdx) {
-      dIdx = (qIdx + 1) % items.length;
+    const explicit = isExplicitDistractorConfig(cfg);
+    let dIdx;
+    if (explicit) {
+      const dList = items[qIdx] && Array.isArray(items[qIdx][2]) ? items[qIdx][2] : [];
+      dIdx = dList.length > 0 ? Math.max(0, Math.min(dList.length - 1, Number(nums[1]) || 0)) : (Number(nums[1]) || 0);
+    } else {
+      dIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, Number(nums[1]) || 0)) : (Number(nums[1]) || 0);
+      if (items.length > 1 && dIdx === qIdx) {
+        dIdx = (qIdx + 1) % items.length;
+      }
     }
     const choiceOrder = q.missingIndex === 1 ? 1 : 0;
     const prompt = q.prompt !== undefined ? String(q.prompt) : (items[qIdx] ? items[qIdx][0] : '?');
@@ -1616,10 +1818,11 @@ function normalizeQuestionRecord(q, targetConfigId = activeConfigId) {
       : (items[qIdx] ? items[qIdx][1] : String(q.expected ?? ''));
     const distractor = q.distractor !== undefined
       ? String(q.distractor)
-      : (items[dIdx] ? items[dIdx][1] : '');
+      : getQuizDistractorFromIndices(cfg, qIdx, dIdx);
     const choices = Array.isArray(q.choices) && q.choices.length === 2
       ? q.choices.map(String)
       : (choiceOrder === 0 ? [expected, distractor] : [distractor, expected]);
+    const note = q.note !== undefined ? String(q.note) : getQuizItemNote(cfg, qIdx);
 
     const expectedStr = String(expected);
     const answers = Array.isArray(q.answers) ? q.answers.map(String) : [];
@@ -1638,6 +1841,7 @@ function normalizeQuestionRecord(q, targetConfigId = activeConfigId) {
       expected: expectedStr,
       distractor,
       choices,
+      ...(note ? { note } : {}),
       answers,
       wrongAnswers,
       right,
@@ -2986,10 +3190,22 @@ function renderInlineQuizValHtml(val, asSlot = false) {
     : escapeHtml(val);
 }
 
+function renderQuizPromptTextHtml(promptVal) {
+  const escaped = escapeHtml(promptVal);
+  if (!String(promptVal).includes('___')) return escaped;
+  return escaped.replace(/___/g, '<span class="cloze-blank">___</span>');
+}
+
 function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
   const q = normalizeQuestionRecord(rawQ, targetConfigId);
   if (q.op === '?') {
-    return `${renderInlineQuizValHtml(q.prompt, false)} → ${renderInlineQuizValHtml(q.expected, true)}`;
+    const promptStr = String(q.prompt || '');
+    const mainHtml = (!isMapVal(promptStr) && promptStr.includes('___'))
+      ? escapeHtml(promptStr).replace('___', renderInlineQuizValHtml(q.expected, true))
+      : `${renderInlineQuizValHtml(q.prompt, false)} → ${renderInlineQuizValHtml(q.expected, true)}`;
+    const cfg = getConfigById(targetConfigId);
+    const note = q.note || getQuizItemNote(cfg, Array.isArray(q.nums) ? (Number(q.nums[0]) || 0) : 0);
+    return note ? `${mainHtml}<span class="review-note">${escapeHtml(note)}</span>` : mainHtml;
   }
   const opChar = q.op === '-' ? '−' : q.op;
   const parts = q.nums.map((n, idx) => {
@@ -3616,10 +3832,80 @@ function getValidMissingIndices(a, op, b, c) {
   return [0, 1, 2];
 }
 
-function sampleQuizDistractorIndex(items, qIdx) {
+const quizPosBucketsCache = new WeakMap();
+
+function isExplicitDistractorConfig(cfg) {
+  return Boolean(cfg && cfg.distractorMode === 'explicit');
+}
+
+function getQuizPosBuckets(items) {
+  if (!Array.isArray(items)) return null;
+  let buckets = quizPosBucketsCache.get(items);
+  if (!buckets) {
+    buckets = new Map();
+    items.forEach((row, idx) => {
+      const pos = row && row[2];
+      if (!pos) return;
+      let arr = buckets.get(pos);
+      if (!arr) {
+        arr = [];
+        buckets.set(pos, arr);
+      }
+      arr.push(idx);
+    });
+    quizPosBucketsCache.set(items, buckets);
+  }
+  return buckets;
+}
+
+function getQuizDistractorFromIndices(cfg, qIdx, dIdx) {
+  const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
+  if (items.length === 0) return '';
+  if (isExplicitDistractorConfig(cfg)) {
+    const row = items[qIdx];
+    const dList = row && Array.isArray(row[2]) ? row[2] : [];
+    if (dList.length === 0) return '';
+    const safeIdx = Math.max(0, Math.min(dList.length - 1, Number(dIdx) || 0));
+    return String(dList[safeIdx] ?? '');
+  }
+  let safeIdx = Math.max(0, Math.min(items.length - 1, Number(dIdx) || 0));
+  if (items.length > 1 && safeIdx === qIdx) {
+    safeIdx = (qIdx + 1) % items.length;
+  }
+  return items[safeIdx] ? String(items[safeIdx][1] ?? '') : '';
+}
+
+function getQuizItemNote(cfg, qIdx) {
+  if (!isExplicitDistractorConfig(cfg)) return '';
+  const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
+  const row = items[qIdx];
+  return row && typeof row[3] === 'string' ? row[3] : '';
+}
+
+function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
+  const cfg = Array.isArray(cfgOrItems) ? null : cfgOrItems;
+  const items = Array.isArray(cfgOrItems) ? cfgOrItems : (cfg && Array.isArray(cfg.items) ? cfg.items : []);
+  if (isExplicitDistractorConfig(cfg)) {
+    const row = items[qIdx];
+    const dList = row && Array.isArray(row[2]) ? row[2] : [];
+    return dList.length > 1 ? randomInt(0, dList.length - 1) : 0;
+  }
   const n = items.length;
   if (n <= 1) return 0;
   const targetAns = items[qIdx][1];
+  if (cfg && cfg.distractorMode === 'pos_pool') {
+    const pos = items[qIdx][2];
+    const buckets = pos ? getQuizPosBuckets(items) : null;
+    const pool = buckets ? buckets.get(pos) : null;
+    if (pool && pool.length > 1) {
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const idx = pool[randomInt(0, pool.length - 1)];
+        if (idx !== qIdx && items[idx][1] !== targetAns) {
+          return idx;
+        }
+      }
+    }
+  }
   for (let attempt = 0; attempt < 25; attempt++) {
     const idx = randomInt(0, n - 1);
     if (idx !== qIdx && items[idx][1] !== targetAns) {
@@ -3632,8 +3918,9 @@ function sampleQuizDistractorIndex(items, qIdx) {
 function buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, lastPerf = null) {
   const items = cfg.items;
   const [prompt, expected] = items[qIdx];
-  const distractor = items[dIdx][1];
+  const distractor = getQuizDistractorFromIndices(cfg, qIdx, dIdx);
   const choices = choiceOrder === 0 ? [expected, distractor] : [distractor, expected];
+  const note = getQuizItemNote(cfg, qIdx);
   const key = `quiz_${qIdx}`;
   return {
     nums: [qIdx, dIdx, qIdx],
@@ -3643,6 +3930,7 @@ function buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, lastPerf = n
     answer: expected,
     distractor,
     choices,
+    ...(note ? { note } : {}),
     key,
     lastPerf
   };
@@ -3691,7 +3979,7 @@ function generateRandomQuestion() {
     const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
     const qIdx = drawNextQuizIndex(cfg);
     const key = `quiz_${qIdx}`;
-    const dIdx = sampleQuizDistractorIndex(items, qIdx);
+    const dIdx = sampleQuizDistractorIndex(cfg, qIdx);
     const choiceOrder = randomInt(0, 1);
     return buildQuizQuestionFromIndices(
       cfg,
@@ -3784,7 +4072,7 @@ function generatePracticeQuestion() {
   const cfg = getActiveConfig();
   if (cfg && isQuizConfig(cfg) && Array.isArray(cfg.items) && cfg.items.length >= 2) {
     const qIdx = Math.max(0, Math.min(cfg.items.length - 1, Number(picked.nums && picked.nums[0]) || 0));
-    const dIdx = sampleQuizDistractorIndex(cfg.items, qIdx);
+    const dIdx = sampleQuizDistractorIndex(cfg, qIdx);
     const choiceOrder = randomInt(0, 1);
     return buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, { ...picked });
   }
@@ -3879,10 +4167,14 @@ function renderQuestion() {
       quizPromptLabel.textContent = formatConfigLabel(activeCfg);
     }
     if (quizPromptText) {
-      quizPromptText.classList.toggle('is-flag', !promptIsMap && Boolean(activeCfg && activeCfg.isFlagPrompt));
+      const isFlagPrompt = !promptIsMap && Boolean(activeCfg && activeCfg.isFlagPrompt);
+      quizPromptText.classList.toggle('is-flag', isFlagPrompt);
       quizPromptText.classList.toggle('is-map', promptIsMap);
+      quizPromptText.classList.toggle('is-sentence', !promptIsMap && !isFlagPrompt && promptVal.length > 26);
       if (promptIsMap) {
         quizPromptText.innerHTML = renderGeoMapSvg(promptVal, { variant: 'prompt' });
+      } else if (promptVal.includes('___')) {
+        quizPromptText.innerHTML = renderQuizPromptTextHtml(promptVal);
       } else {
         quizPromptText.textContent = promptVal;
       }
@@ -3895,6 +4187,7 @@ function renderQuestion() {
         const choiceIsMap = isMapVal(cText);
         btn.classList.toggle('is-flag', !choiceIsMap && isFlagChoice);
         btn.classList.toggle('is-map', choiceIsMap);
+        btn.classList.toggle('is-long', !choiceIsMap && !isFlagChoice && cText.length > 22);
         if (choiceIsMap) {
           btn.innerHTML = renderGeoMapSvg(cText, { variant: 'choice' });
         } else {
@@ -4617,8 +4910,14 @@ function decodeCompactQuestionsList(compactList, targetConfigId = activeConfigId
       const right = item[6] === 0 ? 0 : 1;
       const items = cfg && Array.isArray(cfg.items) ? cfg.items : [];
       const qIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, a)) : a;
-      const dIdx = items.length > 0 ? Math.max(0, Math.min(items.length - 1, b)) : b;
+      const explicit = isExplicitDistractorConfig(cfg);
+      const dList = explicit && items[qIdx] && Array.isArray(items[qIdx][2]) ? items[qIdx][2] : [];
+      const dIdx = explicit
+        ? (dList.length > 0 ? Math.max(0, Math.min(dList.length - 1, b)) : b)
+        : (items.length > 0 ? Math.max(0, Math.min(items.length - 1, b)) : b);
       const expected = items[qIdx] ? items[qIdx][1] : '';
+      const distractor = getQuizDistractorFromIndices(cfg, qIdx, dIdx);
+      const note = getQuizItemNote(cfg, qIdx);
       const answers = [...wrongAnswers];
       if (right > 0 && expected) {
         answers.push(String(expected));
@@ -4629,6 +4928,8 @@ function decodeCompactQuestionsList(compactList, targetConfigId = activeConfigId
           op: '?',
           missingIndex: choiceOrder,
           expected,
+          distractor,
+          ...(note ? { note } : {}),
           answers,
           wrongAnswers,
           right,

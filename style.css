@@ -328,6 +328,7 @@ html, body {
 }
 
 .lang-switcher-row .pill-btn,
+.study-filter-row .pill-btn,
 .part-switcher-row .pill-btn {
   padding: 4px 10px;
   font-size: 0.77rem;
@@ -1278,6 +1279,14 @@ html, body {
   font-weight: 800;
 }
 
+.review-note {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
 .review-row.has-wrong .review-q-slot {
   background: var(--surface);
   color: var(--wrong);
@@ -1585,6 +1594,22 @@ html, body {
   word-break: break-word;
 }
 
+.quiz-prompt-text.is-sentence {
+  font-size: clamp(1.08rem, 4.1vw, 1.42rem);
+  line-height: 1.32;
+  font-weight: 700;
+}
+
+.cloze-blank {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 6px;
+  border-bottom: 2px solid var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 800;
+}
+
 .quiz-prompt-text.is-flag {
   font-size: clamp(3.1rem, 12vw, 4rem);
   line-height: 1.1;
@@ -1797,6 +1822,11 @@ html, body {
   line-height: 1.25;
   word-break: break-word;
   transition: transform 0.05s ease, background 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+}
+
+.choice-btn.is-long {
+  font-size: clamp(0.92rem, 3.6vw, 1.1rem);
+  padding: 12px 10px;
 }
 
 .quiz-choices.replay-compact .choice-btn {
@@ -2256,6 +2286,11 @@ body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text {
   font-size: clamp(1.2rem, 3.4vmax, 1.8rem);
 }
 
+body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text.is-sentence {
+  font-size: clamp(0.98rem, 2.6vmax, 1.3rem);
+  line-height: 1.28;
+}
+
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text.is-flag {
   font-size: clamp(2.3rem, 6.8vmax, 3.3rem);
 }
@@ -2288,6 +2323,10 @@ body.game-landscape #game-view.is-quiz-mode .choice-btn {
   padding: 8px 14px;
   font-size: clamp(1.05rem, 2.8vmax, 1.35rem);
   overflow: hidden;
+}
+
+body.game-landscape #game-view.is-quiz-mode .choice-btn.is-long {
+  font-size: clamp(0.88rem, 2.3vmax, 1.08rem);
 }
 
 body.game-landscape #game-view.is-quiz-mode .choice-btn.is-flag {

@@ -134,6 +134,205 @@ function buildLanguageQuizConfigs() {
   return configs;
 }
 
+const STUDY_LANGUAGE_META = {
+  de: { name: 'German', flag: '🇩🇪' },
+  en: { name: 'English', flag: '🇬🇧' },
+  pt: { name: 'Portuguese', flag: '🇧🇷' },
+  es: { name: 'Spanish', flag: '🇪🇸' },
+  fr: { name: 'French', flag: '🇫🇷' }
+};
+const STUDY_CEFR_ORDER = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+
+function getGermanNounSuffixHint(noun, article) {
+  if (article === 'die') {
+    if (noun.endsWith('ung')) return '-ung → feminine (die)';
+    if (noun.endsWith('heit')) return '-heit → feminine (die)';
+    if (noun.endsWith('keit')) return '-keit → feminine (die)';
+    if (noun.endsWith('schaft')) return '-schaft → feminine (die)';
+    if (noun.endsWith('tion')) return '-tion → feminine (die)';
+    if (noun.endsWith('tät')) return '-tät → feminine (die)';
+    if (noun.endsWith('in') && noun.length > 4) return '-in (female person) → die';
+    return 'feminine noun (die)';
+  }
+  if (article === 'das') {
+    if (noun.endsWith('chen')) return '-chen → always neuter (das)';
+    if (noun.endsWith('lein')) return '-lein → always neuter (das)';
+    return 'neuter noun (das)';
+  }
+  if (noun.endsWith('er') && ['der Lehrer', 'der Schüler', 'der Verkäufer', 'der Kellner', 'der Fahrer', 'der Arbeiter'].includes(`der ${noun}`)) {
+    return '-er (male person) → der';
+  }
+  return 'masculine noun (der)';
+}
+
+function buildPartsFromSetKeys(items, setDefs, setKeyIndex) {
+  return setDefs.map((def) => {
+    const allowed = new Set(def.keys);
+    const indices = [];
+    items.forEach((row, idx) => {
+      if (allowed.has(row[setKeyIndex])) {
+        indices.push(idx);
+      }
+    });
+    return { label: def.label, indices };
+  });
+}
+
+function buildStudyQuizConfigs() {
+  if (
+    typeof STUDY_DE_A1_EN_VOCAB === 'undefined' ||
+    typeof STUDY_DE_A1_EN_ARTICLES_AKK === 'undefined' ||
+    typeof STUDY_DE_A1_EN_VERBS === 'undefined' ||
+    typeof STUDY_DE_A1_EN_GRAMMAR === 'undefined' ||
+    typeof STUDY_DE_A1_EN_PHRASES === 'undefined'
+  ) {
+    return [];
+  }
+
+  const vocabSetDefs = [
+    { keys: ['basics'], label: 'Basics & Time' },
+    { keys: ['people'], label: 'People & Family' },
+    { keys: ['home'], label: 'Home & Routine' },
+    { keys: ['food'], label: 'Food & Shopping' },
+    { keys: ['city'], label: 'City & Travel' },
+    { keys: ['work'], label: 'Work & Free Time' },
+    { keys: ['verbs_adj'], label: 'Verbs & Qualities' }
+  ];
+  const vocabParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_VOCAB, vocabSetDefs, 3);
+
+  const verbSetDefs = [
+    { keys: ['core'], label: 'sein, haben & Modals' },
+    { keys: ['regular'], label: 'Regular Present' },
+    { keys: ['stem'], label: 'Stem-Changing' },
+    { keys: ['perfekt'], label: 'Separable & Perfekt' }
+  ];
+  const verbParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_VERBS, verbSetDefs, 4);
+
+  const grammarSetDefs = [
+    { keys: ['word_order'], label: 'Word Order & Questions' },
+    { keys: ['neg_pron'], label: 'Pronouns & Negation' },
+    { keys: ['cases'], label: 'Cases & Plurals' },
+    { keys: ['preps'], label: 'Prepositions' },
+    { keys: ['modals'], label: 'Modals & Connectors' }
+  ];
+  const grammarParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_GRAMMAR, grammarSetDefs, 4);
+
+  const phraseSetDefs = [
+    { keys: ['intro'], label: 'Greetings & Intro' },
+    { keys: ['shop'], label: 'Café & Shopping' },
+    { keys: ['travel'], label: 'Directions & Travel' },
+    { keys: ['daily'], label: 'Time & Health' }
+  ];
+  const phraseParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_PHRASES, phraseSetDefs, 4);
+
+  // Build Articles & Gender items: 3 noun gender groups derived from VOCAB + Set 4 Nom vs Akk
+  const articleItems = [];
+  const artGroup1 = [];
+  const artGroup2 = [];
+  const artGroup3 = [];
+  const artGroup4 = [];
+  const allArticles = ['der', 'die', 'das'];
+
+  STUDY_DE_A1_EN_VOCAB.forEach(([de, en, pos, setKey]) => {
+    if (pos !== 'n') return;
+    const match = de.match(/^(der|die|das)\s+(.+)$/);
+    if (!match) return;
+    const article = match[1];
+    const noun = match[2];
+    const distractors = allArticles.filter(a => a !== article);
+    const hint = getGermanNounSuffixHint(noun, article);
+    const idx = articleItems.length;
+    articleItems.push([`___ ${noun} (${en})`, article, distractors, hint]);
+    if (setKey === 'basics' || setKey === 'people' || setKey === 'home') {
+      artGroup1.push(idx);
+    } else if (setKey === 'food' || setKey === 'city') {
+      artGroup2.push(idx);
+    } else {
+      artGroup3.push(idx);
+    }
+  });
+
+  STUDY_DE_A1_EN_ARTICLES_AKK.forEach(([prompt, correct, distractors, ruleNote]) => {
+    const idx = articleItems.length;
+    articleItems.push([prompt, correct, distractors, ruleNote]);
+    artGroup4.push(idx);
+  });
+
+  const articleParts = [
+    { label: 'People & Home', indices: artGroup1 },
+    { label: 'Food & City', indices: artGroup2 },
+    { label: 'Work & Time', indices: artGroup3 },
+    { label: 'Nom vs Akk', indices: artGroup4 }
+  ];
+
+  const baseMeta = {
+    category: 'study',
+    type: 'quiz',
+    studyLearn: 'de',
+    studyFrom: 'en',
+    studyCefr: 'a1',
+    isFlagPrompt: false,
+    isFlagChoice: false
+  };
+
+  return [
+    {
+      ...baseMeta,
+      id: 'cfg_study_de_en_a1_vocab_de_en',
+      shortLabel: 'Vocab (DE → EN)',
+      label: '🇩🇪 A1 · Vocab (DE → EN)',
+      distractorMode: 'pos_pool',
+      items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [de, en, pos]),
+      customParts: vocabParts
+    },
+    {
+      ...baseMeta,
+      id: 'cfg_study_de_en_a1_vocab_en_de',
+      shortLabel: 'Vocab (EN → DE)',
+      label: '🇩🇪 A1 · Vocab (EN → DE)',
+      distractorMode: 'pos_pool',
+      items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [en, de, pos]),
+      customParts: vocabParts
+    },
+    {
+      ...baseMeta,
+      id: 'cfg_study_de_en_a1_grammar',
+      shortLabel: 'Grammar',
+      label: '🇩🇪 A1 · Grammar',
+      distractorMode: 'explicit',
+      items: STUDY_DE_A1_EN_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
+      customParts: grammarParts
+    },
+    {
+      ...baseMeta,
+      id: 'cfg_study_de_en_a1_verbs',
+      shortLabel: 'Verbs & Conjugation',
+      label: '🇩🇪 A1 · Verbs & Conjugation',
+      distractorMode: 'explicit',
+      items: STUDY_DE_A1_EN_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
+      customParts: verbParts
+    },
+    {
+      ...baseMeta,
+      id: 'cfg_study_de_en_a1_articles',
+      shortLabel: 'Articles & Gender',
+      label: '🇩🇪 A1 · Articles & Gender',
+      distractorMode: 'explicit',
+      items: articleItems,
+      customParts: articleParts
+    },
+    {
+      ...baseMeta,
+      id: 'cfg_study_de_en_a1_phrases',
+      shortLabel: 'Everyday Phrases',
+      label: '🇩🇪 A1 · Everyday Phrases',
+      distractorMode: 'explicit',
+      items: STUDY_DE_A1_EN_PHRASES.map(([p, c, d, note]) => [p, c, d, note]),
+      customParts: phraseParts
+    }
+  ];
+}
+
 const BASE_QUIZ_CONFIGS = [
   // Geography (12 configs across 193 UN member states: Country, Flag, Capital, Map)
   {
@@ -247,6 +446,9 @@ const BASE_QUIZ_CONFIGS = [
 
   // Language (50 configs: 20 Translations, 10 Emoji↔Lang, 5 Synonym, 5 Antonym, 10 Idiom↔Meaning)
   ...buildLanguageQuizConfigs(),
+
+  // Study (CEFR / Proficiency standards — currently German A1 for English speakers)
+  ...buildStudyQuizConfigs(),
 
   // Other (4 configs: 118 IUPAC chemical elements & 36 International Morse Code characters)
   {
@@ -369,6 +571,9 @@ function getMorseSignalParts() {
 }
 
 function getPartsForBaseQuizConfig(base) {
+  if (Array.isArray(base.customParts) && base.customParts.length > 0) {
+    return base.customParts;
+  }
   if (base.id.startsWith('cfg_geo_')) {
     return getGeoRegionParts();
   }
@@ -421,6 +626,11 @@ function buildSplitQuizConfigs(baseConfigs) {
         isMini: true,
         category: base.category,
         ...(base.langs ? { langs: base.langs } : {}),
+        ...(base.studyLearn ? { studyLearn: base.studyLearn } : {}),
+        ...(base.studyFrom ? { studyFrom: base.studyFrom } : {}),
+        ...(base.studyCefr ? { studyCefr: base.studyCefr } : {}),
+        ...(base.distractorMode ? { distractorMode: base.distractorMode } : {}),
+        ...(base.shortLabel ? { shortLabel: base.shortLabel } : {}),
         type: 'quiz',
         label: `${base.label} · ${part.label}`,
         isFlagPrompt: base.isFlagPrompt,
