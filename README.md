@@ -1,6 +1,6 @@
-# 1-Minute Quiz (Math, Geography, Language & Other)
+# 1-Minute Quiz (Math, Geography, Language, Study & Other)
 
-Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — starting with German A1 for English speakers), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
 - **Android App (Google Play Closed Testing)**:
@@ -33,17 +33,24 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   - Generates a random username saved in `localStorage`, editable anytime in the header.
   - Add (`+ User`), switch, and delete (`✕`) users so multiple people can play on the same device.
   - Users are shared across all game configurations and leaderboards.
-- **Four Categories (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🧩 Other`) Sorted by Popularity**:
+- **Five Categories (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🎓 Study`, `🧩 Other`) Sorted by Popularity**:
   - **🔢 Math**:
     - Default game: `+ − (0..10, 0..10, 0..20)`.
     - Create new math configurations (`+ Game`) with any subset of operators (`+`, `−`, `×`, `÷`) and integer `min`/`max` constraints on each of the 3 numbers (with division restricted to exact integers).
   - **🌍 Geography (12 built-in configs — 193 UN Member States)**:
     - `Flag ↔ Country`, `Country ↔ Capital`, `Flag ↔ Capital`, `Map ↔ Country`, `Map ↔ Flag`, and `Map ↔ Capital` across all 193 United Nations member states, played with 2-choice answer buttons and Natural Earth context maps showing neighboring countries.
-  - **💬 Language & Wordplay (14 built-in configs)**:
-    - `🇧🇷 Portuguese → English`, `🇪🇸 Spanish → English`, `🇫🇷 French → English`, `🇩🇪 German → English` (1,000 most common words)
-    - `English → 🇧🇷 Portuguese`, `English → 🇪🇸 Spanish`, `English → 🇫🇷 French`, `English → 🇩🇪 German` (1,000 most common words)
-    - `😀 Emoji → English` and `English → 😀 Emoji` (top 1,000 most used emojis)
-    - `Word → Synonym` (300 synonym pairs), `Word → Antonym` (300 antonym pairs), `Idiom → Meaning` (200 idioms & phrasal verbs), and `Meaning → Idiom` (200 idioms & phrasal verbs)
+  - **💬 Language & Wordplay (50 built-in configs across `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, `🇫🇷 FR` & `🇩🇪 DE`)**:
+    - All 20 directed translation pairs across English, Portuguese, Spanish, French, and German (1,000 most common words each).
+    - `😀 Emoji ↔ Language` across all 5 languages (top 1,000 most used emojis).
+    - `Word → Synonym` (300 pairs), `Word → Antonym` (300 pairs), and `Idiom ↔ Meaning` (200 idioms & phrasal verbs) for each language, with a **Lang** sub-filter and 4 mini-sets per game.
+  - **🎓 Study (CEFR Tracks — German A1 for English Speakers)**:
+    - Filterable by **Learn** (`🇩🇪 DE`), **From** (`🇬🇧 EN`), and **CEFR** (`A1`), with 6 tracks as games and thematic/topic splits as sets:
+      - `Vocab (DE → EN)` & `Vocab (EN → DE)` (621 Goethe-Zertifikat A1 words with noun articles, part-of-speech–matched distractors, and 7 thematic sets).
+      - `Grammar` (214 cloze & structure drills with rule notes across 5 topic sets).
+      - `Verbs & Conjugation` (188 drills across core/modals, regular present, stem-changing, and separable/Perfekt across 4 sets).
+      - `Articles & Gender` (437 drills across 3 noun-gender sets + Nominative vs. Accusative cloze set).
+      - `Everyday Phrases` (106 functional A1 phrases across 4 sets).
+    - Features highlighted inline cloze blanks (`___`) during play and concise grammar rule notes in **Progress & Review**.
   - **🧩 Other (4 built-in configs — Chemical Elements & Morse Code)**:
     - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
     - `Morse → Character` (`• • •` → `S`) and `Character → Morse` (`S` → `• • •`) across all 36 International Morse Code characters (`A–Z`, `0–9`).

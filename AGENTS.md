@@ -3,19 +3,19 @@
 This document provides complete technical context for AI coding agents working on this repository. Keep this repository strictly free of any proprietary, internal, or machine-specific paths/credentials.
 
 > **Context & Token Hygiene Rule (`data/` directory)**:
-> **NEVER** read, view, or grep files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas are documented in Section 2 below.
+> **NEVER** read, view, or grep large minified files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas (along with `data/study-de-a1-en.js`) are documented in Section 2 below.
 
 ---
 
 ## 1. Overview & Live Deployment Topology
 
-**1-Min Quiz** is a mobile-first 1-minute quiz web app and PWA across four categories (**🔢 Math**, **🌍 Geo**, **💬 Lang**, **🧩 Other**) with multi-user support, practice mode, interactive replays, head-to-head ghost races, player profile pages, and global leaderboards.
+**1-Min Quiz** is a mobile-first 1-minute quiz web app and PWA across five categories (**🔢 Math**, **🌍 Geo**, **💬 Lang**, **🎓 Study**, **🧩 Other**) with multi-user support, practice mode, interactive replays, head-to-head ghost races, player profile pages, and global leaderboards.
 
 The project uses a split-hosting architecture so `localStorage` stays on a single canonical origin while social media links get dynamic server-rendered Open Graph previews:
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-en.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -38,7 +38,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 ## 2. Repository Structure
 
 - `index.html`: Single-page app markup containing three main views:
-  - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🧩 Other`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
+  - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🎓 Study`, `🧩 Other`), Language sub-filter (`#lang-switcher-row`), Study filters (`#study-learn-row`, `#study-from-row`, `#study-cefr-row`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), Set switcher (`#part-switcher-row`), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
@@ -56,9 +56,15 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `ENGLISH_IDIOMS` / `PORTUGUESE_IDIOMS` / `SPANISH_IDIOMS` / `FRENCH_IDIOMS` / `GERMAN_IDIOMS`: `[[idiom, meaning], ...]` (200 items each, monolingual)
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
+  - `data/study-de-a1-en.js`: Defines Goethe-Zertifikat A1 German-for-English-speakers datasets:
+    - `STUDY_DE_A1_EN_VOCAB`: `[[de, en, pos, setKey], ...]` (621 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
+    - `STUDY_DE_A1_EN_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
+    - `STUDY_DE_A1_EN_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
+    - `STUDY_DE_A1_EN_GRAMMAR`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (214 items; 5 `setKey`s)
+    - `STUDY_DE_A1_EN_PHRASES`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (106 items; 4 `setKey`s)
 - `js/`:
   - `js/geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
-  - `js/quiz-data.js`: Lightweight (~7 KB) config registry defining `BUILTIN_QUIZ_CONFIGS` with 66 built-in 2-choice quiz base configurations (330 including 4 mini-parts each):
+  - `js/quiz-data.js`: Config registry defining `BUILTIN_QUIZ_CONFIGS` with **72** built-in 2-choice quiz base configurations (**367** total including mini-parts/sets):
     - **🌍 Geography (`12` configs — 193 UN Member States)**:
       - `cfg_geo_flag_country` (`Flag → Country`)
       - `cfg_geo_country_flag` (`Country → Flag`)
@@ -78,6 +84,14 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_lang_synonym`, `cfg_lang_synonym_{pt,es,fr,de}` (`Word → Synonym`, 5 configs, 300 pairs each)
       - `cfg_lang_antonym`, `cfg_lang_antonym_{pt,es,fr,de}` (`Word → Antonym`, 5 configs, 300 pairs each)
       - `cfg_lang_idiom_meaning`, `cfg_lang_idiom_meaning_{pt,es,fr,de}`, `cfg_lang_meaning_idiom`, `cfg_lang_meaning_idiom_{pt,es,fr,de}` (`Idiom ↔ Meaning`, 10 monolingual configs, 200 idioms each)
+    - **🎓 Study (`6` base configs / `37` including sets — German A1 for English speakers)**:
+      - `cfg_study_de_en_a1_vocab_de_en` (`Vocab (DE → EN)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
+      - `cfg_study_de_en_a1_vocab_en_de` (`Vocab (EN → DE)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
+      - `cfg_study_de_en_a1_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets)
+      - `cfg_study_de_en_a1_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets)
+      - `cfg_study_de_en_a1_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_A1_EN_VOCAB` + *Nom vs Akk*)
+      - `cfg_study_de_en_a1_phrases` (`Everyday Phrases`, `distractorMode: 'explicit'`, 4 sets)
+      - Study configs carry `studyLearn`, `studyFrom`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
     - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
       - `cfg_chem_symbol_name` (`Symbol → Element`)
       - `cfg_chem_name_symbol` (`Element → Symbol`)
@@ -102,8 +116,10 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
   - `missingIndex` (`0`, `1`, or `2`) indicates which slot in `a op b = c` was hidden.
 - **2-Choice Quiz Questions (`opIdx === 4`, i.e. `'?'`)**:
   - Format: `[qIdx, 4, dIdx, choiceOrder, durationMs, wrongAnswers?]`
-  - `qIdx` is the index of the `[prompt, expectedAnswer]` pair in `cfg.items`.
-  - `dIdx` is the index of the distractor item in `cfg.items` (uses `cfg.items[dIdx][1]`).
+  - `qIdx` is the index of the item in `cfg.items` (`[prompt, expectedAnswer, ...]`).
+  - `dIdx` depends on `cfg.distractorMode`:
+    - Default / `'pos_pool'`: index of the distractor item in `cfg.items` (uses `cfg.items[dIdx][1]`; `'pos_pool'` samples from items sharing `cfg.items[qIdx][2]` POS tag).
+    - `'explicit'`: index into the item's own distractor list `cfg.items[qIdx][2]` (must **not** be shifted when `dIdx === qIdx` in `normalizeQuestionRecord()` or `decodeCompactQuestionsList()`). Optional `ruleNote` lives at `cfg.items[qIdx][3]` and renders in Progress & Review.
   - `choiceOrder` (`0` or `1`) indicates whether the correct answer appeared on button `0` (`[expected, distractor]`) or button `1` (`[distractor, expected]`).
 
 ### Firebase Realtime Database & Per-User Write Protection
@@ -123,9 +139,9 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 
 ## 4. Maintenance Checklist for Future Changes
 
-1. **Adding New Quiz Configs**:
-   - Add raw dataset arrays to `data/quiz-datasets.js` (if needed) and add the config entry to `BUILTIN_QUIZ_CONFIGS` in `js/quiz-data.js`.
-   - Add the human-readable label to `QUIZ_CONFIG_LABELS` in both `middleware.js` and `api/og.js`, and add a preview sample to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
+1. **Adding New Quiz or Study Configs**:
+   - Add raw dataset arrays to `data/quiz-datasets.js` (general quizzes) or a dedicated pack file such as `data/study-<learn>-<cefr>-<from>.js` (loaded in `index.html` and precached in `sw.js`), and register the config entries in `js/quiz-data.js` (`BUILTIN_QUIZ_CONFIGS`).
+   - Add human-readable labels to `QUIZ_CONFIG_LABELS` and set labels to `getMiniPartLabel()` in both `middleware.js` and `api/og.js`, and add preview samples to `QUIZ_PREVIEW_SAMPLES` in `api/og.js`.
 2. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:
