@@ -61,6 +61,7 @@ const QUIZ_CONFIG_LABELS = {
 
 const STUDY_DE_A1_WITH_META = [
   { code: 'en', flag: '🇬🇧' },
+  { code: 'pt', flag: '🇧🇷' },
 ];
 for (const lang of STUDY_DE_A1_WITH_META) {
   const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
@@ -1035,6 +1036,10 @@ const PREVIEW_STUDY_DE_SAMPLES = {
   en: {
     trainStation: ['train station', 'airport'],
     phrases: { prompt: 'Asking for the bill:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
+  },
+  pt: {
+    trainStation: ['estação de trem', 'aeroporto'],
+    phrases: { prompt: 'Pedindo a conta:', choices: ['Zahlen, bitte!', 'Bestellen, bitte!'] },
   },
 };
 for (const lang of STUDY_DE_A1_WITH_META) {

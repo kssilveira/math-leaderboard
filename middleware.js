@@ -82,6 +82,7 @@ const QUIZ_CONFIG_LABELS = {
 
 const STUDY_DE_A1_WITH_META = [
   { code: 'en', flag: '🇬🇧' },
+  { code: 'pt', flag: '🇧🇷' },
 ];
 for (const lang of STUDY_DE_A1_WITH_META) {
   const withTag = `${lang.flag} ${lang.code.toUpperCase()}`;
