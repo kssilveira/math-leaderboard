@@ -54,9 +54,9 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_en_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
-  cfg_study_de_en_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
-  cfg_study_de_en_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
+  cfg_study_de_de_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
+  cfg_study_de_de_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
+  cfg_study_de_de_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
 };
 
 const STUDY_DE_A1_WITH_META = [
@@ -165,7 +165,45 @@ function getMiniPartLabel(baseId, partNum) {
   return `Part ${partNum}`;
 }
 
+const RENAMED_CONFIG_ID_RE = /^cfg_study_de_en_a1_(grammar|verbs|articles)(_p\d+)?$/;
+
+function resolveConfigIdAlias(configId) {
+  if (typeof configId !== 'string' || !configId) return configId;
+  return configId.replace(RENAMED_CONFIG_ID_RE, 'cfg_study_de_de_a1_$1$2');
+}
+
+function toLegacyDeEnAlias(configId) {
+  if (typeof configId !== 'string' || !configId) return '';
+  const m = configId.match(/^cfg_study_de_de_a1_(grammar|verbs|articles)(_p\d+)?$/);
+  return m ? `cfg_study_de_en_a1_${m[1]}${m[2] || ''}` : '';
+}
+
+function mergeLeaderboardsWithAliases(rawBoards) {
+  const merged = {};
+  Object.entries(rawBoards || {}).forEach(([rawCfgId, boardObj]) => {
+    if (!boardObj || typeof boardObj !== 'object') return;
+    const cfgId = resolveConfigIdAlias(rawCfgId);
+    if (!merged[cfgId]) merged[cfgId] = {};
+    const targetBoard = merged[cfgId];
+    Object.entries(boardObj).forEach(([uId, entry]) => {
+      if (!entry || typeof entry !== 'object') return;
+      const existing = targetBoard[uId];
+      if (
+        !existing ||
+        (typeof entry.score === 'number' &&
+          (typeof existing.score !== 'number' ||
+            entry.score > existing.score ||
+            (entry.score === existing.score && (entry.updatedAt || Infinity) < (existing.updatedAt || Infinity))))
+      ) {
+        targetBoard[uId] = entry;
+      }
+    });
+  });
+  return merged;
+}
+
 function formatConfigId(configId) {
+  configId = resolveConfigIdAlias(configId);
   if (typeof configId === 'string') {
     const miniMatch = configId.match(/^(.+)_p(\d+)$/);
     if (miniMatch && QUIZ_CONFIG_LABELS[miniMatch[1]]) {
@@ -1031,9 +1069,9 @@ const QUIZ_PREVIEW_SAMPLES = {
   cfg_chem_name_symbol: { prompt: 'Gold', choices: ['Au', 'Ag'] },
   cfg_other_morse_char: { prompt: '• • •', choices: ['S', 'O'] },
   cfg_other_char_morse: { prompt: 'S', choices: ['• • •', '− − −'] },
-  cfg_study_de_en_a1_grammar: { prompt: 'Heute ___ ___ nach Berlin.', choices: ['fahre ich', 'ich fahre'] },
-  cfg_study_de_en_a1_verbs: { prompt: 'er ___ (fahren)', choices: ['fährt', 'fahrt'] },
-  cfg_study_de_en_a1_articles: { prompt: '___ Bahnhof', choices: ['der', 'die'] },
+  cfg_study_de_de_a1_grammar: { prompt: 'Heute ___ ___ nach Berlin.', choices: ['fahre ich', 'ich fahre'] },
+  cfg_study_de_de_a1_verbs: { prompt: 'er ___ (fahren)', choices: ['fährt', 'fahrt'] },
+  cfg_study_de_de_a1_articles: { prompt: '___ Bahnhof', choices: ['der', 'die'] },
 };
 
 const PREVIEW_STUDY_DE_SAMPLES = {
@@ -1094,12 +1132,21 @@ for (const src of QUIZ_LANG_META) {
 
 async function fetchTop10Leaderboard(configId = DEFAULT_CONFIG_ID) {
   try {
-    const safeCfgId = configId || DEFAULT_CONFIG_ID;
-    const res = await fetch(
-      `${FIREBASE_BASE_URL}/leaderboards/${encodeURIComponent(safeCfgId)}.json`
-    );
-    const raw = res.ok ? await res.json() : {};
-    const entries = Object.values(raw || {}).filter(
+    const safeCfgId = resolveConfigIdAlias(configId || DEFAULT_CONFIG_ID);
+    const legacyId = toLegacyDeEnAlias(safeCfgId);
+    const [res, legacyRes] = await Promise.all([
+      fetch(`${FIREBASE_BASE_URL}/leaderboards/${encodeURIComponent(safeCfgId)}.json`),
+      legacyId
+        ? fetch(`${FIREBASE_BASE_URL}/leaderboards/${encodeURIComponent(legacyId)}.json`)
+        : Promise.resolve(null),
+    ]);
+    const rawCanonical = res.ok ? await res.json() : {};
+    const rawLegacy = legacyRes && legacyRes.ok ? await legacyRes.json() : {};
+    const merged = mergeLeaderboardsWithAliases({
+      ...(legacyId && rawLegacy ? { [legacyId]: rawLegacy } : {}),
+      ...(rawCanonical ? { [safeCfgId]: rawCanonical } : {}),
+    });
+    const entries = Object.values(merged[safeCfgId] || {}).filter(
       (e) => e && typeof e.score === 'number'
     );
     entries.sort((a, b) => {
@@ -1125,7 +1172,7 @@ async function fetchTop10Leaderboard(configId = DEFAULT_CONFIG_ID) {
 async function fetchUserProfileStats(userId, fallbackName = 'Player') {
   try {
     const res = await fetch(`${FIREBASE_BASE_URL}/leaderboards.json`);
-    const allBoards = res.ok ? await res.json() : {};
+    const allBoards = mergeLeaderboardsWithAliases(res.ok ? await res.json() : {});
     const performances = [];
     let resolvedUsername = fallbackName || 'Player';
 
@@ -1468,7 +1515,7 @@ function renderUserProfileCard(profile) {
 }
 
 function renderLeaderboardCard(top10, configId = DEFAULT_CONFIG_ID) {
-  const safeCfgId = configId || DEFAULT_CONFIG_ID;
+  const safeCfgId = resolveConfigIdAlias(configId || DEFAULT_CONFIG_ID);
   const cfgLabel = formatConfigId(safeCfgId);
   const baseSampleId = safeCfgId.replace(/_p\d+$/, '');
   const quizSample = QUIZ_PREVIEW_SAMPLES[safeCfgId] || QUIZ_PREVIEW_SAMPLES[baseSampleId] || null;
@@ -1908,7 +1955,7 @@ const HOME_FALLBACK_CONFIGS = [
   'cfg_geo_map_country',
   'cfg_lang_pt_en',
   'cfg_lang_emoji_en',
-  'cfg_study_de_en_a1_grammar',
+  'cfg_study_de_de_a1_grammar',
   'cfg_chem_symbol_name',
   'cfg_other_morse_char',
 ];
@@ -1946,7 +1993,7 @@ function isStandardMathShowcaseConfig(cfgId) {
 async function fetchHomeOverviewStats() {
   try {
     const res = await fetch(`${FIREBASE_BASE_URL}/leaderboards.json`);
-    const allBoards = res.ok ? await res.json() : {};
+    const allBoards = mergeLeaderboardsWithAliases(res.ok ? await res.json() : {});
     const uniqueUserIds = new Set();
     const byCategory = { math: [], geo: [], lang: [], study: [], other: [] };
     let activeGames = 0;

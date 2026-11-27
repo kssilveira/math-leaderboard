@@ -75,9 +75,9 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_en_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
-  cfg_study_de_en_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
-  cfg_study_de_en_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
+  cfg_study_de_de_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
+  cfg_study_de_de_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
+  cfg_study_de_de_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
 };
 
 const STUDY_DE_A1_WITH_META = [
@@ -186,7 +186,15 @@ function getMiniPartLabel(baseId, partNum) {
   return `Part ${partNum}`;
 }
 
+const RENAMED_CONFIG_ID_RE = /^cfg_study_de_en_a1_(grammar|verbs|articles)(_p\d+)?$/;
+
+function resolveConfigIdAlias(configId) {
+  if (typeof configId !== 'string' || !configId) return configId;
+  return configId.replace(RENAMED_CONFIG_ID_RE, 'cfg_study_de_de_a1_$1$2');
+}
+
 function formatConfigId(configId) {
+  configId = resolveConfigIdAlias(configId);
   if (typeof configId === 'string') {
     const miniMatch = configId.match(/^(.+)_p(\d+)$/);
     if (miniMatch && QUIZ_CONFIG_LABELS[miniMatch[1]]) {
@@ -212,7 +220,8 @@ function formatConfigId(configId) {
 export default async function middleware(request) {
   const url = new URL(request.url);
   const replayParam = url.searchParams.get('replay');
-  const configParam = url.searchParams.get('config');
+  const rawConfigParam = url.searchParams.get('config');
+  const configParam = rawConfigParam ? resolveConfigIdAlias(rawConfigParam) : null;
   const userParam = url.searchParams.get('user');
   const uParam = url.searchParams.get('u');
   const origin = url.origin;

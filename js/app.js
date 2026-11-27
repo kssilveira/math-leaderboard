@@ -924,12 +924,20 @@ function isQuizConfig(cfg) {
   return cfg.type === 'quiz' || cat === 'geo' || cat === 'lang' || cat === 'study' || cat === 'other';
 }
 
+const RENAMED_CONFIG_ID_RE = /^cfg_study_de_en_a1_(grammar|verbs|articles)(_p\d+)?$/;
+
+function resolveConfigIdAlias(cfgId) {
+  if (typeof cfgId !== 'string' || !cfgId) return cfgId;
+  return cfgId.replace(RENAMED_CONFIG_ID_RE, 'cfg_study_de_de_a1_$1$2');
+}
+
 function getConfigById(cfgId) {
   if (!cfgId) return null;
   if (configsByIdMap.size === 0) {
     rebuildConfigsIndex();
   }
-  return configsByIdMap.get(cfgId) || null;
+  const canonicalId = resolveConfigIdAlias(cfgId);
+  return configsByIdMap.get(canonicalId) || configsByIdMap.get(cfgId) || null;
 }
 
 function getConfigId(cfg) {
@@ -1836,7 +1844,29 @@ async function syncFromFirebase() {
     const cloudConfigs = configsRes.ok ? await configsRes.json() : null;
     const cloudLeaderboards = leaderboardsRes.ok ? await leaderboardsRes.json() : null;
 
-    leaderboardsMap = cloudLeaderboards && typeof cloudLeaderboards === 'object' ? cloudLeaderboards : {};
+    const mergedLeaderboards = {};
+    if (cloudLeaderboards && typeof cloudLeaderboards === 'object') {
+      Object.entries(cloudLeaderboards).forEach(([rawCfgId, boardObj]) => {
+        if (!boardObj || typeof boardObj !== 'object') return;
+        const cfgId = resolveConfigIdAlias(rawCfgId);
+        if (!mergedLeaderboards[cfgId]) mergedLeaderboards[cfgId] = {};
+        const targetBoard = mergedLeaderboards[cfgId];
+        Object.entries(boardObj).forEach(([uId, entry]) => {
+          if (!entry || typeof entry !== 'object') return;
+          const existing = targetBoard[uId];
+          if (
+            !existing ||
+            (typeof entry.score === 'number' &&
+              (typeof existing.score !== 'number' ||
+                entry.score > existing.score ||
+                (entry.score === existing.score && (entry.updatedAt || Infinity) < (existing.updatedAt || Infinity))))
+          ) {
+            targetBoard[uId] = entry;
+          }
+        });
+      });
+    }
+    leaderboardsMap = mergedLeaderboards;
     lastFullSyncAt = Date.now();
     configSyncTimestamps.clear();
 
@@ -5206,7 +5236,7 @@ function decodeReplayParam(encoded) {
     const payload = JSON.parse(new TextDecoder().decode(bytes));
     if (!payload || !Array.isArray(payload.q) || payload.q.length === 0) return null;
 
-    const cfgId = String(payload.c || activeConfigId);
+    const cfgId = resolveConfigIdAlias(String(payload.c || activeConfigId));
     const questions = decodeCompactQuestionsList(payload.q, cfgId);
     let opponent = null;
     if (payload.o && Array.isArray(payload.o.q) && payload.o.q.length > 0) {
@@ -6447,6 +6477,134 @@ function initInstallPrompt() {
   }
 }
 
+function mergeQuestionStatEntry(existing, incoming) {
+  if (!existing || typeof existing !== 'object') return incoming;
+  if (!incoming || typeof incoming !== 'object') return existing;
+  const existingLast = Number(existing.lastPlayed || existing.updatedAt || 0);
+  const incomingLast = Number(incoming.lastPlayed || incoming.updatedAt || 0);
+  const newer = incomingLast >= existingLast ? incoming : existing;
+  const merged = { ...newer };
+  ['right', 'wrong', 'attempts'].forEach((k) => {
+    if (typeof existing[k] === 'number' || typeof incoming[k] === 'number') {
+      merged[k] = (Number(existing[k]) || 0) + (Number(incoming[k]) || 0);
+    }
+  });
+  return merged;
+}
+
+function migrateRenamedConfigsInLocalStorage() {
+  try {
+    const savedActive = localStorage.getItem(STORAGE_KEYS.activeConfigId);
+    if (savedActive) {
+      const canonical = resolveConfigIdAlias(savedActive);
+      if (canonical !== savedActive) {
+        localStorage.setItem(STORAGE_KEYS.activeConfigId, canonical);
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const rawLandscape = localStorage.getItem(STORAGE_KEYS.landscapeConfigs);
+    if (rawLandscape) {
+      const parsed = JSON.parse(rawLandscape);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        let changed = false;
+        Object.keys(parsed).forEach((k) => {
+          const canonical = resolveConfigIdAlias(k);
+          if (canonical !== k) {
+            parsed[canonical] = Boolean(parsed[canonical] || parsed[k]);
+            delete parsed[k];
+            changed = true;
+          }
+        });
+        if (changed) {
+          landscapeConfigsCache = parsed;
+          localStorage.setItem(STORAGE_KEYS.landscapeConfigs, JSON.stringify(parsed));
+        }
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const rawHistory = localStorage.getItem(STORAGE_KEYS.gameHistory);
+    if (rawHistory) {
+      const map = JSON.parse(rawHistory);
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        let changed = false;
+        Object.keys(map).forEach((compKey) => {
+          const sep = compKey.indexOf('__');
+          if (sep <= 0) return;
+          const uId = compKey.slice(0, sep);
+          const cfgId = compKey.slice(sep + 2);
+          const canonical = resolveConfigIdAlias(cfgId);
+          if (canonical === cfgId) return;
+
+          const oldList = Array.isArray(map[compKey]) ? map[compKey] : [];
+          const targetKey = `${uId}__${canonical}`;
+          const targetList = Array.isArray(map[targetKey]) ? [...map[targetKey]] : [];
+          const seen = new Set(
+            targetList.map((s) => `${s?.timestamp || 0}|${s?.score}|${s?.right}|${s?.wrong}|${s?.isPractice ? 1 : 0}`)
+          );
+          oldList.forEach((s) => {
+            if (!s || typeof s !== 'object') return;
+            const normSession = { ...s, configId: canonical };
+            const sig = `${normSession.timestamp || 0}|${normSession.score}|${normSession.right}|${normSession.wrong}|${normSession.isPractice ? 1 : 0}`;
+            if (!seen.has(sig)) {
+              seen.add(sig);
+              targetList.push(normSession);
+            }
+          });
+          targetList.sort((a, b) => (Number(b?.timestamp) || 0) - (Number(a?.timestamp) || 0));
+          map[targetKey] = targetList;
+          delete map[compKey];
+          changed = true;
+        });
+        if (changed) {
+          gameHistoryCache = map;
+          bestLocalSessionCache.clear();
+          localStorage.setItem(STORAGE_KEYS.gameHistory, JSON.stringify(map));
+        }
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const rawStats = localStorage.getItem(STORAGE_KEYS.questionStats);
+    if (rawStats) {
+      const statsMap = JSON.parse(rawStats);
+      if (statsMap && typeof statsMap === 'object' && !Array.isArray(statsMap)) {
+        let changed = false;
+        Object.keys(statsMap).forEach((compKey) => {
+          const sep = compKey.indexOf('__');
+          if (sep <= 0) return;
+          const uId = compKey.slice(0, sep);
+          const cfgId = compKey.slice(sep + 2);
+          const canonical = resolveConfigIdAlias(cfgId);
+          if (canonical === cfgId) return;
+
+          const oldBucket = statsMap[compKey];
+          const targetKey = `${uId}__${canonical}`;
+          const targetBucket =
+            statsMap[targetKey] && typeof statsMap[targetKey] === 'object' ? { ...statsMap[targetKey] } : {};
+          if (oldBucket && typeof oldBucket === 'object') {
+            Object.entries(oldBucket).forEach(([qKey, entry]) => {
+              targetBucket[qKey] = mergeQuestionStatEntry(targetBucket[qKey], entry);
+            });
+          }
+          statsMap[targetKey] = targetBucket;
+          delete statsMap[compKey];
+          changed = true;
+        });
+        if (changed) {
+          questionStatsCache = statsMap;
+          questionStatsDirty = false;
+          localStorage.setItem(STORAGE_KEYS.questionStats, JSON.stringify(statsMap));
+        }
+      }
+    }
+  } catch (_) {}
+}
+
 function initConfigs() {
   const defaultCfg = createDefaultConfig();
   const byId = new Map();
@@ -6479,7 +6637,7 @@ function initConfigs() {
   configs = Array.from(byId.values());
   rebuildConfigsIndex();
   const urlConfigParam = new URLSearchParams(window.location.search).get('config');
-  const savedConfigId = urlConfigParam || localStorage.getItem(STORAGE_KEYS.activeConfigId);
+  const savedConfigId = resolveConfigIdAlias(urlConfigParam || localStorage.getItem(STORAGE_KEYS.activeConfigId));
   const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
   activeConfigId = activeCfg.id;
   activeCategory = getConfigCategory(activeCfg);
@@ -6493,6 +6651,7 @@ function initConfigs() {
 initTheme();
 updateSoundToggleUI();
 initUsers();
+migrateRenamedConfigsInLocalStorage();
 initConfigs();
 initInstallPrompt();
 syncFromFirebase();

@@ -398,21 +398,18 @@ function buildGermanA1StudyCourse() {
     phraseParts,
     monolingualTracks: [
       {
-        id: 'cfg_study_de_en_a1_grammar',
         key: 'grammar',
         shortLabel: '📐 Grammar',
         items: STUDY_DE_A1_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
         parts: grammarParts
       },
       {
-        id: 'cfg_study_de_en_a1_verbs',
         key: 'verbs',
         shortLabel: '⚡ Verbs & Conjugation',
         items: STUDY_DE_A1_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
         parts: verbParts
       },
       {
-        id: 'cfg_study_de_en_a1_articles',
         key: 'articles',
         shortLabel: '🏷️ Articles & Gender',
         items: articleItems,
