@@ -75,12 +75,12 @@ const QUIZ_CONFIG_LABELS = {
   cfg_chem_name_symbol: '⚛️ Element → 🏷️ Symbol',
   cfg_other_morse_char: '📡 Morse → 🔤 Character',
   cfg_other_char_morse: '🔤 Character → 📡 Morse',
-  cfg_study_de_en_a1_vocab_de_en: '🇩🇪 A1 · Vocab (DE → EN)',
-  cfg_study_de_en_a1_vocab_en_de: '🇩🇪 A1 · Vocab (EN → DE)',
-  cfg_study_de_en_a1_grammar: '🇩🇪 A1 · Grammar',
-  cfg_study_de_en_a1_verbs: '🇩🇪 A1 · Verbs & Conjugation',
-  cfg_study_de_en_a1_articles: '🇩🇪 A1 · Articles & Gender',
-  cfg_study_de_en_a1_phrases: '🇩🇪 A1 · Everyday Phrases',
+  cfg_study_de_en_a1_vocab_de_en: '🇩🇪 A1 · 📖 Vocab (DE → EN)',
+  cfg_study_de_en_a1_vocab_en_de: '🇩🇪 A1 · 📖 Vocab (EN → DE)',
+  cfg_study_de_en_a1_grammar: '🇩🇪 A1 · 📐 Grammar',
+  cfg_study_de_en_a1_verbs: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
+  cfg_study_de_en_a1_articles: '🇩🇪 A1 · 🏷️ Articles & Gender',
+  cfg_study_de_en_a1_phrases: '🇩🇪 A1 · 🗣️ Everyday Phrases',
 };
 
 for (const src of QUIZ_LANG_META) {

@@ -281,8 +281,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_vocab_de_en',
-      shortLabel: 'Vocab (DE → EN)',
-      label: '🇩🇪 A1 · Vocab (DE → EN)',
+      shortLabel: '📖 Vocab (DE → EN)',
+      label: '🇩🇪 A1 · 📖 Vocab (DE → EN)',
       distractorMode: 'pos_pool',
       items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [de, en, pos]),
       customParts: vocabParts
@@ -290,8 +290,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_vocab_en_de',
-      shortLabel: 'Vocab (EN → DE)',
-      label: '🇩🇪 A1 · Vocab (EN → DE)',
+      shortLabel: '📖 Vocab (EN → DE)',
+      label: '🇩🇪 A1 · 📖 Vocab (EN → DE)',
       distractorMode: 'pos_pool',
       items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [en, de, pos]),
       customParts: vocabParts
@@ -299,8 +299,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_grammar',
-      shortLabel: 'Grammar',
-      label: '🇩🇪 A1 · Grammar',
+      shortLabel: '📐 Grammar',
+      label: '🇩🇪 A1 · 📐 Grammar',
       distractorMode: 'explicit',
       items: STUDY_DE_A1_EN_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
       customParts: grammarParts
@@ -308,8 +308,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_verbs',
-      shortLabel: 'Verbs & Conjugation',
-      label: '🇩🇪 A1 · Verbs & Conjugation',
+      shortLabel: '⚡ Verbs & Conjugation',
+      label: '🇩🇪 A1 · ⚡ Verbs & Conjugation',
       distractorMode: 'explicit',
       items: STUDY_DE_A1_EN_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
       customParts: verbParts
@@ -317,8 +317,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_articles',
-      shortLabel: 'Articles & Gender',
-      label: '🇩🇪 A1 · Articles & Gender',
+      shortLabel: '🏷️ Articles & Gender',
+      label: '🇩🇪 A1 · 🏷️ Articles & Gender',
       distractorMode: 'explicit',
       items: articleItems,
       customParts: articleParts
@@ -326,8 +326,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_phrases',
-      shortLabel: 'Everyday Phrases',
-      label: '🇩🇪 A1 · Everyday Phrases',
+      shortLabel: '🗣️ Everyday Phrases',
+      label: '🇩🇪 A1 · 🗣️ Everyday Phrases',
       distractorMode: 'explicit',
       items: STUDY_DE_A1_EN_PHRASES.map(([p, c, d, note]) => [p, c, d, note]),
       customParts: phraseParts
