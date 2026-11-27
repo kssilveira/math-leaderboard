@@ -281,8 +281,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_vocab_de_en',
-      shortLabel: '📖 Vocab (DE → EN)',
-      label: '🇩🇪 A1 · 📖 Vocab (DE → EN)',
+      shortLabel: '📖 Vocab (🇩🇪 DE → 🇬🇧 EN)',
+      label: '🇩🇪 A1 · 📖 Vocab (🇩🇪 DE → 🇬🇧 EN)',
       distractorMode: 'pos_pool',
       items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [de, en, pos]),
       customParts: vocabParts
@@ -290,8 +290,8 @@ function buildStudyQuizConfigs() {
     {
       ...baseMeta,
       id: 'cfg_study_de_en_a1_vocab_en_de',
-      shortLabel: '📖 Vocab (EN → DE)',
-      label: '🇩🇪 A1 · 📖 Vocab (EN → DE)',
+      shortLabel: '📖 Vocab (🇬🇧 EN → 🇩🇪 DE)',
+      label: '🇩🇪 A1 · 📖 Vocab (🇬🇧 EN → 🇩🇪 DE)',
       distractorMode: 'pos_pool',
       items: STUDY_DE_A1_EN_VOCAB.map(([de, en, pos]) => [en, de, pos]),
       customParts: vocabParts
