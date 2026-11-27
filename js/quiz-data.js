@@ -273,8 +273,8 @@ function buildConfigsForStudyCourse(course) {
         ...baseMeta,
         studyWith: code,
         id: `cfg_study_${learn}_${code}_${cefr}_phrases`,
-        shortLabel: '🗣️ Everyday Phrases',
-        label: `${learnMeta.flag} ${cefrUpper} (${withTag}) · 🗣️ Everyday Phrases`,
+        shortLabel: `🗣️ Everyday Phrases (${withTag} → ${learnTag})`,
+        label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Everyday Phrases (${withTag} → ${learnTag})`,
         distractorMode: 'explicit',
         items: phrasesCore.map(([correct, distractors], i) => {
           const [prompt, ruleNote] = pack.phrases[i];
