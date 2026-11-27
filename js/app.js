@@ -69,9 +69,9 @@ const replayCacheMap = new Map();
 let firebaseReplaysPathSupported = true;
 const rawSavedCategory = localStorage.getItem(STORAGE_KEYS.activeCategory);
 let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory || 'math');
-const VALID_LANG_FILTERS = ['all', 'en', 'pt', 'es', 'fr', 'de'];
+const VALID_LANG_FILTERS = ['en', 'pt', 'es', 'fr', 'de'];
 const rawSavedLangFilter = localStorage.getItem(STORAGE_KEYS.activeLangFilter);
-let activeLangFilter = VALID_LANG_FILTERS.includes(rawSavedLangFilter) ? rawSavedLangFilter : 'all';
+let activeLangFilter = VALID_LANG_FILTERS.includes(rawSavedLangFilter) ? rawSavedLangFilter : 'en';
 let activeStudyLearn = localStorage.getItem(STORAGE_KEYS.activeStudyLearn) || 'de';
 let activeStudyFrom = localStorage.getItem(STORAGE_KEYS.activeStudyFrom) || 'en';
 let activeStudyCefr = localStorage.getItem(STORAGE_KEYS.activeStudyCefr) || 'a1';
@@ -1139,7 +1139,7 @@ function appendPillPerfMeta(btn, cfgId) {
 }
 
 function configMatchesLangFilter(cfg, langCode = activeLangFilter) {
-  if (!langCode || langCode === 'all') return true;
+  if (!langCode) return true;
   return Boolean(cfg && Array.isArray(cfg.langs) && cfg.langs.includes(langCode));
 }
 
@@ -1326,8 +1326,11 @@ function renderConfigsUI() {
   if (langSwitcherRow) {
     langSwitcherRow.classList.toggle('hidden', activeCategory !== 'lang');
   }
-  if (activeCategory === 'lang' && activeLangFilter !== 'all' && !configMatchesLangFilter(activeBaseCfg, activeLangFilter)) {
-    activeLangFilter = 'all';
+  if (activeCategory === 'lang' && !configMatchesLangFilter(activeBaseCfg, activeLangFilter)) {
+    const fallbackLang = Array.isArray(activeBaseCfg.langs)
+      ? activeBaseCfg.langs.find((code) => VALID_LANG_FILTERS.includes(code))
+      : null;
+    activeLangFilter = fallbackLang || 'en';
     localStorage.setItem(STORAGE_KEYS.activeLangFilter, activeLangFilter);
   }
   langFilterBtns.forEach((btn) => {
