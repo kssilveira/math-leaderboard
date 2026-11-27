@@ -341,7 +341,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_flag_country',
     category: 'geo',
     type: 'quiz',
-    label: 'Flag → Country',
+    label: '🚩 Flag → Country',
     isFlagPrompt: true,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country, flag]) => [flag, country])
@@ -350,7 +350,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_country_flag',
     category: 'geo',
     type: 'quiz',
-    label: 'Country → Flag',
+    label: '🌐 Country → Flag',
     isFlagPrompt: false,
     isFlagChoice: true,
     items: UN_MEMBER_STATES.map(([country, flag]) => [country, flag])
@@ -359,7 +359,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_country_capital',
     category: 'geo',
     type: 'quiz',
-    label: 'Country → Capital',
+    label: '🌐 Country → Capital',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country, , capital]) => [country, capital])
@@ -368,7 +368,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_capital_country',
     category: 'geo',
     type: 'quiz',
-    label: 'Capital → Country',
+    label: '🏛️ Capital → Country',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country, , capital]) => [capital, country])
@@ -377,7 +377,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_flag_capital',
     category: 'geo',
     type: 'quiz',
-    label: 'Flag → Capital',
+    label: '🚩 Flag → Capital',
     isFlagPrompt: true,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([, flag, capital]) => [flag, capital])
@@ -386,7 +386,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_capital_flag',
     category: 'geo',
     type: 'quiz',
-    label: 'Capital → Flag',
+    label: '🏛️ Capital → Flag',
     isFlagPrompt: false,
     isFlagChoice: true,
     items: UN_MEMBER_STATES.map(([, flag, capital]) => [capital, flag])
@@ -395,7 +395,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_map_country',
     category: 'geo',
     type: 'quiz',
-    label: 'Map → Country',
+    label: '🗺️ Map → Country',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country]) => ['map:' + country, country])
@@ -404,7 +404,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_country_map',
     category: 'geo',
     type: 'quiz',
-    label: 'Country → Map',
+    label: '🌐 Country → Map',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country]) => [country, 'map:' + country])
@@ -413,7 +413,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_map_flag',
     category: 'geo',
     type: 'quiz',
-    label: 'Map → Flag',
+    label: '🗺️ Map → Flag',
     isFlagPrompt: false,
     isFlagChoice: true,
     items: UN_MEMBER_STATES.map(([country, flag]) => ['map:' + country, flag])
@@ -422,7 +422,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_flag_map',
     category: 'geo',
     type: 'quiz',
-    label: 'Flag → Map',
+    label: '🚩 Flag → Map',
     isFlagPrompt: true,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country, flag]) => [flag, 'map:' + country])
@@ -431,7 +431,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_map_capital',
     category: 'geo',
     type: 'quiz',
-    label: 'Map → Capital',
+    label: '🗺️ Map → Capital',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country, , capital]) => ['map:' + country, capital])
@@ -440,7 +440,7 @@ const BASE_QUIZ_CONFIGS = [
     id: 'cfg_geo_capital_map',
     category: 'geo',
     type: 'quiz',
-    label: 'Capital → Map',
+    label: '🏛️ Capital → Map',
     isFlagPrompt: false,
     isFlagChoice: false,
     items: UN_MEMBER_STATES.map(([country, , capital]) => [capital, 'map:' + country])
