@@ -81,28 +81,28 @@ function buildLanguageQuizConfigs() {
     });
   });
 
-  // 5 Word -> Synonym configs
+  // 5 Synonyms configs
   QUIZ_LANGUAGES.forEach((lang) => {
     configs.push({
       id: lang.code === 'en' ? 'cfg_lang_synonym' : `cfg_lang_synonym_${lang.code}`,
       category: 'lang',
       langs: [lang.code],
       type: 'quiz',
-      label: `${lang.flag} Word → Synonym`,
+      label: `${lang.flag} Synonyms`,
       isFlagPrompt: false,
       isFlagChoice: false,
       items: lang.synonyms
     });
   });
 
-  // 5 Word -> Antonym configs
+  // 5 Antonyms configs
   QUIZ_LANGUAGES.forEach((lang) => {
     configs.push({
       id: lang.code === 'en' ? 'cfg_lang_antonym' : `cfg_lang_antonym_${lang.code}`,
       category: 'lang',
       langs: [lang.code],
       type: 'quiz',
-      label: `${lang.flag} Word → Antonym`,
+      label: `${lang.flag} Antonyms`,
       isFlagPrompt: false,
       isFlagChoice: false,
       items: lang.antonyms

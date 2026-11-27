@@ -78,8 +78,8 @@ for (const lang of QUIZ_LANG_META) {
   const antKey = lang.code === 'en' ? 'cfg_lang_antonym' : `cfg_lang_antonym_${lang.code}`;
   const idmKey = lang.code === 'en' ? 'cfg_lang_idiom_meaning' : `cfg_lang_idiom_meaning_${lang.code}`;
   const mngKey = lang.code === 'en' ? 'cfg_lang_meaning_idiom' : `cfg_lang_meaning_idiom_${lang.code}`;
-  QUIZ_CONFIG_LABELS[synKey] = `${lang.flag} Word → Synonym`;
-  QUIZ_CONFIG_LABELS[antKey] = `${lang.flag} Word → Antonym`;
+  QUIZ_CONFIG_LABELS[synKey] = `${lang.flag} Synonyms`;
+  QUIZ_CONFIG_LABELS[antKey] = `${lang.flag} Antonyms`;
   QUIZ_CONFIG_LABELS[idmKey] = `${lang.flag} Idiom → Meaning`;
   QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
 }
