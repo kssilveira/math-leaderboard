@@ -109,46 +109,46 @@ function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_study_')) {
     if (baseId.includes('_vocab_')) {
       return [
-        'Basics & Time',
-        'People & Family',
-        'Home & Routine',
-        'Food & Shopping',
-        'City & Travel',
-        'Work & Free Time',
-        'Verbs & Qualities'
+        '⏰ Basics & Time',
+        '👪 People & Family',
+        '🏠 Home & Routine',
+        '🍎 Food & Shopping',
+        '🚆 City & Travel',
+        '💼 Work & Free Time',
+        '✨ Verbs & Qualities'
       ][partNum - 1] || `Part ${partNum}`;
     }
     if (baseId.endsWith('_grammar')) {
       return [
-        'Word Order & Questions',
-        'Pronouns & Negation',
-        'Cases & Plurals',
-        'Prepositions',
-        'Modals & Connectors'
+        '❓ Word Order & Questions',
+        '🚫 Pronouns & Negation',
+        '📚 Cases & Plurals',
+        '📍 Prepositions',
+        '🔗 Modals & Connectors'
       ][partNum - 1] || `Part ${partNum}`;
     }
     if (baseId.endsWith('_verbs')) {
       return [
-        'sein, haben & Modals',
-        'Regular Present',
-        'Stem-Changing',
-        'Separable & Perfekt'
+        '⭐ sein, haben & Modals',
+        '✅ Regular Present',
+        '🔀 Stem-Changing',
+        '⏪ Separable & Perfekt'
       ][partNum - 1] || `Part ${partNum}`;
     }
     if (baseId.endsWith('_articles')) {
       return [
-        'People & Home',
-        'Food & City',
-        'Work & Time',
-        'Nom vs Akk'
+        '🏠 People & Home',
+        '🍎 Food & City',
+        '💼 Work & Time',
+        '⚖️ Nom vs Akk'
       ][partNum - 1] || `Part ${partNum}`;
     }
     if (baseId.endsWith('_phrases')) {
       return [
-        'Greetings & Intro',
-        'Café & Shopping',
-        'Directions & Travel',
-        'Time & Health'
+        '👋 Greetings & Intro',
+        '☕ Café & Shopping',
+        '🧭 Directions & Travel',
+        '🏥 Time & Health'
       ][partNum - 1] || `Part ${partNum}`;
     }
   }

@@ -192,38 +192,38 @@ function buildStudyQuizConfigs() {
   }
 
   const vocabSetDefs = [
-    { keys: ['basics'], label: 'Basics & Time' },
-    { keys: ['people'], label: 'People & Family' },
-    { keys: ['home'], label: 'Home & Routine' },
-    { keys: ['food'], label: 'Food & Shopping' },
-    { keys: ['city'], label: 'City & Travel' },
-    { keys: ['work'], label: 'Work & Free Time' },
-    { keys: ['verbs_adj'], label: 'Verbs & Qualities' }
+    { keys: ['basics'], label: '⏰ Basics & Time' },
+    { keys: ['people'], label: '👪 People & Family' },
+    { keys: ['home'], label: '🏠 Home & Routine' },
+    { keys: ['food'], label: '🍎 Food & Shopping' },
+    { keys: ['city'], label: '🚆 City & Travel' },
+    { keys: ['work'], label: '💼 Work & Free Time' },
+    { keys: ['verbs_adj'], label: '✨ Verbs & Qualities' }
   ];
   const vocabParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_VOCAB, vocabSetDefs, 3);
 
   const verbSetDefs = [
-    { keys: ['core'], label: 'sein, haben & Modals' },
-    { keys: ['regular'], label: 'Regular Present' },
-    { keys: ['stem'], label: 'Stem-Changing' },
-    { keys: ['perfekt'], label: 'Separable & Perfekt' }
+    { keys: ['core'], label: '⭐ sein, haben & Modals' },
+    { keys: ['regular'], label: '✅ Regular Present' },
+    { keys: ['stem'], label: '🔀 Stem-Changing' },
+    { keys: ['perfekt'], label: '⏪ Separable & Perfekt' }
   ];
   const verbParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_VERBS, verbSetDefs, 4);
 
   const grammarSetDefs = [
-    { keys: ['word_order'], label: 'Word Order & Questions' },
-    { keys: ['neg_pron'], label: 'Pronouns & Negation' },
-    { keys: ['cases'], label: 'Cases & Plurals' },
-    { keys: ['preps'], label: 'Prepositions' },
-    { keys: ['modals'], label: 'Modals & Connectors' }
+    { keys: ['word_order'], label: '❓ Word Order & Questions' },
+    { keys: ['neg_pron'], label: '🚫 Pronouns & Negation' },
+    { keys: ['cases'], label: '📚 Cases & Plurals' },
+    { keys: ['preps'], label: '📍 Prepositions' },
+    { keys: ['modals'], label: '🔗 Modals & Connectors' }
   ];
   const grammarParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_GRAMMAR, grammarSetDefs, 4);
 
   const phraseSetDefs = [
-    { keys: ['intro'], label: 'Greetings & Intro' },
-    { keys: ['shop'], label: 'Café & Shopping' },
-    { keys: ['travel'], label: 'Directions & Travel' },
-    { keys: ['daily'], label: 'Time & Health' }
+    { keys: ['intro'], label: '👋 Greetings & Intro' },
+    { keys: ['shop'], label: '☕ Café & Shopping' },
+    { keys: ['travel'], label: '🧭 Directions & Travel' },
+    { keys: ['daily'], label: '🏥 Time & Health' }
   ];
   const phraseParts = buildPartsFromSetKeys(STUDY_DE_A1_EN_PHRASES, phraseSetDefs, 4);
 
@@ -261,10 +261,10 @@ function buildStudyQuizConfigs() {
   });
 
   const articleParts = [
-    { label: 'People & Home', indices: artGroup1 },
-    { label: 'Food & City', indices: artGroup2 },
-    { label: 'Work & Time', indices: artGroup3 },
-    { label: 'Nom vs Akk', indices: artGroup4 }
+    { label: '🏠 People & Home', indices: artGroup1 },
+    { label: '🍎 Food & City', indices: artGroup2 },
+    { label: '💼 Work & Time', indices: artGroup3 },
+    { label: '⚖️ Nom vs Akk', indices: artGroup4 }
   ];
 
   const baseMeta = {
