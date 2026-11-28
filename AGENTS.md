@@ -121,15 +121,15 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_chem_name_symbol` (`Element → Symbol`)
       - `cfg_other_morse_char` (`Morse → Character`)
       - `cfg_other_char_morse` (`Character → Morse`)
-  - `js/app.js`: All client-side application logic (including unified 7-game Study view where monolingual tracks stay visible alongside paired `With` tracks, Overview/Profile `Track` filter & `Only <With>` quick preset, Practice mode extended `ruleNote` reveal with tap-to-skip, split multi-blank cloze review, and Web Speech API `speechSynthesis` pronunciation in Practice/Review including wrong-answer reveal across all Study tracks).
+  - `js/app.js`: All client-side application logic (including unified 7-game Study view where monolingual tracks stay visible alongside paired `With` tracks, Overview/Profile `Track` filter & `Learn`/`With` quick presets, untimed `Practice (Learn)` on Study configs, `pos_pool` slash-gloss overlap filtering, Practice mode extended `ruleNote` reveal with `"Tap to continue"` hint, elision-aware cloze spacing, and Web Speech API `speechSynthesis` pronunciation with voice selection & `Auto` toggle in Practice/Review).
 - `lib/study-meta.js`: Single source of truth for client + edge Study course metadata (`STUDY_COURSES_META` with `DEFAULT_STUDY_PART_DEFS_BY_CEFR` inheritance, `nounArticlePattern`, `helperScripts`, `STUDY_LANGUAGE_META` with `bcp47` locales, `QUIZ_LANG_META`, `STUDY_CEFR_ORDER`), labels, mini-part names, OG home badge formatting (`getStudyOgHomeBadge()`), and config ID aliases imported by `lib/study-og-samples.js`, `lib/config-labels.js`, `api/og.js`, `scripts/validate-study.mjs`, and `js/study-meta-bridge.js`.
 - `lib/study-og-samples.js`: Server/validator-only Study OG preview samples (`STUDY_OG_SAMPLES_BY_COURSE`, `STUDY_PREVIEW_SAMPLES`) split out of `lib/study-meta.js` so client bundles do not load OG preview data (not in `sw.js` `APP_SHELL`).
 - `lib/config-labels.js`: Shared config label formatter (`QUIZ_CONFIG_LABELS`, `getMiniPartLabel()`, `formatConfigId()`, `resolveConfigIdAlias()`) imported by `middleware.js` and `api/og.js` (not in `sw.js` `APP_SHELL`).
-- `scripts/validate-study.mjs`: Automated Study dataset & metadata validator (`npm run validate:study` / `node scripts/validate-study.mjs`) checking static-load hygiene, OG samples, `partDefs` key overlap, `nounArticlePattern` coverage, whitespace, per-mini-part `pos_pool` viability, duplicate translations, and length/punctuation giveaways.
+- `scripts/validate-study.mjs`: Automated Study dataset & metadata validator (`npm run validate:study` / `node scripts/validate-study.mjs`) checking static-load hygiene, OG samples, `bcp47` locales, `partDefs` key overlap & `articles` noun `setKey` coverage, `nounArticlePattern` coverage, whitespace, per-mini-part `pos_pool` viability, duplicate translations, and length/capitalization/punctuation giveaways.
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
-- `sw.js`: Offline-first Service Worker for the app shell.
+- `sw.js`: Offline-first Service Worker for `APP_SHELL` (`CACHE_NAME`) plus a separate `STUDY_DATA_CACHE` for lazy `data/study-*` packs so app shell bumps preserve downloaded offline courses.
 
 ---
 

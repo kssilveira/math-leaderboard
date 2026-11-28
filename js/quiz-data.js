@@ -147,7 +147,8 @@ const STUDY_CEFR_ORDER =
 
 function getPhraseEndingPunct(text) {
   const last = String(text || '').trim().slice(-1);
-  if (last === '?' || last === '!') return last;
+  if (last === '?' || last === '？') return '?';
+  if (last === '!' || last === '！') return '!';
   return '.';
 }
 
@@ -593,7 +594,7 @@ function loadStudyScriptOnce(src) {
     }
     const script = document.createElement('script');
     script.src = src;
-    script.async = true;
+    script.async = false;
     script.onload = () => resolve();
     script.onerror = () => {
       studyScriptPromises.delete(src);
@@ -753,10 +754,10 @@ async function ensureStudyConfigLoaded(cfgOrId) {
 
   const promise = (async () => {
     try {
-      await Promise.all([
-        ...helperScripts.map((helperSrc) => loadStudyScriptOnce(helperSrc)),
-        loadStudyScriptOnce(`data/study-${learn}-${cefr}-core.js`)
-      ]);
+      for (const helperSrc of helperScripts) {
+        await loadStudyScriptOnce(helperSrc);
+      }
+      await loadStudyScriptOnce(`data/study-${learn}-${cefr}-core.js`);
       if (withLang) {
         await loadStudyScriptOnce(`data/study-${learn}-${cefr}-${withLang}.js`);
       }

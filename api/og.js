@@ -1771,6 +1771,7 @@ const HOME_FALLBACK_CONFIGS = [
   'cfg_lang_pt_en',
   'cfg_lang_emoji_en',
   'cfg_study_de_de_a1_grammar',
+  'cfg_study_en_en_a1_grammar',
   'cfg_chem_symbol_name',
   'cfg_other_morse_char',
 ];
@@ -2118,7 +2119,7 @@ function renderHomeOverviewCard(overview) {
         h(
           'span',
           { fontSize: '11px', fontWeight: 800, color: '#627084' },
-          'VOCAB · GRAMMAR · VERBS · ARTICLES'
+          'WORDS · PHRASES · GRAMMAR · VERBS'
         ),
         h(
           'span',

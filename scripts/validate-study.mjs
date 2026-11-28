@@ -32,7 +32,8 @@ function hasUntrimmedWhitespace(val) {
 
 function getPhraseEndingPunct(text) {
   const last = String(text || '').trim().slice(-1);
-  if (last === '?' || last === '!') return last;
+  if (last === '?' || last === '？') return '?';
+  if (last === '!' || last === '！') return '!';
   return '.';
 }
 
@@ -66,7 +67,7 @@ function collectPartDefs(trackName, defs, addErr) {
   return { allowedKeys, parts };
 }
 
-function checkChoiceLengthsAndPunct(context, correct, distractors, ruleNote, { checkPunctGiveaway = false, maxChoiceChars = MAX_CHOICE_CHARS } = {}, addErr, addWarn) {
+function checkChoiceLengthsAndPunct(context, correct, distractors, ruleNote, { checkPunctGiveaway = false, checkLengthRatio = false, maxChoiceChars = MAX_CHOICE_CHARS } = {}, addErr, addWarn) {
   if (hasUntrimmedWhitespace(correct)) addErr(`${context} correct has leading/trailing whitespace: ${JSON.stringify(correct)}`);
   if (typeof correct === 'string' && correct.length > maxChoiceChars) {
     addWarn(`${context} correct exceeds ${maxChoiceChars} chars (${correct.length}): "${correct}"`);
@@ -83,18 +84,45 @@ function checkChoiceLengthsAndPunct(context, correct, distractors, ruleNote, { c
     }
   });
 
-  if (checkPunctGiveaway && dList.length > 0 && typeof correct === 'string') {
-    const allChoices = [correct, ...dList];
-    const hasLongSentence = allChoices.some((s) => String(s || '').trim().length >= 12);
-    if (hasLongSentence) {
-      const correctEndsPunct = SENTENCE_PUNCT_RE.test(correct.trim());
-      const anyDistractorEndsPunct = dList.some((d) => SENTENCE_PUNCT_RE.test(String(d || '').trim()));
-      const allDistractorsEndPunct = dList.every((d) => SENTENCE_PUNCT_RE.test(String(d || '').trim()));
-      if (correctEndsPunct && !anyDistractorEndsPunct) {
-        addWarn(`${context} punctuation giveaway: correct ends with sentence punctuation ("${correct}") while distractors do not`);
-      } else if (!correctEndsPunct && allDistractorsEndPunct) {
-        addWarn(`${context} punctuation giveaway: all distractors end with sentence punctuation while correct ("${correct}") does not`);
+  if (dList.length > 0 && typeof correct === 'string') {
+    const cTrim = correct.trim();
+    const dTrims = dList.map((d) => String(d || '').trim());
+
+    if (checkPunctGiveaway) {
+      const allChoices = [cTrim, ...dTrims];
+      const hasLongSentence = allChoices.some((s) => s.length >= 12);
+      if (hasLongSentence) {
+        const correctEndsPunct = SENTENCE_PUNCT_RE.test(cTrim);
+        const anyDistractorEndsPunct = dTrims.some((d) => SENTENCE_PUNCT_RE.test(d));
+        const allDistractorsEndPunct = dTrims.every((d) => SENTENCE_PUNCT_RE.test(d));
+        if (correctEndsPunct && !anyDistractorEndsPunct) {
+          addWarn(`${context} punctuation giveaway: correct ends with sentence punctuation ("${correct}") while distractors do not`);
+        } else if (!correctEndsPunct && allDistractorsEndPunct) {
+          addWarn(`${context} punctuation giveaway: all distractors end with sentence punctuation while correct ("${correct}") does not`);
+        }
+
+        const isUp = (s) => /^\p{Lu}/u.test(s.replace(/^[¿¡"'«(]+/, ''));
+        const isLo = (s) => /^\p{Ll}/u.test(s.replace(/^[¿¡"'«(]+/, ''));
+        if ((isUp(cTrim) && dTrims.every(isLo)) || (isLo(cTrim) && dTrims.every(isUp))) {
+          addWarn(`${context} capitalization giveaway: "${correct}" vs ${JSON.stringify(dTrims)}`);
+        }
       }
+
+      const cInv = /^[¿¡]/.test(cTrim);
+      const anyDInv = dTrims.some((d) => /^[¿¡]/.test(d));
+      const allDInv = dTrims.every((d) => /^[¿¡]/.test(d));
+      if ((cInv && !anyDInv) || (!cInv && allDInv)) {
+        addWarn(`${context} inverted punctuation giveaway: "${correct}" vs ${JSON.stringify(dTrims)}`);
+      }
+    }
+
+    if (checkLengthRatio && cTrim.length >= 15) {
+      dTrims.forEach((d) => {
+        const ratio = Math.max(cTrim.length, d.length) / Math.max(1, Math.min(cTrim.length, d.length));
+        if (ratio >= 2.8) {
+          addWarn(`${context} length ratio giveaway (${ratio.toFixed(1)}x): "${correct}" vs "${d}"`);
+        }
+      });
     }
   }
 }
@@ -144,6 +172,8 @@ function validateCourse(course) {
 
   if (!STUDY_LANGUAGE_META[learn]) {
     addErr(`Unknown learn language "${learn}" in STUDY_LANGUAGE_META`);
+  } else if (!isNonEmptyStr(STUDY_LANGUAGE_META[learn].bcp47)) {
+    addErr(`STUDY_LANGUAGE_META["${learn}"] missing bcp47 locale for speech synthesis`);
   }
 
   const nounArticleRe = nounArticlePattern ? new RegExp(nounArticlePattern) : null;
@@ -246,6 +276,16 @@ function validateCourse(course) {
     const { allowedKeys, parts: partCounts } = collectPartDefs(track.key, defs, addErr);
 
     if (track.key === 'articles' && typeof raw.buildArticles === 'function') {
+      const unmappedNounSetKeys = new Set();
+      raw.vocabCore.forEach(([, pos, setKey]) => {
+        if (pos === 'n' && !allowedKeys.has(setKey)) {
+          unmappedNounSetKeys.add(setKey);
+        }
+      });
+      unmappedNounSetKeys.forEach((sk) => {
+        addErr(`partDefs.articles missing noun setKey "${sk}" (would fall back silently)`);
+      });
+
       const artData = raw.buildArticles(defs);
       if (!artData || !Array.isArray(artData.items) || !Array.isArray(artData.parts)) {
         addErr('buildArticles() returned invalid shape');
@@ -360,7 +400,7 @@ function validateCourse(course) {
     phrasePartCounts.forEach((p) => {
       if (p.keys.has(setKey)) p.count += 1;
     });
-    checkChoiceLengthsAndPunct(`phrasesCore[${idx}]`, correct, distractors, '', { checkPunctGiveaway: true, maxChoiceChars: MAX_PHRASE_CHARS }, addErr, addWarn);
+    checkChoiceLengthsAndPunct(`phrasesCore[${idx}]`, correct, distractors, '', { checkPunctGiveaway: true, checkLengthRatio: true, maxChoiceChars: MAX_PHRASE_CHARS }, addErr, addWarn);
     phrasePunctLearnAnswers[getPhraseEndingPunct(correct)].add(correct);
   });
   phrasePartCounts.forEach((p) => {
@@ -523,15 +563,23 @@ function validateCourse(course) {
       if (!isNonEmptyStr(sample.vocabPrompt)) addErr(`pairedPreviewSamples.${code}.vocabPrompt missing`);
       if (!Array.isArray(sample.vocabChoices) || sample.vocabChoices.length !== 2) {
         addErr(`pairedPreviewSamples.${code}.vocabChoices must have 2 items`);
+      } else if (sample.vocabChoices[0] === sample.vocabChoices[1]) {
+        addErr(`pairedPreviewSamples.${code}.vocabChoices has identical items`);
       }
       if (!Array.isArray(sample.vocabReverseChoices) || sample.vocabReverseChoices.length !== 2) {
         addErr(`pairedPreviewSamples.${code}.vocabReverseChoices must have 2 items`);
+      } else if (sample.vocabReverseChoices[0] === sample.vocabReverseChoices[1]) {
+        addErr(`pairedPreviewSamples.${code}.vocabReverseChoices has identical items`);
       }
       if (!sample.phrases || !isNonEmptyStr(sample.phrases.prompt) || !Array.isArray(sample.phrases.choices) || sample.phrases.choices.length !== 2) {
         addErr(`pairedPreviewSamples.${code}.phrases malformed`);
+      } else if (sample.phrases.choices[0] === sample.phrases.choices[1]) {
+        addErr(`pairedPreviewSamples.${code}.phrases.choices has identical items`);
       }
       if (!sample.phrasesReverse || !isNonEmptyStr(sample.phrasesReverse.prompt) || !Array.isArray(sample.phrasesReverse.choices) || sample.phrasesReverse.choices.length !== 2) {
         addErr(`pairedPreviewSamples.${code}.phrasesReverse malformed`);
+      } else if (sample.phrasesReverse.choices[0] === sample.phrasesReverse.choices[1]) {
+        addErr(`pairedPreviewSamples.${code}.phrasesReverse.choices has identical items`);
       }
     }
 

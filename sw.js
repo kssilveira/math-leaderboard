@@ -1,4 +1,5 @@
-const CACHE_NAME = 'math-leaderboard-v75';
+const CACHE_NAME = 'math-leaderboard-v76';
+const STUDY_DATA_CACHE = 'math-leaderboard-study-data-v1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,12 +26,16 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+function isStudyDataRequest(url) {
+  return url.pathname.includes('/data/study-') && url.pathname.endsWith('.js');
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== STUDY_DATA_CACHE) {
             return caches.delete(key);
           }
           return null;
@@ -42,7 +47,8 @@ self.addEventListener('activate', (event) => {
 });
 
 // Network-first for same-origin app assets so updates deploy immediately when online,
-// with cache fallback for offline play.
+// with cache fallback for offline play. Lazy Study packs live in STUDY_DATA_CACHE so
+// APP_SHELL version bumps do not wipe already-downloaded offline courses.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -50,12 +56,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
+  const targetCache = isStudyDataRequest(url) ? STUDY_DATA_CACHE : CACHE_NAME;
+
   event.respondWith(
     fetch(request)
       .then((response) => {
         if (response && response.status === 200) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          caches.open(targetCache).then((cache) => cache.put(request, copy));
         }
         return response;
       })

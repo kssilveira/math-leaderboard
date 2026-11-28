@@ -22,7 +22,8 @@ const STORAGE_KEYS = {
   theme: 'math_theme_v1',
   landscapeConfigs: 'math_landscape_configs_v1',
   overviewScope: 'math_overview_scope_v1',
-  overviewExcludedFilters: 'math_overview_filters_v1'
+  overviewExcludedFilters: 'math_overview_filters_v1',
+  studyAutoSpeak: 'math_study_auto_speak_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -170,8 +171,10 @@ function saveSwitcherExpandedState() {
 
 const switcherExpandedState = loadSwitcherExpandedState();
 let isSoundEnabled = localStorage.getItem(STORAGE_KEYS.soundEnabled) !== '0';
+let studyAutoSpeak = localStorage.getItem(STORAGE_KEYS.studyAutoSpeak) === '1';
 let currentStreak = 0;
 let isLoadingStudyPack = false;
+let appNoticeTimeout = null;
 let audioCtx = null;
 
 // DOM Elements
@@ -294,7 +297,9 @@ const quizPromptGroup = document.getElementById('quiz-prompt-group');
 const quizPromptLabel = document.getElementById('quiz-prompt-label');
 const quizPromptText = document.getElementById('quiz-prompt-text');
 const quizSpeakBtn = document.getElementById('quiz-speak-btn');
+const quizAutoSpeakBtn = document.getElementById('quiz-auto-speak-btn');
 const quizPracticeNote = document.getElementById('quiz-practice-note');
+const quizPracticeHint = document.getElementById('quiz-practice-hint');
 const slot0 = document.getElementById('slot-0');
 const slot1 = document.getElementById('slot-1');
 const slot2 = document.getElementById('slot-2');
@@ -348,6 +353,9 @@ const installAppBtn = document.getElementById('install-app-btn');
 const installHint = document.getElementById('install-hint');
 const installHintText = document.getElementById('install-hint-text');
 const installHintClose = document.getElementById('install-hint-close');
+const appNotice = document.getElementById('app-notice');
+const appNoticeText = document.getElementById('app-notice-text');
+const appNoticeClose = document.getElementById('app-notice-close');
 let celebrationRafId = null;
 let deferredInstallPrompt = null;
 
@@ -3212,6 +3220,41 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
   const headerActions = document.createElement('div');
   headerActions.className = 'overview-filters-actions';
 
+  const learnGroup = groups.find((g) => g.label === 'Learn');
+  const activeLearnTag = activeStudyLearn ? `study_learn:${activeStudyLearn}` : '';
+  if (
+    learnGroup &&
+    learnGroup.options.length >= 2 &&
+    activeStudyLearn &&
+    learnGroup.options.some((opt) => opt.tag === activeLearnTag)
+  ) {
+    const isOnlyActiveLearn =
+      !overviewExcludedTags.has(activeLearnTag) &&
+      learnGroup.options.every((opt) => opt.tag === activeLearnTag || overviewExcludedTags.has(opt.tag));
+    const onlyLearnBtn = document.createElement('button');
+    onlyLearnBtn.type = 'button';
+    onlyLearnBtn.className = 'inline-btn' + (isOnlyActiveLearn ? ' active' : '');
+    onlyLearnBtn.textContent = `Learn ${getStudyLangDisplay(activeStudyLearn)}`;
+    onlyLearnBtn.title = 'Show only this Study Learn language';
+    onlyLearnBtn.setAttribute('aria-pressed', isOnlyActiveLearn ? 'true' : 'false');
+    onlyLearnBtn.addEventListener('click', () => {
+      if (isOnlyActiveLearn) {
+        learnGroup.options.forEach((opt) => overviewExcludedTags.delete(opt.tag));
+      } else {
+        learnGroup.options.forEach((opt) => {
+          if (opt.tag === activeLearnTag) {
+            overviewExcludedTags.delete(opt.tag);
+          } else {
+            overviewExcludedTags.add(opt.tag);
+          }
+        });
+      }
+      saveOverviewExcludedFilters();
+      onChanged();
+    });
+    headerActions.appendChild(onlyLearnBtn);
+  }
+
   const withGroup = groups.find((g) => g.label === 'With');
   const activeWithTag = activeStudyWith ? `study_with:${activeStudyWith}` : '';
   if (
@@ -3226,8 +3269,8 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
     const onlyWithBtn = document.createElement('button');
     onlyWithBtn.type = 'button';
     onlyWithBtn.className = 'inline-btn' + (isOnlyActiveWith ? ' active' : '');
-    onlyWithBtn.textContent = `Only ${getStudyLangDisplay(activeStudyWith)}`;
-    onlyWithBtn.title = 'Hide other Study paired languages';
+    onlyWithBtn.textContent = `With ${getStudyLangDisplay(activeStudyWith)}`;
+    onlyWithBtn.title = 'Show only this Study paired language';
     onlyWithBtn.setAttribute('aria-pressed', isOnlyActiveWith ? 'true' : 'false');
     onlyWithBtn.addEventListener('click', () => {
       if (isOnlyActiveWith) {
@@ -3806,6 +3849,8 @@ function splitClozeAnswerParts(expectedStr, blankCount) {
   return null;
 }
 
+const ELISION_PREFIX_RE = /(?:^|[\s(])(?:[ldnjscmt]|qu)['’]$/i;
+
 function fillClozePromptHtml(promptStr, expectedStr) {
   const prompt = String(promptStr ?? '');
   const blankRe = /___(?:\s+___)*/g;
@@ -3822,8 +3867,12 @@ function fillClozePromptHtml(promptStr, expectedStr) {
   let partIdx = 0;
   prompt.replace(blankRe, (match, offset) => {
     out += escapeHtml(prompt.slice(lastIdx, offset));
-    out += renderInlineQuizValHtml(parts[partIdx++], true);
+    const partText = String(parts[partIdx++] ?? '').trim();
+    out += renderInlineQuizValHtml(partText, true);
     lastIdx = offset + match.length;
+    if (ELISION_PREFIX_RE.test(partText) && /^\s+\p{L}/u.test(prompt.slice(lastIdx))) {
+      lastIdx += prompt.slice(lastIdx).match(/^\s+/)[0].length;
+    }
     return match;
   });
   out += escapeHtml(prompt.slice(lastIdx));
@@ -3840,10 +3889,11 @@ function fillClozePlainText(promptStr, expectedStr) {
   let partIdx = 0;
   return prompt
     .replace(blankRe, () => {
-      const part = parts[partIdx++];
+      const part = String(parts[partIdx++] ?? '').trim();
       return part === '—' ? '' : part;
     })
     .replace(/\s+([.,!?;:])/g, '$1')
+    .replace(/\b([ldnjscmt]|qu)(['’])\s+(?=\p{L})/giu, '$1$2')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -3887,6 +3937,49 @@ function stopStudySpeech() {
   } catch (_) {}
 }
 
+function pickSpeechVoice(langCode) {
+  const meta = typeof STUDY_LANGUAGE_META !== 'undefined' ? STUDY_LANGUAGE_META[langCode] : null;
+  const bcp47 = ((meta && meta.bcp47) || langCode || 'en-US').replace(/_/g, '-').toLowerCase();
+  const prefix = bcp47.split('-')[0];
+  refreshSpeechVoices();
+  const voices = cachedSpeechVoices.length > 0
+    ? cachedSpeechVoices
+    : (isSpeechSynthesisSupported() && window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : []);
+  if (!Array.isArray(voices) || voices.length === 0) return null;
+
+  let bestVoice = null;
+  let bestScore = -1;
+  voices.forEach((v) => {
+    const vLang = String(v && v.lang || '').replace(/_/g, '-').toLowerCase();
+    if (!vLang) return;
+    const isExact = vLang === bcp47;
+    const isPrefix = vLang === prefix || vLang.startsWith(`${prefix}-`);
+    if (!isExact && !isPrefix) return;
+    let score = isExact ? 10 : 4;
+    if (/google|natural|enhanced|premium|neural|compact/i.test(String(v.name || ''))) {
+      score += 5;
+    }
+    if (v.default) {
+      score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestVoice = v;
+    }
+  });
+  return bestVoice;
+}
+
+function hasSpeechVoiceForLang(langCode) {
+  if (!isSpeechSynthesisSupported()) return false;
+  refreshSpeechVoices();
+  const voices = cachedSpeechVoices.length > 0
+    ? cachedSpeechVoices
+    : (window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : []);
+  if (!Array.isArray(voices) || voices.length === 0) return true;
+  return Boolean(pickSpeechVoice(langCode));
+}
+
 function speakStudyText(text, langCode) {
   if (!isSpeechSynthesisSupported()) return;
   const cleanText = String(text || '')
@@ -3903,18 +3996,26 @@ function speakStudyText(text, langCode) {
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = bcp47;
     utterance.rate = 0.95;
-    refreshSpeechVoices();
-    const voices = cachedSpeechVoices.length > 0
-      ? cachedSpeechVoices
-      : (window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : []);
-    if (Array.isArray(voices) && voices.length > 0) {
-      const exact = voices.find(v => v.lang && v.lang.toLowerCase() === bcp47.toLowerCase());
-      const prefix = bcp47.split('-')[0].toLowerCase();
-      const partial = exact || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
-      if (partial) utterance.voice = partial;
-    }
+    const picked = pickSpeechVoice(langCode);
+    if (picked) utterance.voice = picked;
     window.speechSynthesis.speak(utterance);
   } catch (_) {}
+}
+
+function syncAutoSpeakBtnUI(activeCfg) {
+  if (!quizAutoSpeakBtn) return;
+  const canAutoSpeak = Boolean(
+    isPracticeMode &&
+    !isReplaying &&
+    getConfigCategory(activeCfg) === 'study' &&
+    activeCfg &&
+    activeCfg.studyLearn &&
+    hasSpeechVoiceForLang(activeCfg.studyLearn)
+  );
+  quizAutoSpeakBtn.classList.toggle('hidden', !canAutoSpeak);
+  quizAutoSpeakBtn.classList.toggle('active', studyAutoSpeak);
+  quizAutoSpeakBtn.setAttribute('aria-pressed', studyAutoSpeak ? 'true' : 'false');
+  quizAutoSpeakBtn.textContent = studyAutoSpeak ? '🔊 Auto' : 'Auto';
 }
 
 function getStudyPromptSpeakPayload(cfg, q, revealAnswer = false) {
@@ -4374,8 +4475,15 @@ function renderReview() {
   const lastSession = Array.isArray(sessions) && sessions.length > 0 ? sessions[0] : null;
   const trackedQuestions = getTrackedQuestions(userId, activeConfigId);
 
+  const activeCfgForPractice = getActiveConfig();
+  const isStudyCfg = getConfigCategory(activeCfgForPractice) === 'study';
+
   if (practiceBtn) {
-    practiceBtn.classList.toggle('hidden', trackedQuestions.length === 0);
+    const showPractice = trackedQuestions.length > 0 || isStudyCfg;
+    practiceBtn.classList.toggle('hidden', !showPractice);
+    if (!isLoadingStudyPack) {
+      practiceBtn.textContent = trackedQuestions.length > 0 ? 'Practice Weak & Slow' : 'Practice (Learn)';
+    }
   }
 
   if (trackedQuestions.length === 0 && !sessionHasQuestions(lastSession)) {
@@ -4446,7 +4554,7 @@ function renderReview() {
     const speakPayload = isSpeechSynthesisSupported()
       ? getStudyReviewSpeakPayload(activeCfgForReview, q)
       : null;
-    if (speakPayload) {
+    if (speakPayload && hasSpeechVoiceForLang(speakPayload.lang)) {
       const speakBtn = document.createElement('button');
       speakBtn.type = 'button';
       speakBtn.className = 'inline-btn review-speak-btn';
@@ -4683,6 +4791,29 @@ function getQuizItemNote(cfg, qIdx) {
   return '';
 }
 
+function extractGlossTokens(str) {
+  const parts = String(str ?? '').split(/\s+\/\s+/);
+  const tokens = new Set();
+  parts.forEach((p) => {
+    const cleaned = p.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+    if (cleaned) tokens.add(cleaned);
+  });
+  return tokens;
+}
+
+function answersOverlapGloss(a, b) {
+  if (a === b) return true;
+  const aStr = String(a ?? '');
+  const bStr = String(b ?? '');
+  if (!aStr.includes(' / ') && !bStr.includes(' / ')) return false;
+  const aTokens = extractGlossTokens(aStr);
+  const bTokens = extractGlossTokens(bStr);
+  for (const tok of aTokens) {
+    if (bTokens.has(tok)) return true;
+  }
+  return false;
+}
+
 function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
   const cfg = Array.isArray(cfgOrItems) ? null : cfgOrItems;
   const items = Array.isArray(cfgOrItems) ? cfgOrItems : (cfg && Array.isArray(cfg.items) ? cfg.items : []);
@@ -4695,6 +4826,7 @@ function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
   if (n <= 1) return 0;
   const targetAns = items[qIdx][1];
   const targetLen = String(targetAns ?? '').length;
+  const isPosPool = Boolean(cfg && cfg.distractorMode === 'pos_pool');
   const pickBestFromPool = (pool) => {
     if (!pool || pool.length === 0) return -1;
     if (pool.length === 1 && (pool[0] === qIdx || items[pool[0]][1] === targetAns)) return -1;
@@ -4703,13 +4835,18 @@ function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
     let bestRatio = Infinity;
     for (let s = 0; s < sampleCount; s++) {
       let candidate = -1;
+      let fallbackCandidate = -1;
       for (let attempt = 0; attempt < 25; attempt++) {
         const idx = pool[randomInt(0, pool.length - 1)];
-        if (idx !== qIdx && items[idx][1] !== targetAns) {
-          candidate = idx;
-          break;
+        if (idx === qIdx || items[idx][1] === targetAns) continue;
+        if (isPosPool && answersOverlapGloss(targetAns, items[idx][1])) {
+          if (fallbackCandidate < 0) fallbackCandidate = idx;
+          continue;
         }
+        candidate = idx;
+        break;
       }
+      if (candidate < 0) candidate = fallbackCandidate;
       if (candidate < 0) continue;
       if (sampleCount === 1) return candidate;
       const candLen = Math.max(1, String(items[candidate][1] ?? '').length);
@@ -5007,12 +5144,17 @@ function renderQuestion() {
       const speakPayload = isSpeechSynthesisSupported() && isPracticeMode && !isReplaying
         ? getStudyPromptSpeakPayload(activeCfg, currentQuestion, showPracticeReveal)
         : null;
-      quizSpeakBtn.classList.toggle('hidden', !speakPayload);
+      const canSpeak = Boolean(speakPayload && hasSpeechVoiceForLang(speakPayload.lang));
+      quizSpeakBtn.classList.toggle('hidden', !canSpeak);
     }
+    syncAutoSpeakBtnUI(activeCfg);
     if (quizPracticeNote) {
       const showPracticeNote = Boolean(showPracticeReveal && currentQuestion.note);
       quizPracticeNote.textContent = showPracticeNote ? `💡 ${currentQuestion.note}` : '';
       quizPracticeNote.classList.toggle('hidden', !showPracticeNote);
+    }
+    if (quizPracticeHint) {
+      quizPracticeHint.classList.toggle('hidden', !(showPracticeReveal && isPracticeWrongPaused));
     }
     if (quizPromptText) {
       const isFlagPrompt = !promptIsMap && Boolean(activeCfg && activeCfg.isFlagPrompt);
@@ -5067,10 +5209,12 @@ function renderQuestion() {
   if (mathEqGroup) mathEqGroup.classList.remove('hidden');
   if (quizPromptGroup) quizPromptGroup.classList.add('hidden');
   if (quizSpeakBtn) quizSpeakBtn.classList.add('hidden');
+  if (quizAutoSpeakBtn) quizAutoSpeakBtn.classList.add('hidden');
   if (quizPracticeNote) {
     quizPracticeNote.textContent = '';
     quizPracticeNote.classList.add('hidden');
   }
+  if (quizPracticeHint) quizPracticeHint.classList.add('hidden');
 
   const slots = [slot0, slot1, slot2];
   slotOp.textContent = currentQuestion.op === '-' ? '−' : currentQuestion.op;
@@ -5283,6 +5427,9 @@ function nextQuestion() {
     quizPracticeNote.textContent = '';
     quizPracticeNote.classList.add('hidden');
   }
+  if (quizPracticeHint) {
+    quizPracticeHint.classList.add('hidden');
+  }
   currentQuestion = generateQuestion();
   typedAnswer = '';
   isWrong = false;
@@ -5304,6 +5451,12 @@ function nextQuestion() {
       }
     : null;
   renderQuestion();
+  if (isPlaying && isPracticeMode && !isReplaying && studyAutoSpeak && isSpeechSynthesisSupported()) {
+    const payload = getStudyPromptSpeakPayload(getActiveConfig(), currentQuestion, false);
+    if (payload && hasSpeechVoiceForLang(payload.lang)) {
+      speakStudyText(payload.text, payload.lang);
+    }
+  }
 }
 
 function handleChoiceInput(choiceIdx) {
@@ -5358,7 +5511,15 @@ function handleChoiceInput(choiceIdx) {
     isPracticeWrongPaused = true;
     practiceWrongShownAt = Date.now();
     renderQuestion();
-    schedulePracticeWrongAdvance(currentQuestion.note ? 2800 : 1200);
+    let autoSpoke = false;
+    if (studyAutoSpeak && isSpeechSynthesisSupported()) {
+      const payload = getStudyPromptSpeakPayload(getActiveConfig(), currentQuestion, true);
+      if (payload && hasSpeechVoiceForLang(payload.lang)) {
+        speakStudyText(payload.text, payload.lang);
+        autoSpoke = true;
+      }
+    }
+    schedulePracticeWrongAdvance((currentQuestion.note || autoSpoke) ? 2800 : 1200);
   } else {
     renderQuestion();
     quizChoiceLockTimeout = setTimeout(() => {
@@ -5614,7 +5775,7 @@ async function startGame(practice = false, raceTargetSession = null) {
     }
     if (!loaded || isPlaying) {
       if (!loaded) {
-        alert("Could not load this study pack. Please check your connection and try again.");
+        showAppNotice("Could not load this study pack. Please check your connection and try again.", { isError: true });
       }
       return;
     }
@@ -5710,8 +5871,14 @@ async function finishGame(saveScore) {
     quizPracticeNote.textContent = '';
     quizPracticeNote.classList.add('hidden');
   }
+  if (quizPracticeHint) {
+    quizPracticeHint.classList.add('hidden');
+  }
   if (quizSpeakBtn) {
     quizSpeakBtn.classList.add('hidden');
+  }
+  if (quizAutoSpeakBtn) {
+    quizAutoSpeakBtn.classList.add('hidden');
   }
   if (raceRafId) {
     cancelAnimationFrame(raceRafId);
@@ -5828,6 +5995,8 @@ async function finishGame(saveScore) {
       triggerCelebration(isInitialNewHigh);
       await submitScoreToLeaderboard(finalScore, sessionRecord);
     }
+  } else {
+    renderReview();
   }
 }
 
@@ -6906,10 +7075,33 @@ if (quizSpeakBtn) {
     }
   });
 }
+if (quizAutoSpeakBtn) {
+  quizAutoSpeakBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    studyAutoSpeak = !studyAutoSpeak;
+    try {
+      localStorage.setItem(STORAGE_KEYS.studyAutoSpeak, studyAutoSpeak ? '1' : '0');
+    } catch (_) {}
+    const activeCfg = getActiveConfig();
+    syncAutoSpeakBtnUI(activeCfg);
+    if (studyAutoSpeak && isPlaying && isPracticeMode && !isReplaying) {
+      const revealAnswer = Boolean(isWrong);
+      const payload = getStudyPromptSpeakPayload(activeCfg, currentQuestion, revealAnswer);
+      if (payload && hasSpeechVoiceForLang(payload.lang)) {
+        speakStudyText(payload.text, payload.lang);
+        if (isPracticeWrongPaused) {
+          schedulePracticeWrongAdvance(2800);
+        }
+      }
+    } else if (!studyAutoSpeak) {
+      stopStudySpeech();
+    }
+  });
+}
 if (equationCard) {
   equationCard.addEventListener('pointerdown', (e) => {
     if (!isPracticeWrongPaused) return;
-    if (e.target && e.target.closest('#quiz-speak-btn')) return;
+    if (e.target && (e.target.closest('#quiz-speak-btn') || e.target.closest('#quiz-auto-speak-btn'))) return;
     e.preventDefault();
     advanceFromPracticeWrong();
   });
@@ -7257,6 +7449,36 @@ function initInstallPrompt() {
     installHintClose.addEventListener('click', () => {
       installHint.classList.add('hidden');
     });
+  }
+  if (appNoticeClose) {
+    appNoticeClose.addEventListener('click', hideAppNotice);
+  }
+}
+
+function hideAppNotice() {
+  if (appNoticeTimeout) {
+    clearTimeout(appNoticeTimeout);
+    appNoticeTimeout = null;
+  }
+  if (appNotice) {
+    appNotice.classList.add('hidden');
+    appNotice.classList.remove('is-error');
+  }
+}
+
+function showAppNotice(message, { isError = false, durationMs = 5000 } = {}) {
+  if (!appNotice || !appNoticeText) return;
+  if (appNoticeTimeout) {
+    clearTimeout(appNoticeTimeout);
+    appNoticeTimeout = null;
+  }
+  appNoticeText.textContent = String(message || '');
+  appNotice.classList.toggle('is-error', Boolean(isError));
+  appNotice.classList.remove('hidden');
+  if (durationMs > 0) {
+    appNoticeTimeout = setTimeout(() => {
+      hideAppNotice();
+    }, durationMs);
   }
 }
 

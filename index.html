@@ -94,6 +94,10 @@
       <span id="install-hint-text"></span>
       <button id="install-hint-close" class="install-hint-close" type="button" aria-label="Close install hint">✕</button>
     </div>
+    <div id="app-notice" class="app-notice hidden" role="alert">
+      <span id="app-notice-text"></span>
+      <button id="app-notice-close" class="install-hint-close" type="button" aria-label="Dismiss notice">✕</button>
+    </div>
 
     <!-- HOME / LEADERBOARD VIEW -->
     <section id="home-view" class="view active">
@@ -503,9 +507,11 @@
             <div class="quiz-prompt-header">
               <span id="quiz-prompt-label" class="quiz-prompt-label"></span>
               <button id="quiz-speak-btn" class="inline-btn quiz-speak-btn hidden" type="button" title="Listen to pronunciation" aria-label="Listen to pronunciation">🔊</button>
+              <button id="quiz-auto-speak-btn" class="inline-btn quiz-speak-btn hidden" type="button" aria-pressed="false" title="Auto-pronounce in Practice mode" aria-label="Toggle auto-pronunciation">Auto</button>
             </div>
             <span id="quiz-prompt-text" class="quiz-prompt-text"></span>
             <div id="quiz-practice-note" class="quiz-practice-note hidden" aria-live="polite"></div>
+            <div id="quiz-practice-hint" class="quiz-practice-hint hidden">Tap to continue</div>
           </div>
         </div>
       </div>

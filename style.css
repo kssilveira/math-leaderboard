@@ -162,6 +162,27 @@ html, body {
   flex-shrink: 0;
 }
 
+.app-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--primary-light);
+  border: 1px solid var(--primary-border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.app-notice.is-error {
+  background: var(--wrong-bg);
+  border-color: var(--wrong);
+  color: var(--text);
+}
+
 .user-actions {
   display: flex;
   align-items: center;
@@ -425,6 +446,7 @@ html, body {
 
 .overview-filters-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -432,6 +454,7 @@ html, body {
 
 .overview-filters-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -1671,6 +1694,12 @@ html, body {
   vertical-align: middle;
 }
 
+.quiz-speak-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
 .review-speak-btn {
   margin-left: 6px;
 }
@@ -1686,6 +1715,15 @@ html, body {
   border: 1px solid var(--border);
   max-width: 100%;
   line-height: 1.25;
+}
+
+.quiz-practice-hint {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  opacity: 0.78;
+  letter-spacing: 0.02em;
 }
 
 .equation-card.is-practice-paused {
@@ -2415,6 +2453,11 @@ body.game-landscape #game-view.is-quiz-mode .quiz-practice-note {
   margin-top: 2px;
   padding: 2px 8px;
   font-size: 0.7rem;
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-practice-hint {
+  margin-top: 1px;
+  font-size: 0.62rem;
 }
 
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text {
