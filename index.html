@@ -301,10 +301,15 @@
             <button type="button" id="overview-sort-score-btn" class="pill-btn" role="tab" aria-selected="false">
               📈 By Score
             </button>
+            <button type="button" id="overview-filter-toggle-btn" class="pill-btn filter-toggle-pill" aria-expanded="false" aria-controls="overview-filters-panel">
+              🎛️ Filters
+            </button>
             <button type="button" id="overview-share-user-btn" class="pill-btn" title="Open &amp; share your user profile page">
               🔗 Share My Page
             </button>
           </div>
+
+          <div id="overview-filters-panel" class="overview-filters-panel hidden" role="region" aria-label="Filter games"></div>
 
           <ol id="overview-list" class="review-list overview-list"></ol>
         </div>
@@ -418,7 +423,12 @@
           <button type="button" id="user-sort-next-btn" class="pill-btn" role="tab" aria-selected="false">
             🎯 Play Next
           </button>
+          <button type="button" id="user-filter-toggle-btn" class="pill-btn filter-toggle-pill" aria-expanded="false" aria-controls="user-filters-panel">
+            🎛️ Filters
+          </button>
         </div>
+
+        <div id="user-filters-panel" class="overview-filters-panel hidden" role="region" aria-label="Filter games"></div>
 
         <ol id="user-page-list" class="review-list user-page-list"></ol>
       </section>

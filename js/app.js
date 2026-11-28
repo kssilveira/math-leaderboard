@@ -21,7 +21,8 @@ const STORAGE_KEYS = {
   soundEnabled: 'math_sound_enabled_v1',
   theme: 'math_theme_v1',
   landscapeConfigs: 'math_landscape_configs_v1',
-  overviewScope: 'math_overview_scope_v1'
+  overviewScope: 'math_overview_scope_v1',
+  overviewExcludedFilters: 'math_overview_filters_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
@@ -122,6 +123,29 @@ let viewedUserId = null;
 let viewedUsername = '';
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
 let isOverviewExpanded = localStorage.getItem(STORAGE_KEYS.overviewExpanded) !== '0';
+let isOverviewFiltersOpen = false;
+let isUserPageFiltersOpen = false;
+
+function loadOverviewExcludedFilters() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.overviewExcludedFilters) || '[]');
+    if (Array.isArray(parsed)) {
+      return new Set(parsed.filter((tag) => typeof tag === 'string' && tag));
+    }
+  } catch (_) {}
+  return new Set();
+}
+
+function saveOverviewExcludedFilters() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.overviewExcludedFilters,
+      JSON.stringify(Array.from(overviewExcludedTags))
+    );
+  } catch (_) {}
+}
+
+const overviewExcludedTags = loadOverviewExcludedFilters();
 
 function loadSwitcherExpandedState() {
   let state = {};
@@ -205,6 +229,8 @@ const userSortScoreBtn = document.getElementById('user-sort-score-btn');
 const userSortNextBtn = document.getElementById('user-sort-next-btn');
 const userScopeFullBtn = document.getElementById('user-scope-full-btn');
 const userScopeMiniBtn = document.getElementById('user-scope-mini-btn');
+const userFilterToggleBtn = document.getElementById('user-filter-toggle-btn');
+const userFiltersPanel = document.getElementById('user-filters-panel');
 const userPageList = document.getElementById('user-page-list');
 const playBtn = document.getElementById('play-btn');
 const practiceBtn = document.getElementById('practice-btn');
@@ -241,6 +267,8 @@ const overviewSortRankBtn = document.getElementById('overview-sort-rank-btn');
 const overviewSortScoreBtn = document.getElementById('overview-sort-score-btn');
 const overviewScopeFullBtn = document.getElementById('overview-scope-full-btn');
 const overviewScopeMiniBtn = document.getElementById('overview-scope-mini-btn');
+const overviewFilterToggleBtn = document.getElementById('overview-filter-toggle-btn');
+const overviewFiltersPanel = document.getElementById('overview-filters-panel');
 const overviewList = document.getElementById('overview-list');
 const reviewCard = document.getElementById('review-card');
 const reviewToggleBtn = document.getElementById('review-toggle-btn');
@@ -2952,6 +2980,238 @@ function openUserPage(targetUserId, fallbackName = '') {
   renderUserPage();
 }
 
+function getOverviewFilterGroups() {
+  const cefrOrder =
+    typeof window !== 'undefined' && Array.isArray(window.STUDY_CEFR_ORDER)
+      ? window.STUDY_CEFR_ORDER
+      : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+  const cefrSet = new Set();
+  configs.forEach((cfg) => {
+    if (cfg && cfg.studyCefr) {
+      cefrSet.add(String(cfg.studyCefr).toLowerCase());
+    }
+  });
+  if (cefrSet.size === 0) {
+    cefrSet.add('a1');
+    cefrSet.add('a2');
+  }
+  const cefrOptions = Array.from(cefrSet)
+    .sort((a, b) => {
+      const ia = cefrOrder.indexOf(a);
+      const ib = cefrOrder.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    })
+    .map((level) => ({ tag: `cefr:${level}`, label: level.toUpperCase() }));
+
+  return [
+    {
+      label: 'Topic',
+      dimmed: false,
+      options: [
+        { tag: 'topic:math', label: '🔢 Math' },
+        { tag: 'topic:geo', label: '🌍 Geo' },
+        { tag: 'topic:lang', label: '💬 Lang' },
+        { tag: 'topic:study', label: '🎓 Study' },
+        { tag: 'topic:other', label: '🧩 Other' }
+      ]
+    },
+    {
+      label: 'Lang',
+      dimmed: overviewExcludedTags.has('topic:lang') && overviewExcludedTags.has('topic:study'),
+      options: [
+        { tag: 'lang:en', label: '🇬🇧 EN' },
+        { tag: 'lang:pt', label: '🇧🇷 PT' },
+        { tag: 'lang:es', label: '🇪🇸 ES' },
+        { tag: 'lang:fr', label: '🇫🇷 FR' },
+        { tag: 'lang:de', label: '🇩🇪 DE' }
+      ]
+    },
+    {
+      label: 'Geo',
+      dimmed: overviewExcludedTags.has('topic:geo'),
+      options: [
+        { tag: 'geo:flag', label: '🚩 Flag' },
+        { tag: 'geo:country', label: '🌐 Country' },
+        { tag: 'geo:capital', label: '🏛️ Capital' },
+        { tag: 'geo:map', label: '🗺️ Map' }
+      ]
+    },
+    {
+      label: 'Study',
+      dimmed: overviewExcludedTags.has('topic:study'),
+      options: cefrOptions
+    },
+    {
+      label: 'Other',
+      dimmed: overviewExcludedTags.has('topic:other'),
+      options: [
+        { tag: 'other:element', label: '⚛️ Element' },
+        { tag: 'other:morse', label: '📡 Morse' }
+      ]
+    }
+  ];
+}
+
+function sanitizeOverviewExcludedTags(groups) {
+  if (overviewExcludedTags.size === 0) return;
+  const validTags = new Set();
+  groups.forEach((group) => {
+    group.options.forEach((opt) => validTags.add(opt.tag));
+  });
+  let changed = false;
+  overviewExcludedTags.forEach((tag) => {
+    if (!validTags.has(tag)) {
+      overviewExcludedTags.delete(tag);
+      changed = true;
+    }
+  });
+  if (changed) saveOverviewExcludedFilters();
+}
+
+function getOverviewConfigTags(cfg) {
+  const cat = getConfigCategory(cfg);
+  const tags = [`topic:${cat}`];
+  const baseId = String((cfg && (cfg.parentId || cfg.id)) || '');
+
+  if (cat === 'geo') {
+    const geoTokens = baseId.replace(/^cfg_geo_/, '').split('_');
+    geoTokens.forEach((tok) => {
+      if (tok === 'flag' || tok === 'country' || tok === 'capital' || tok === 'map') {
+        tags.push(`geo:${tok}`);
+      }
+    });
+  } else if (cat === 'lang') {
+    if (Array.isArray(cfg && cfg.langs)) {
+      cfg.langs.forEach((code) => {
+        if (code) tags.push(`lang:${code}`);
+      });
+    }
+  } else if (cat === 'study') {
+    if (cfg && cfg.studyLearn) {
+      tags.push(`lang:${cfg.studyLearn}`);
+    }
+    if (cfg && cfg.studyWith && cfg.studyWith !== cfg.studyLearn) {
+      tags.push(`lang:${cfg.studyWith}`);
+    }
+    if (cfg && cfg.studyCefr) {
+      tags.push(`cefr:${String(cfg.studyCefr).toLowerCase()}`);
+    }
+  } else if (cat === 'other') {
+    if (baseId.startsWith('cfg_chem_')) {
+      tags.push('other:element');
+    } else if (baseId.includes('morse')) {
+      tags.push('other:morse');
+    }
+  }
+
+  return tags;
+}
+
+function isOverviewConfigVisible(cfg) {
+  if (overviewExcludedTags.size === 0) return true;
+  return !getOverviewConfigTags(cfg).some((tag) => overviewExcludedTags.has(tag));
+}
+
+function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
+  const groups = getOverviewFilterGroups();
+  sanitizeOverviewExcludedTags(groups);
+  const offCount = overviewExcludedTags.size;
+
+  if (toggleBtnEl) {
+    toggleBtnEl.textContent = offCount > 0 ? `🎛️ Filters (${offCount} off)` : '🎛️ Filters';
+    toggleBtnEl.classList.toggle('active', isOpen);
+    toggleBtnEl.classList.toggle('has-filters', offCount > 0);
+    toggleBtnEl.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  }
+
+  if (!panelEl) return;
+  panelEl.classList.toggle('hidden', !isOpen);
+  if (!isOpen) return;
+
+  panelEl.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'overview-filters-header';
+
+  const hint = document.createElement('span');
+  hint.className = 'overview-filters-hint';
+  hint.textContent = offCount > 0 ? `${offCount} unselected` : 'Showing all games';
+  header.appendChild(hint);
+
+  if (offCount > 0) {
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'inline-btn';
+    resetBtn.textContent = 'Show all';
+    resetBtn.addEventListener('click', () => {
+      overviewExcludedTags.clear();
+      saveOverviewExcludedFilters();
+      onChanged();
+    });
+    header.appendChild(resetBtn);
+  }
+
+  panelEl.appendChild(header);
+
+  groups.forEach((group) => {
+    const row = document.createElement('div');
+    row.className = 'overview-filter-row' + (group.dimmed ? ' is-dimmed' : '');
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'overview-filter-label';
+    labelEl.textContent = group.label;
+
+    const chipsWrap = document.createElement('div');
+    chipsWrap.className = 'overview-filter-chips';
+
+    group.options.forEach((opt) => {
+      const isSelected = !overviewExcludedTags.has(opt.tag);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pill-btn filter-chip' + (isSelected ? ' active' : '');
+      btn.textContent = opt.label;
+      btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+      btn.addEventListener('click', () => {
+        if (overviewExcludedTags.has(opt.tag)) {
+          overviewExcludedTags.delete(opt.tag);
+        } else {
+          overviewExcludedTags.add(opt.tag);
+        }
+        saveOverviewExcludedFilters();
+        onChanged();
+      });
+      chipsWrap.appendChild(btn);
+    });
+
+    row.append(labelEl, chipsWrap);
+    panelEl.appendChild(row);
+  });
+}
+
+function createOverviewEmptyRow(onReset) {
+  const li = document.createElement('li');
+  li.className = 'empty-row overview-empty-row';
+
+  const msg = document.createElement('span');
+  msg.textContent = 'No games match your filters.';
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'inline-btn';
+  resetBtn.textContent = 'Show all';
+  resetBtn.addEventListener('click', () => {
+    overviewExcludedTags.clear();
+    saveOverviewExcludedFilters();
+    onReset();
+  });
+
+  li.append(msg, resetBtn);
+  return li;
+}
+
 function closeUserPage(selectConfigId = null) {
   viewedUserId = null;
   if (userView) userView.classList.remove('active');
@@ -2969,6 +3229,7 @@ function closeUserPage(selectConfigId = null) {
       renderReview();
     }
   }
+  renderOverview();
   updateAllSwitcherRowsOverflow();
   if (window.location.search.includes('user=')) {
     window.history.replaceState({}, '', window.location.pathname);
@@ -2977,6 +3238,7 @@ function closeUserPage(selectConfigId = null) {
 
 function renderUserPage() {
   if (!userView || !viewedUserId || !userPageList) return;
+  renderOverviewFilterControls(userFiltersPanel, userFilterToggleBtn, isUserPageFiltersOpen, renderUserPage);
   const resolvedName = resolveUsernameForUserId(viewedUserId, viewedUsername);
   viewedUsername = resolvedName;
   const isMe = viewedUserId === userId;
@@ -3006,9 +3268,10 @@ function renderUserPage() {
     cat: getConfigCategory(cfg),
     perf: getUserConfigPerformance(viewedUserId, cfg.id)
   }));
+  const filteredItems = allItems.filter((it) => isOverviewConfigVisible(it.cfg));
 
-  const fullItems = allItems.filter(it => !isMiniConfig(it.cfg));
-  const miniItems = allItems.filter(it => isMiniConfig(it.cfg));
+  const fullItems = filteredItems.filter(it => !isMiniConfig(it.cfg));
+  const miniItems = filteredItems.filter(it => isMiniConfig(it.cfg));
   const fullPlayedCount = fullItems.filter(it => it.perf.bestScore !== null).length;
   const miniPlayedCount = miniItems.filter(it => it.perf.bestScore !== null).length;
 
@@ -3097,6 +3360,10 @@ function renderUserPage() {
   });
 
   userPageList.innerHTML = '';
+  if (itemsToShow.length === 0) {
+    userPageList.appendChild(createOverviewEmptyRow(renderUserPage));
+    return;
+  }
   itemsToShow.forEach(({ cfg, cat, perf }) => {
     const li = document.createElement('li');
     li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
@@ -3184,6 +3451,7 @@ function updateOverviewCollapseUI() {
 function renderOverview() {
   if (!overviewCard || !overviewList) return;
   updateOverviewCollapseUI();
+  renderOverviewFilterControls(overviewFiltersPanel, overviewFilterToggleBtn, isOverviewFiltersOpen, renderOverview);
 
   if (overviewSortNextBtn) {
     overviewSortNextBtn.classList.toggle('active', overviewSortMode === 'next');
@@ -3198,11 +3466,13 @@ function renderOverview() {
     overviewSortScoreBtn.setAttribute('aria-selected', overviewSortMode === 'score' ? 'true' : 'false');
   }
 
-  const allOverviewItems = configs.map((cfg) => ({
-    cfg,
-    cat: getConfigCategory(cfg),
-    perf: getUserConfigPerformance(userId, cfg.id)
-  }));
+  const allOverviewItems = configs
+    .filter((cfg) => isOverviewConfigVisible(cfg))
+    .map((cfg) => ({
+      cfg,
+      cat: getConfigCategory(cfg),
+      perf: getUserConfigPerformance(userId, cfg.id)
+    }));
 
   const fullOverviewItems = allOverviewItems.filter(it => !isMiniConfig(it.cfg));
   const miniOverviewItems = allOverviewItems.filter(it => isMiniConfig(it.cfg));
@@ -3288,6 +3558,10 @@ function renderOverview() {
   });
 
   overviewList.innerHTML = '';
+  if (items.length === 0) {
+    overviewList.appendChild(createOverviewEmptyRow(renderOverview));
+    return;
+  }
   items.forEach(({ cfg, cat, perf }) => {
     const li = document.createElement('li');
     li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
@@ -6366,6 +6640,13 @@ if (userScopeMiniBtn) {
   });
 }
 
+if (userFilterToggleBtn) {
+  userFilterToggleBtn.addEventListener('click', () => {
+    isUserPageFiltersOpen = !isUserPageFiltersOpen;
+    renderUserPage();
+  });
+}
+
 if (overviewToggleBtn) {
   overviewToggleBtn.addEventListener('click', () => {
     isOverviewExpanded = !isOverviewExpanded;
@@ -6375,6 +6656,13 @@ if (overviewToggleBtn) {
     } else {
       updateOverviewCollapseUI();
     }
+  });
+}
+
+if (overviewFilterToggleBtn) {
+  overviewFilterToggleBtn.addEventListener('click', () => {
+    isOverviewFiltersOpen = !isOverviewFiltersOpen;
+    renderOverview();
   });
 }
 
