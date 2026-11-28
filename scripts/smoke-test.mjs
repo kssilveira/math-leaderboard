@@ -432,5 +432,61 @@ runCheck('Study TTS payload helper across all 7 track types', () => {
   }
 });
 
+// 10. Unified Learn + With overview & profile filtering
+runCheck('Unified Learn + With filtering in overview.js', () => {
+  const sampleConfigs = [
+    { id: 'cfg_add-sub_0_10_0_10_0_20', category: 'math', type: 'math', ops: ['+', '-'] },
+    { id: 'cfg_geo_flag_country', category: 'geo', type: 'quiz' },
+    { id: 'cfg_chem_symbol_name', category: 'other', type: 'quiz' },
+    { id: 'cfg_lang_synonym_de', category: 'lang', langs: ['de'], type: 'quiz' },
+    { id: 'cfg_lang_synonym', category: 'lang', langs: ['en'], type: 'quiz' },
+    { id: 'cfg_lang_de_en', category: 'lang', langs: ['de', 'en'], type: 'quiz' },
+    { id: 'cfg_lang_en_de', category: 'lang', langs: ['en', 'de'], type: 'quiz' },
+    { id: 'cfg_lang_de_pt', category: 'lang', langs: ['de', 'pt'], type: 'quiz' },
+    { id: 'cfg_study_de_de_a1_grammar', category: 'study', studyLearn: 'de', studyWith: 'de', studyCefr: 'a1', studyTrackKey: 'grammar', type: 'quiz' },
+    { id: 'cfg_study_de_en_a1_vocab_de_en', category: 'study', studyLearn: 'de', studyWith: 'en', studyCefr: 'a1', studyTrackKey: 'vocab_fwd', type: 'quiz' },
+    { id: 'cfg_study_de_pt_a1_vocab_de_pt', category: 'study', studyLearn: 'de', studyWith: 'pt', studyCefr: 'a1', studyTrackKey: 'vocab_fwd', type: 'quiz' },
+    { id: 'cfg_study_en_de_a1_vocab_en_de', category: 'study', studyLearn: 'en', studyWith: 'de', studyCefr: 'a1', studyTrackKey: 'vocab_fwd', type: 'quiz' },
+  ];
+  const excluded = new Set(['learn:en', 'learn:pt', 'learn:es', 'learn:fr', 'with:de', 'with:pt', 'with:es', 'with:fr']);
+  const ovCtx = {
+    STUDY_LANGUAGE_META,
+    STUDY_CEFR_ORDER,
+    VALID_LANG_FILTERS: ['en', 'pt', 'es', 'fr', 'de'],
+    configs: sampleConfigs,
+    overviewExcludedTags: excluded,
+    activeLearnLang: 'de',
+    activeWithLang: 'en',
+    getConfigCategory: (cfg) => cfg.category || 'math',
+    getStudyLangDisplay: (code) => `${(STUDY_LANGUAGE_META[code] || {}).flag || ''} ${String(code).toUpperCase()}`.trim(),
+    saveOverviewExcludedFilters: () => {},
+  };
+  ovCtx.window = ovCtx;
+  ovCtx.globalThis = ovCtx;
+  vm.createContext(ovCtx);
+  vm.runInContext(readRoot('js/overview.js'), ovCtx, { filename: 'js/overview.js' });
+
+  const groups = ovCtx.getOverviewFilterGroups();
+  assert.equal(groups.some((g) => g.label === 'Lang'), false, 'Separate Lang filter group must not exist');
+  const learnGroup = groups.find((g) => g.label === 'Learn');
+  const withGroup = groups.find((g) => g.label === 'With');
+  assert.ok(learnGroup && learnGroup.options.every((o) => o.tag.startsWith('learn:')));
+  assert.ok(withGroup && withGroup.options.every((o) => o.tag.startsWith('with:')));
+
+  const isVisible = (id) => ovCtx.isOverviewConfigVisible(sampleConfigs.find((c) => c.id === id));
+  assert.equal(isVisible('cfg_lang_synonym_de'), true);
+  assert.equal(isVisible('cfg_lang_synonym'), false);
+  assert.equal(isVisible('cfg_lang_de_en'), true);
+  assert.equal(isVisible('cfg_lang_en_de'), true);
+  assert.equal(isVisible('cfg_lang_de_pt'), false);
+  assert.equal(isVisible('cfg_study_de_de_a1_grammar'), true);
+  assert.equal(isVisible('cfg_study_de_en_a1_vocab_de_en'), true);
+  assert.equal(isVisible('cfg_study_de_pt_a1_vocab_de_pt'), false);
+  assert.equal(isVisible('cfg_study_en_de_a1_vocab_en_de'), false);
+  assert.equal(isVisible('cfg_add-sub_0_10_0_10_0_20'), true);
+  assert.equal(isVisible('cfg_geo_flag_country'), true);
+  assert.equal(isVisible('cfg_chem_symbol_name'), true);
+});
+
 console.log('');
 console.log(`All ${passedCount} runtime smoke checks passed.`);

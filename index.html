@@ -126,45 +126,17 @@
         </div>
       </div>
 
-      <!-- Language Sub-Filter (shown only when Topic === 'lang') -->
-      <div id="lang-switcher-row" class="switcher-row lang-switcher-row hidden" data-switcher-key="lang" aria-label="Language Filter">
-        <span class="switcher-label">Lang</span>
-        <div id="lang-filter-list" class="pill-list" role="tablist">
-          <button type="button" class="pill-btn active" data-lang="en" role="tab" aria-selected="true">🇬🇧 EN</button>
-          <button type="button" class="pill-btn" data-lang="pt" role="tab" aria-selected="false">🇧🇷 PT</button>
-          <button type="button" class="pill-btn" data-lang="es" role="tab" aria-selected="false">🇪🇸 ES</button>
-          <button type="button" class="pill-btn" data-lang="fr" role="tab" aria-selected="false">🇫🇷 FR</button>
-          <button type="button" class="pill-btn" data-lang="de" role="tab" aria-selected="false">🇩🇪 DE</button>
-        </div>
-        <div class="switcher-actions hidden">
-          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all languages">▾ All</button>
-        </div>
-      </div>
-      <div id="lang-with-row" class="switcher-row lang-switcher-row hidden" data-switcher-key="langWith" aria-label="Paired Language Filter">
-        <span class="switcher-label">With</span>
-        <div id="lang-with-list" class="pill-list" role="tablist">
-          <button type="button" class="pill-btn active" data-lang-with="en" role="tab" aria-selected="true">🇬🇧 EN</button>
-          <button type="button" class="pill-btn" data-lang-with="pt" role="tab" aria-selected="false">🇧🇷 PT</button>
-          <button type="button" class="pill-btn" data-lang-with="es" role="tab" aria-selected="false">🇪🇸 ES</button>
-          <button type="button" class="pill-btn" data-lang-with="fr" role="tab" aria-selected="false">🇫🇷 FR</button>
-          <button type="button" class="pill-btn" data-lang-with="de" role="tab" aria-selected="false">🇩🇪 DE</button>
-        </div>
-        <div class="switcher-actions hidden">
-          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all paired languages">▾ All</button>
-        </div>
-      </div>
-
-      <!-- Study Filters (shown only when Topic === 'study') -->
-      <div id="study-learn-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyLearn" aria-label="Language to Learn">
+      <!-- Shared Language Filters (shown when Topic === 'lang' or 'study') -->
+      <div id="learn-lang-row" class="switcher-row lang-filter-row hidden" data-switcher-key="learnLang" aria-label="Language to Learn">
         <span class="switcher-label">Learn</span>
-        <div id="study-learn-list" class="pill-list" role="tablist"></div>
+        <div id="learn-lang-list" class="pill-list" role="tablist"></div>
         <div class="switcher-actions hidden">
           <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all languages to learn">▾ All</button>
         </div>
       </div>
-      <div id="study-with-row" class="switcher-row study-filter-row hidden" data-switcher-key="studyWith" aria-label="Paired Language">
+      <div id="with-lang-row" class="switcher-row lang-filter-row hidden" data-switcher-key="withLang" aria-label="Paired Language">
         <span class="switcher-label">With</span>
-        <div id="study-with-list" class="pill-list" role="tablist"></div>
+        <div id="with-lang-list" class="pill-list" role="tablist"></div>
         <div class="switcher-actions hidden">
           <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse all paired languages">▾ All</button>
         </div>

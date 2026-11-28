@@ -5,7 +5,7 @@ function getOverviewFilterGroups() {
     typeof window !== 'undefined' && Array.isArray(window.STUDY_CEFR_ORDER)
       ? window.STUDY_CEFR_ORDER
       : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
-  const langOrder = typeof STUDY_LANGUAGE_META !== 'undefined' ? Object.keys(STUDY_LANGUAGE_META) : VALID_LANG_FILTERS;
+  const langOrder = VALID_LANG_FILTERS;
   const sortLangCodes = (codes) =>
     Array.from(codes).sort((a, b) => {
       const ia = langOrder.indexOf(a);
@@ -16,15 +16,28 @@ function getOverviewFilterGroups() {
       return a.localeCompare(b);
     });
 
-  const studyLearnSet = new Set();
-  const studyWithSet = new Set();
+  const learnLangSet = new Set(VALID_LANG_FILTERS);
+  const withLangSet = new Set();
   const cefrSet = new Set();
   configs.forEach((cfg) => {
     if (!cfg) return;
-    if (cfg.studyLearn) studyLearnSet.add(cfg.studyLearn);
-    if (cfg.studyWith && cfg.studyWith !== cfg.studyLearn) studyWithSet.add(cfg.studyWith);
+    if (cfg.studyLearn) learnLangSet.add(cfg.studyLearn);
+    if (cfg.studyWith && cfg.studyWith !== cfg.studyLearn) withLangSet.add(cfg.studyWith);
+    if (Array.isArray(cfg.langs)) {
+      cfg.langs.forEach((code) => {
+        if (code) learnLangSet.add(code);
+      });
+      if (cfg.langs.length === 2) {
+        cfg.langs.forEach((code) => {
+          if (code) withLangSet.add(code);
+        });
+      }
+    }
     if (cfg.studyCefr) cefrSet.add(String(cfg.studyCefr).toLowerCase());
   });
+  if (withLangSet.size === 0) {
+    VALID_LANG_FILTERS.forEach((code) => withLangSet.add(code));
+  }
   if (cefrSet.size === 0) {
     cefrSet.add('a1');
     cefrSet.add('a2');
@@ -40,6 +53,8 @@ function getOverviewFilterGroups() {
     })
     .map((level) => ({ tag: `cefr:${level}`, label: level.toUpperCase() }));
 
+  const langGroupDimmed = overviewExcludedTags.has('topic:lang') && overviewExcludedTags.has('topic:study');
+
   return [
     {
       label: 'Topic',
@@ -53,33 +68,18 @@ function getOverviewFilterGroups() {
       ]
     },
     {
-      label: 'Lang',
-      dimmed: overviewExcludedTags.has('topic:lang'),
-      options: VALID_LANG_FILTERS.map((code) => ({ tag: `lang:${code}`, label: getStudyLangDisplay(code) }))
-    },
-    {
-      label: 'Geo',
-      dimmed: overviewExcludedTags.has('topic:geo'),
-      options: [
-        { tag: 'geo:flag', label: '🚩 Flag' },
-        { tag: 'geo:country', label: '🌐 Country' },
-        { tag: 'geo:capital', label: '🏛️ Capital' },
-        { tag: 'geo:map', label: '🗺️ Map' }
-      ]
-    },
-    {
       label: 'Learn',
-      dimmed: overviewExcludedTags.has('topic:study'),
-      options: sortLangCodes(studyLearnSet).map((code) => ({
-        tag: `study_learn:${code}`,
+      dimmed: langGroupDimmed,
+      options: sortLangCodes(learnLangSet).map((code) => ({
+        tag: `learn:${code}`,
         label: getStudyLangDisplay(code)
       }))
     },
     {
       label: 'With',
-      dimmed: overviewExcludedTags.has('topic:study'),
-      options: sortLangCodes(studyWithSet).map((code) => ({
-        tag: `study_with:${code}`,
+      dimmed: langGroupDimmed,
+      options: sortLangCodes(withLangSet).map((code) => ({
+        tag: `with:${code}`,
         label: getStudyLangDisplay(code)
       }))
     },
@@ -97,6 +97,16 @@ function getOverviewFilterGroups() {
         { tag: 'study_track:grammar', label: '📐 Grammar' },
         { tag: 'study_track:verbs', label: '⚡ Verbs' },
         { tag: 'study_track:articles', label: '🏷️ Articles' }
+      ]
+    },
+    {
+      label: 'Geo',
+      dimmed: overviewExcludedTags.has('topic:geo'),
+      options: [
+        { tag: 'geo:flag', label: '🚩 Flag' },
+        { tag: 'geo:country', label: '🌐 Country' },
+        { tag: 'geo:capital', label: '🏛️ Capital' },
+        { tag: 'geo:map', label: '🗺️ Map' }
       ]
     },
     {
@@ -139,17 +149,15 @@ function getOverviewConfigTags(cfg) {
       }
     });
   } else if (cat === 'lang') {
-    if (Array.isArray(cfg && cfg.langs)) {
-      cfg.langs.forEach((code) => {
-        if (code) tags.push(`lang:${code}`);
-      });
+    if (Array.isArray(cfg && cfg.langs) && cfg.langs.length === 1 && cfg.langs[0]) {
+      tags.push(`learn:${cfg.langs[0]}`);
     }
   } else if (cat === 'study') {
     if (cfg && cfg.studyLearn) {
-      tags.push(`study_learn:${cfg.studyLearn}`);
+      tags.push(`learn:${cfg.studyLearn}`);
     }
     if (cfg && cfg.studyWith && cfg.studyWith !== cfg.studyLearn) {
-      tags.push(`study_with:${cfg.studyWith}`);
+      tags.push(`with:${cfg.studyWith}`);
     }
     if (cfg && cfg.studyCefr) {
       tags.push(`cefr:${String(cfg.studyCefr).toLowerCase()}`);
@@ -183,7 +191,16 @@ function getOverviewConfigTags(cfg) {
 
 function isOverviewConfigVisible(cfg) {
   if (overviewExcludedTags.size === 0) return true;
-  return !getOverviewConfigTags(cfg).some((tag) => overviewExcludedTags.has(tag));
+  if (getOverviewConfigTags(cfg).some((tag) => overviewExcludedTags.has(tag))) {
+    return false;
+  }
+  if (getConfigCategory(cfg) === 'lang' && Array.isArray(cfg && cfg.langs) && cfg.langs.length === 2) {
+    const [a, b] = cfg.langs;
+    const fwdOk = !overviewExcludedTags.has(`learn:${a}`) && !overviewExcludedTags.has(`with:${b}`);
+    const revOk = !overviewExcludedTags.has(`learn:${b}`) && !overviewExcludedTags.has(`with:${a}`);
+    if (!fwdOk && !revOk) return false;
+  }
+  return true;
 }
 
 function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
@@ -216,25 +233,36 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
   headerActions.className = 'overview-filters-actions';
 
   const learnGroup = groups.find((g) => g.label === 'Learn');
-  const activeLearnTag = activeStudyLearn ? `study_learn:${activeStudyLearn}` : '';
+  const withGroup = groups.find((g) => g.label === 'With');
+  const activeLearnTag = activeLearnLang ? `learn:${activeLearnLang}` : '';
+  const activeWithTag = activeWithLang ? `with:${activeWithLang}` : '';
   if (
     learnGroup &&
+    withGroup &&
     learnGroup.options.length >= 2 &&
-    activeStudyLearn &&
-    learnGroup.options.some((opt) => opt.tag === activeLearnTag)
+    withGroup.options.length >= 2 &&
+    activeLearnTag &&
+    activeWithTag &&
+    learnGroup.options.some((opt) => opt.tag === activeLearnTag) &&
+    withGroup.options.some((opt) => opt.tag === activeWithTag)
   ) {
-    const isOnlyActiveLearn =
+    const isOnlyActivePair =
       !overviewExcludedTags.has(activeLearnTag) &&
-      learnGroup.options.every((opt) => opt.tag === activeLearnTag || overviewExcludedTags.has(opt.tag));
-    const onlyLearnBtn = document.createElement('button');
-    onlyLearnBtn.type = 'button';
-    onlyLearnBtn.className = 'inline-btn' + (isOnlyActiveLearn ? ' active' : '');
-    onlyLearnBtn.textContent = `Learn ${getStudyLangDisplay(activeStudyLearn)}`;
-    onlyLearnBtn.title = 'Show only this Study Learn language';
-    onlyLearnBtn.setAttribute('aria-pressed', isOnlyActiveLearn ? 'true' : 'false');
-    onlyLearnBtn.addEventListener('click', () => {
-      if (isOnlyActiveLearn) {
+      learnGroup.options.every((opt) => opt.tag === activeLearnTag || overviewExcludedTags.has(opt.tag)) &&
+      !overviewExcludedTags.has(activeWithTag) &&
+      withGroup.options.every((opt) => opt.tag === activeWithTag || overviewExcludedTags.has(opt.tag));
+    const onlyPairBtn = document.createElement('button');
+    onlyPairBtn.type = 'button';
+    onlyPairBtn.className = 'inline-btn' + (isOnlyActivePair ? ' active' : '');
+    const learnDisp = getStudyLangDisplay(activeLearnLang);
+    const withDisp = getStudyLangDisplay(activeWithLang);
+    onlyPairBtn.textContent = `${learnDisp} + ${withDisp}`;
+    onlyPairBtn.title = `Show only Learn ${learnDisp} with ${withDisp} games`;
+    onlyPairBtn.setAttribute('aria-pressed', isOnlyActivePair ? 'true' : 'false');
+    onlyPairBtn.addEventListener('click', () => {
+      if (isOnlyActivePair) {
         learnGroup.options.forEach((opt) => overviewExcludedTags.delete(opt.tag));
+        withGroup.options.forEach((opt) => overviewExcludedTags.delete(opt.tag));
       } else {
         learnGroup.options.forEach((opt) => {
           if (opt.tag === activeLearnTag) {
@@ -243,34 +271,6 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
             overviewExcludedTags.add(opt.tag);
           }
         });
-      }
-      saveOverviewExcludedFilters();
-      onChanged();
-    });
-    headerActions.appendChild(onlyLearnBtn);
-  }
-
-  const withGroup = groups.find((g) => g.label === 'With');
-  const activeWithTag = activeStudyWith ? `study_with:${activeStudyWith}` : '';
-  if (
-    withGroup &&
-    withGroup.options.length >= 2 &&
-    activeStudyWith &&
-    withGroup.options.some((opt) => opt.tag === activeWithTag)
-  ) {
-    const isOnlyActiveWith =
-      !overviewExcludedTags.has(activeWithTag) &&
-      withGroup.options.every((opt) => opt.tag === activeWithTag || overviewExcludedTags.has(opt.tag));
-    const onlyWithBtn = document.createElement('button');
-    onlyWithBtn.type = 'button';
-    onlyWithBtn.className = 'inline-btn' + (isOnlyActiveWith ? ' active' : '');
-    onlyWithBtn.textContent = `With ${getStudyLangDisplay(activeStudyWith)}`;
-    onlyWithBtn.title = 'Show only this Study paired language';
-    onlyWithBtn.setAttribute('aria-pressed', isOnlyActiveWith ? 'true' : 'false');
-    onlyWithBtn.addEventListener('click', () => {
-      if (isOnlyActiveWith) {
-        withGroup.options.forEach((opt) => overviewExcludedTags.delete(opt.tag));
-      } else {
         withGroup.options.forEach((opt) => {
           if (opt.tag === activeWithTag) {
             overviewExcludedTags.delete(opt.tag);
@@ -282,7 +282,7 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
       saveOverviewExcludedFilters();
       onChanged();
     });
-    headerActions.appendChild(onlyWithBtn);
+    headerActions.appendChild(onlyPairBtn);
   }
 
   if (offCount > 0) {
