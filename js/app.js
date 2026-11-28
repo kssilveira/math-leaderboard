@@ -258,8 +258,6 @@ const lastScoreLabel = document.getElementById('last-score-label');
 const lastScoreValue = document.getElementById('last-score-value');
 const lastScoreDetail = document.getElementById('last-score-detail');
 const replayLastBtn = document.getElementById('replay-last-btn');
-const raceLastBtn = document.getElementById('race-last-btn');
-const shareLastBtn = document.getElementById('share-last-btn');
 const myRankJump = document.getElementById('my-rank-jump');
 const myRankValue = document.getElementById('my-rank-value');
 const myBestValue = document.getElementById('my-best-value');
@@ -268,8 +266,6 @@ const nextRankRow = document.getElementById('next-rank-row');
 const nextRankText = document.getElementById('next-rank-text');
 const nextRankActions = document.getElementById('next-rank-actions');
 const replayBestBtn = document.getElementById('replay-best-btn');
-const raceBestBtn = document.getElementById('race-best-btn');
-const shareBestBtn = document.getElementById('share-best-btn');
 const leaderboardList = document.getElementById('leaderboard-list');
 const leaderboardPinnedMe = document.getElementById('leaderboard-pinned-me');
 const leaderboardPagination = document.getElementById('leaderboard-pagination');
@@ -334,8 +330,6 @@ const replayStepBadge = document.getElementById('replay-step-badge');
 const replayPauseBtn = document.getElementById('replay-pause-btn');
 const replaySpeedBtn = document.getElementById('replay-speed-btn');
 const replayRestartBtn = document.getElementById('replay-restart-btn');
-const replayRaceBtn = document.getElementById('replay-race-btn');
-const replayShareBtn = document.getElementById('replay-share-btn');
 const replayLogList = document.getElementById('replay-log-list');
 const replayTimeline = document.getElementById('replay-timeline');
 const replayRaceChartWrap = document.getElementById('replay-race-chart-wrap');
@@ -4400,8 +4394,6 @@ async function finishGame(saveScore) {
 
     const hasReplayableQuestions = normalizedQuestions.length > 0;
     if (replayLastBtn) replayLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
-    if (raceLastBtn) raceLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
-    if (shareLastBtn) shareLastBtn.classList.toggle('hidden', !hasReplayableQuestions);
 
     if (wasRace && opponentRecord) {
       const oppName = opponentRecord.username;
@@ -4553,32 +4545,10 @@ if (replayLastBtn) {
     if (lastCompletedSession) startReplay(lastCompletedSession);
   });
 }
-if (raceLastBtn) {
-  raceLastBtn.addEventListener('click', () => {
-    if (lastCompletedSession) startRace(lastCompletedSession);
-  });
-}
-if (shareLastBtn) {
-  shareLastBtn.addEventListener('click', () => {
-    if (lastCompletedSession) copyReplayLink(lastCompletedSession, shareLastBtn);
-  });
-}
 if (replayBestBtn) {
   replayBestBtn.addEventListener('click', async () => {
     const best = await resolveMyBestReplaySession();
     if (best) startReplay(best);
-  });
-}
-if (raceBestBtn) {
-  raceBestBtn.addEventListener('click', async () => {
-    const best = await resolveMyBestReplaySession();
-    if (best) startRace(best);
-  });
-}
-if (shareBestBtn) {
-  shareBestBtn.addEventListener('click', async () => {
-    const best = await resolveMyBestReplaySession();
-    if (best) copyReplayLink(best, shareBestBtn);
   });
 }
 if (replayPauseBtn) {
@@ -4593,24 +4563,10 @@ if (replayRestartBtn) {
 if (replayBannerRestartBtn) {
   replayBannerRestartBtn.addEventListener('click', restartReplay);
 }
-if (replayRaceBtn) {
-  replayRaceBtn.addEventListener('click', () => {
-    if (replaySessionData && replaySessionData.session) {
-      startRace(replaySessionData.session);
-    }
-  });
-}
 if (replayBannerRaceBtn) {
   replayBannerRaceBtn.addEventListener('click', () => {
     if (replaySessionData && replaySessionData.session) {
       startRace(replaySessionData.session);
-    }
-  });
-}
-if (replayShareBtn) {
-  replayShareBtn.addEventListener('click', () => {
-    if (replaySessionData && replaySessionData.session) {
-      copyReplayLink(replaySessionData.session, replayShareBtn);
     }
   });
 }

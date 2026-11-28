@@ -1,6 +1,4 @@
 import {
-  QUIZ_CONFIG_LABELS,
-  getMiniPartLabel,
   resolveConfigIdAlias,
   formatConfigId,
 } from './lib/config-labels.js';
