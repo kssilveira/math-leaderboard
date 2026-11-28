@@ -3234,14 +3234,10 @@ function renderReview() {
   const lastSession = Array.isArray(sessions) && sessions.length > 0 ? sessions[0] : null;
   const trackedQuestions = getTrackedQuestions(userId, activeConfigId);
 
-  const activeCfgForPractice = getActiveConfig();
-  const isStudyCfg = getConfigCategory(activeCfgForPractice) === 'study';
-
   if (practiceBtn) {
-    const showPractice = trackedQuestions.length > 0 || isStudyCfg;
-    practiceBtn.classList.toggle('hidden', !showPractice);
+    practiceBtn.classList.toggle('hidden', trackedQuestions.length === 0);
     if (!isLoadingStudyPack) {
-      practiceBtn.textContent = trackedQuestions.length > 0 ? 'Practice Weak & Slow' : 'Practice (Learn)';
+      practiceBtn.textContent = 'Practice Weak & Slow';
     }
   }
 
