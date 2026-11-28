@@ -145,7 +145,11 @@ const STUDY_LANGUAGE_META = {
 };
 const STUDY_CEFR_ORDER = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
-const GERMAN_PLURAL_ONLY_NOUNS = new Set(['Leute', 'Eltern', 'Geschwister', 'Großeltern']);
+const GERMAN_PLURAL_ONLY_NOUNS = new Set([
+  'Leute', 'Eltern', 'Geschwister', 'Großeltern',
+  'Ferien', 'Nebenkosten', 'Lebensmittel', 'Daten',
+  'Halsschmerzen', 'Kopfschmerzen', 'Bauchschmerzen', 'Zahnschmerzen'
+]);
 const GERMAN_MASC_TIME_NOUNS = new Set([
   'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag',
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
@@ -158,15 +162,27 @@ const GERMAN_MASC_ER_AGENT_NOUNS = new Set([
   'Arbeiter', 'Mitarbeiter', 'Besucher', 'Bäcker', 'Rentner', 'Raucher',
   'Mieter', 'Vermieter', 'Absender', 'Empfänger', 'Anfänger', 'Sportler',
   'Künstler', 'Musiker', 'Techniker', 'Handwerker', 'Mechaniker',
-  'Apotheker', 'Politiker'
+  'Apotheker', 'Politiker',
+  'Bewerber', 'Krankenpfleger', 'Fußgänger', 'Radfahrer', 'Autofahrer',
+  'Programmierer', 'Manager', 'Berater', 'Übersetzer', 'Teilnehmer',
+  'Zuschauer', 'Zuhörer', 'Schauspieler', 'Gewinner'
 ]);
 const GERMAN_MASC_ER_DEVICE_NOUNS = new Set([
   'Fernseher', 'Computer', 'Drucker', 'Wecker', 'Kugelschreiber',
-  'Stecker', 'Schalter', 'Staubsauger', 'Toaster', 'Trockner'
+  'Stecker', 'Schalter', 'Staubsauger', 'Toaster', 'Trockner',
+  'Geschirrspüler', 'Wasserkocher', 'Kopfhörer', 'Lautsprecher', 'Reiseführer'
 ]);
 const GERMAN_ARTICLE_PROMPT_DISAMBIG = {
   See: '___ See (≠ Meer)',
-  Moment: '___ Moment (Zeit)'
+  Moment: '___ Moment (Zeit)',
+  Leiter: '___ Leiter (Treppe / Gerät)',
+  Steuer: '___ Steuer (Abgabe / Finanzamt)',
+  Gehalt: '___ Gehalt (Lohn)',
+  Verdienst: '___ Verdienst (Lohn)',
+  Kunde: '___ Kunde (Käufer)',
+  Schild: '___ Schild (Verkehr)',
+  Band: '___ Band (Musik)',
+  Tor: '___ Tor (Fußball / Tür)'
 };
 
 function getGermanNounSuffixHint(noun, article) {
@@ -460,8 +476,129 @@ function buildGermanA1StudyCourse() {
   };
 }
 
+function buildGermanA2StudyCourse() {
+  if (
+    typeof STUDY_DE_A2_VOCAB_CORE === 'undefined' ||
+    typeof STUDY_DE_A2_ARTICLES_CASES === 'undefined' ||
+    typeof STUDY_DE_A2_VERBS === 'undefined' ||
+    typeof STUDY_DE_A2_GRAMMAR === 'undefined' ||
+    typeof STUDY_DE_A2_PHRASES_CORE === 'undefined' ||
+    typeof STUDY_DE_A2_PACKS === 'undefined'
+  ) {
+    return null;
+  }
+
+  const vocabSetDefs = [
+    { keys: ['daily'], label: '🏠 Daily Life & Living' },
+    { keys: ['social'], label: '💬 People & Feelings' },
+    { keys: ['work'], label: '💼 Education & Work' },
+    { keys: ['health'], label: '🩺 Health & Body' },
+    { keys: ['travel'], label: '✈️ Travel & Mobility' },
+    { keys: ['media'], label: '📱 Media, Culture & Leisure' },
+    { keys: ['verbs_adj'], label: '✨ Verbs, Adjectives & Connectors' }
+  ];
+  const vocabParts = buildPartsFromSetKeys(STUDY_DE_A2_VOCAB_CORE, vocabSetDefs, 2);
+
+  const verbSetDefs = [
+    { keys: ['reflexive'], label: '🔄 Reflexive Verbs' },
+    { keys: ['prateritum'], label: '📜 Präteritum & Modals' },
+    { keys: ['perfekt'], label: '⏪ Perfekt & Partizip II' },
+    { keys: ['konj2_prep'], label: '💭 Konjunktiv II & Verb+Präp' }
+  ];
+  const verbParts = buildPartsFromSetKeys(STUDY_DE_A2_VERBS, verbSetDefs, 4);
+
+  const grammarSetDefs = [
+    { keys: ['nebensatz'], label: '🔀 Nebensätze (Verb am Ende)' },
+    { keys: ['cases_pron'], label: '🎯 Dativ, Reflexiv & Relativ' },
+    { keys: ['adj_comp'], label: '📊 Adjektive & Vergleiche' },
+    { keys: ['preps'], label: '📍 Wechselpräpositionen & Zeit' },
+    { keys: ['passiv_zu'], label: '🏗️ Infinitiv mit zu, werden & Passiv' }
+  ];
+  const grammarParts = buildPartsFromSetKeys(STUDY_DE_A2_GRAMMAR, grammarSetDefs, 4);
+
+  const phraseSetDefs = [
+    { keys: ['social'], label: '💬 Opinions & Invitations' },
+    { keys: ['work'], label: '💼 Work, Study & Admin' },
+    { keys: ['services'], label: '🛠️ Shopping, Housing & Complaints' },
+    { keys: ['travel'], label: '🚆 Travel, Health & Emergencies' }
+  ];
+  const phraseParts = buildPartsFromSetKeys(STUDY_DE_A2_PHRASES_CORE, phraseSetDefs, 2);
+
+  const articleItems = [];
+  const artGroup1 = [];
+  const artGroup2 = [];
+  const artGroup3 = [];
+  const artGroup4 = [];
+  const allArticles = ['der', 'die', 'das'];
+
+  STUDY_DE_A2_VOCAB_CORE.forEach(([de, pos, setKey]) => {
+    if (pos !== 'n') return;
+    const match = de.match(/^(der|die|das)\s+(.+)$/);
+    if (!match) return;
+    const article = match[1];
+    const noun = match[2];
+    const distractors = allArticles.filter(a => a !== article);
+    const hint = getGermanNounSuffixHint(noun, article);
+    const prompt = GERMAN_ARTICLE_PROMPT_DISAMBIG[noun] || `___ ${noun}`;
+    const idx = articleItems.length;
+    articleItems.push([prompt, article, distractors, hint]);
+    if (setKey === 'daily' || setKey === 'social') {
+      artGroup1.push(idx);
+    } else if (setKey === 'work' || setKey === 'health') {
+      artGroup2.push(idx);
+    } else {
+      artGroup3.push(idx);
+    }
+  });
+
+  STUDY_DE_A2_ARTICLES_CASES.forEach(([prompt, correct, distractors, ruleNote]) => {
+    const idx = articleItems.length;
+    articleItems.push([prompt, correct, distractors, ruleNote]);
+    artGroup4.push(idx);
+  });
+
+  const articleParts = [
+    { label: '🏠 Daily & Social', indices: artGroup1 },
+    { label: '💼 Work & Health', indices: artGroup2 },
+    { label: '✈️ Travel & Media', indices: artGroup3 },
+    { label: '⚖️ Dativ & Adj.-Endungen', indices: artGroup4 }
+  ];
+
+  return {
+    learn: 'de',
+    cefr: 'a2',
+    preferredPackOrder: ['en', 'pt', 'es', 'fr'],
+    packs: STUDY_DE_A2_PACKS,
+    vocabCore: STUDY_DE_A2_VOCAB_CORE,
+    vocabParts,
+    phrasesCore: STUDY_DE_A2_PHRASES_CORE,
+    phraseParts,
+    monolingualTracks: [
+      {
+        key: 'grammar',
+        shortLabel: '📐 Grammar',
+        items: STUDY_DE_A2_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
+        parts: grammarParts
+      },
+      {
+        key: 'verbs',
+        shortLabel: '⚡ Verbs & Conjugation',
+        items: STUDY_DE_A2_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
+        parts: verbParts
+      },
+      {
+        key: 'articles',
+        shortLabel: '🏷️ Articles & Gender',
+        items: articleItems,
+        parts: articleParts
+      }
+    ]
+  };
+}
+
 const STUDY_COURSES = [
-  buildGermanA1StudyCourse()
+  buildGermanA1StudyCourse(),
+  buildGermanA2StudyCourse()
 ].filter(Boolean);
 
 function buildStudyQuizConfigs() {
@@ -582,7 +719,7 @@ const BASE_QUIZ_CONFIGS = [
   // Language (50 configs: 20 Translations, 10 Emoji↔Lang, 5 Synonym, 5 Antonym, 10 Idiom↔Meaning)
   ...buildLanguageQuizConfigs(),
 
-  // Study (CEFR / Proficiency standards — German A1 with DE, EN, PT-BR, ES & FR)
+  // Study (CEFR / Proficiency standards — German A1 & A2 with DE, EN, PT-BR, ES & FR)
   ...buildStudyQuizConfigs(),
 
   // Other (4 configs: 118 IUPAC chemical elements & 36 International Morse Code characters)

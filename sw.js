@@ -1,4 +1,4 @@
-const CACHE_NAME = 'math-leaderboard-v67';
+const CACHE_NAME = 'math-leaderboard-v68';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,6 +11,11 @@ const APP_SHELL = [
   './data/study-de-a1-pt.js',
   './data/study-de-a1-es.js',
   './data/study-de-a1-fr.js',
+  './data/study-de-a2-core.js',
+  './data/study-de-a2-en.js',
+  './data/study-de-a2-pt.js',
+  './data/study-de-a2-es.js',
+  './data/study-de-a2-fr.js',
   './js/geo-maps.js',
   './js/quiz-data.js',
   './js/app.js',
