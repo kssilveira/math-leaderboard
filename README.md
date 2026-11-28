@@ -92,6 +92,23 @@ Mobile-friendly quiz game with **60-second sprints (`⏱️ 1-Min`)** and **Time
   - **iPhone / iPad (Safari)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap `📲` (or **Share** → **Add to Home Screen**).
   - **Android (Chrome)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap `📲` (or **⋮ → Add to Home screen**).
 
+## Total Content & Estimated Play Time
+
+Playing every live full and mini game once across all five categories (**1,534 games** total, including the **4** Math configs currently in Firebase `/configs.json` — `+ − (0..10, 0..10, 0..20)`, `+ − × ÷ (0..10, 0..10, 0..20)`, `+ − (0..20, 0..20, 0..20)`, and `+ (0..1, 0..1, 0..2)`):
+
+| Category | Full Games | Mini Games | Total Games | ⏱️ 1-Min Mode | 🏁 All (≤100) Questions | 🏁 All (≤100) @ 1s/ans |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 🔢 **Math** *(live Firebase)* | 4 | 0 | 4 | 4 min | 312 | 5 min 12 sec |
+| 🌍 **Geo** | 12 | 48 | 60 | 1 hr 0 min | 3,516 | 58 min 36 sec |
+| 💬 **Lang** | 50 | 200 | 250 | 4 hr 10 min | 22,000 | 6 hr 6 min 40 sec |
+| 🎓 **Study** | 190 | 1,010 | 1,200 | 20 hr 0 min | 90,913 | 25 hr 15 min 13 sec |
+| 🧩 **Other** | 4 | 16 | 20 | 20 min | 580 | 9 min 40 sec |
+| **Total** | **260** | **1,274** | **1,534** | **25 hr 34 min** | **117,321** | **32 hr 35 min 21 sec** |
+
+- **⏱️ 1-Min mode:** **4 hr 20 min** (260 full) + **21 hr 14 min** (1,274 mini) = **25 hr 34 min** *(1 day, 1 hr, 34 min)*.
+- **🏁 All (≤100) mode @ 1s/answer (100% accuracy):** **7 hr 9 min 44 sec** (25,784 full Qs) + **25 hr 25 min 37 sec** (91,537 mini Qs) = **32 hr 35 min 21 sec** *(1 day, 8 hr, 35 min, 21 sec)*.
+- **Both modes combined:** **58 hr 9 min 21 sec** *(2 days, 10 hr, 9 min, 21 sec)* of active gameplay, excluding navigation between rounds or extra attempts from wrong answers.
+
 ## Running Locally
 
 ```bash
