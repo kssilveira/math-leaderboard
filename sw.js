@@ -1,4 +1,4 @@
-const CACHE_NAME = 'math-leaderboard-v82';
+const CACHE_NAME = 'math-leaderboard-v84';
 const STUDY_DATA_CACHE = 'math-leaderboard-study-data-v1';
 const APP_SHELL = [
   './',

@@ -140,6 +140,13 @@ runCheck('PWA APP_SHELL & index.html script alignment', () => {
     assert.ok(!src.startsWith('data/study-'), `index.html must not statically load ${src}`);
     assert.ok(appShellSet.has(src), `index.html script "${src}" missing from sw.js APP_SHELL`);
   }
+
+  const htmlIds = Array.from(indexHtml.matchAll(/\bid=['"]([^'"]+)['"]/g)).map((m) => m[1]);
+  const seenIds = new Set();
+  for (const id of htmlIds) {
+    assert.equal(seenIds.has(id), false, `Duplicate id "${id}" found in index.html`);
+    seenIds.add(id);
+  }
 });
 
 // 3. OG metadata & config labels check
