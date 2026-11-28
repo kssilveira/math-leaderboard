@@ -73,15 +73,51 @@ const SAMPLE_RACE_REPLAY = encodeReplayPayload({
   },
 });
 
+const SAMPLE_TIME_REPLAY = encodeReplayPayload({
+  u: 'Alex',
+  c: 'cfg_other_morse_char',
+  m: 'all',
+  n: 36,
+  d: 41800,
+  s: 34,
+  r: 36,
+  w: 2,
+  q: SAMPLE_SOLO_QUESTIONS,
+});
+
+const SAMPLE_TIME_RACE_REPLAY = encodeReplayPayload({
+  u: 'Alex',
+  c: 'cfg_other_morse_char',
+  m: 'all',
+  n: 36,
+  d: 41800,
+  s: 34,
+  r: 36,
+  w: 2,
+  q: SAMPLE_SOLO_QUESTIONS,
+  o: {
+    u: 'Sam',
+    n: 36,
+    d: 45300,
+    s: 32,
+    r: 36,
+    w: 4,
+    q: SAMPLE_OPP_QUESTIONS,
+  },
+});
+
 const GALLERY_EXAMPLES = [
   { title: 'Home Overview', query: '' },
   { title: 'Math Leaderboard', query: 'config=cfg_add-sub_0_10_0_10_0_20' },
+  { title: 'Time Attack Leaderboard', query: 'config=cfg_add-sub_0_10_0_10_0_20&mode=all' },
   { title: 'Geography Map Leaderboard', query: 'config=cfg_geo_map_country' },
   { title: 'Language Leaderboard', query: 'config=cfg_lang_pt_en' },
   { title: 'Study Leaderboard', query: 'config=cfg_study_de_de_a1_grammar' },
   { title: 'Other (Chemistry) Leaderboard', query: 'config=cfg_chem_symbol_name' },
   { title: 'Solo Replay', query: `replay=${encodeURIComponent(SAMPLE_SOLO_REPLAY)}` },
+  { title: 'Time Attack Solo Replay', query: `replay=${encodeURIComponent(SAMPLE_TIME_REPLAY)}` },
   { title: 'Ghost Race Replay', query: `replay=${encodeURIComponent(SAMPLE_RACE_REPLAY)}` },
+  { title: 'Time Attack Ghost Race Replay', query: `replay=${encodeURIComponent(SAMPLE_TIME_RACE_REPLAY)}` },
   { title: 'Player Profile', query: 'user=preview_demo&u=Alex' },
 ];
 

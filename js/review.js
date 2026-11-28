@@ -21,9 +21,20 @@ function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
   return `${parts[0]} ${opChar} ${parts[1]} = ${parts[2]}`;
 }
 
-function renderHistoryChart(sessions) {
+function renderHistoryChart(sessions, mode = '1min') {
   if (!historyChart) return;
-  const regularSessions = Array.isArray(sessions) ? sessions.filter(s => !s.isPractice) : [];
+  const isAll = mode === 'all';
+  if (chartLegendPrimary) chartLegendPrimary.textContent = isAll ? 'Time (s)' : 'Score';
+  if (chartLegendSecondaryWrap) chartLegendSecondaryWrap.classList.toggle('hidden', isAll);
+  if (chartLegendBest) chartLegendBest.textContent = isAll ? 'Best (s)' : 'Best';
+
+  const regularSessions = Array.isArray(sessions)
+    ? sessions.filter((s) =>
+        isAll
+          ? (s && !s.isPractice && s.completedAll !== false && typeof s.durationMs === 'number' && s.durationMs > 0)
+          : (s && !s.isPractice)
+      )
+    : [];
   if (regularSessions.length === 0) {
     if (chartSection) chartSection.classList.add('hidden');
     historyChart.innerHTML = '';
@@ -36,33 +47,46 @@ function renderHistoryChart(sessions) {
 
   const width = 360;
   const height = 160;
-  const padLeft = 30;
+  const padLeft = 34;
   const padRight = 14;
   const padTop = 12;
   const padBottom = 22;
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
 
-  let runningBest = -Infinity;
+  let runningBest = isAll ? Infinity : -Infinity;
   const pointsData = chronological.map((s) => {
+    if (isAll) {
+      const timeSec = Number((s.durationMs / 1000).toFixed(1));
+      runningBest = Math.min(runningBest, timeSec);
+      return {
+        primary: timeSec,
+        best: runningBest
+      };
+    }
     const score = typeof s.score === 'number' ? s.score : 0;
     runningBest = Math.max(runningBest, score);
     return {
-      score,
+      primary: score,
       right: s.right || 0,
       best: runningBest
     };
   });
 
-  let minVal = 0;
-  let maxVal = 5;
+  let minVal = isAll ? Infinity : 0;
+  let maxVal = isAll ? 0 : 5;
   pointsData.forEach((p) => {
-    minVal = Math.min(minVal, p.score, p.right, p.best);
-    maxVal = Math.max(maxVal, p.score, p.right, p.best);
+    if (isAll) {
+      minVal = Math.min(minVal, p.primary, p.best);
+      maxVal = Math.max(maxVal, p.primary, p.best);
+    } else {
+      minVal = Math.min(minVal, p.primary, p.right, p.best);
+      maxVal = Math.max(maxVal, p.primary, p.right, p.best);
+    }
   });
-  minVal = Math.floor(minVal);
+  minVal = isAll ? Math.max(0, Math.floor(minVal * 0.9)) : Math.floor(minVal);
   maxVal = Math.ceil(maxVal);
-  if (maxVal === minVal) maxVal = minVal + 5;
+  if (maxVal <= minVal) maxVal = minVal + 5;
 
   const getX = (i) => (n === 1 ? padLeft + plotW / 2 : padLeft + (i / (n - 1)) * plotW);
   const getY = (val) => padTop + plotH - ((val - minVal) / (maxVal - minVal)) * plotH;
@@ -76,7 +100,7 @@ function renderHistoryChart(sessions) {
   yTicks.forEach((tick) => {
     const y = getY(tick).toFixed(1);
     svg += `<line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1" />`;
-    svg += `<text x="${padLeft - 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="var(--text-muted)">${tick}</text>`;
+    svg += `<text x="${padLeft - 6}" y="${(parseFloat(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="var(--text-muted)">${isAll ? `${tick}s` : tick}</text>`;
   });
 
   // X-axis labels (#1 .. #N)
@@ -87,11 +111,16 @@ function renderHistoryChart(sessions) {
     svg += `<text x="${getX(n - 1).toFixed(1)}" y="${height - 5}" text-anchor="end" font-size="10" font-weight="600" fill="var(--text-muted)">#${n}</text>`;
   }
 
-  const series = [
-    { key: 'right', color: 'hsl(152, 76%, 36%)', width: 2, radius: 3 },
-    { key: 'best', color: 'hsl(36, 95%, 46%)', width: 2.2, radius: 3.2 },
-    { key: 'score', color: 'hsl(217, 91%, 53%)', width: 2.5, radius: 3.5 }
-  ];
+  const series = isAll
+    ? [
+        { key: 'best', color: 'hsl(36, 95%, 46%)', width: 2.2, radius: 3.2 },
+        { key: 'primary', color: 'hsl(217, 91%, 53%)', width: 2.5, radius: 3.5 }
+      ]
+    : [
+        { key: 'right', color: 'hsl(152, 76%, 36%)', width: 2, radius: 3 },
+        { key: 'best', color: 'hsl(36, 95%, 46%)', width: 2.2, radius: 3.2 },
+        { key: 'primary', color: 'hsl(217, 91%, 53%)', width: 2.5, radius: 3.5 }
+      ];
 
   series.forEach((s) => {
     const pts = pointsData.map((item, idx) => `${getX(idx).toFixed(1)},${getY(item[s.key]).toFixed(1)}`);
@@ -121,8 +150,11 @@ function updateReviewCollapseUI() {
 }
 
 function renderReview() {
+  const mode = (typeof activeGameMode !== 'undefined' && activeGameMode === 'all') ? 'all' : '1min';
   const map = getGameHistoryMap();
-  const key = `${userId}__${activeConfigId}`;
+  const key = typeof getHistoryBucketKey === 'function'
+    ? getHistoryBucketKey(userId, activeConfigId, mode)
+    : `${userId}__${activeConfigId}`;
   const sessions = map[key];
   const lastSession = Array.isArray(sessions) && sessions.length > 0 ? sessions[0] : null;
   const trackedQuestions = getTrackedQuestions(userId, activeConfigId);
@@ -160,14 +192,24 @@ function renderReview() {
   } else if (lastQuestions.length > 0) {
     const totalQMs = lastQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
     const avgSec = (totalQMs / lastQuestions.length / 1000).toFixed(1);
-    reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
+    if (mode === 'all' && typeof lastSession.durationMs === 'number') {
+      const targetN = lastSession.targetCount || lastSession.right;
+      reviewSummaryBadge.textContent = `${formatDurationMs(lastSession.durationMs)} · ${lastSession.right}/${targetN} right · ${lastSession.wrong} wrong`;
+    } else {
+      reviewSummaryBadge.textContent = `${avgSec}s avg · ${lastSession.right} right · ${lastSession.wrong} wrong`;
+    }
+  } else if (trackedQuestions.length > 0) {
+    const totalQMs = trackedQuestions.reduce((sum, q) => sum + (q.durationMs || 0), 0);
+    const avgSec = (totalQMs / trackedQuestions.length / 1000).toFixed(1);
+    const mistakeCount = trackedQuestions.filter(q => q.wrong > 0 || q.right === 0).length;
+    reviewSummaryBadge.textContent = `${trackedQuestions.length} tracked · ${avgSec}s avg · ${mistakeCount} to fix`;
   }
 
   if (!isReviewExpanded) {
     return;
   }
 
-  renderHistoryChart(sessions || []);
+  renderHistoryChart(sessions || [], mode);
 
   const activeCfgForReview = getActiveConfig();
   if (activeCfgForReview && activeCfgForReview.isLazyStudy && !activeCfgForReview.studyDataLoaded) {

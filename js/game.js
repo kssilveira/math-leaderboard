@@ -185,7 +185,77 @@ function generateRaceQuestion() {
   return generateRandomQuestion();
 }
 
+function requeueAllModeQuestion(question) {
+  if (!question) return;
+  const item = question.op === '?'
+    ? (Array.isArray(question.nums) ? (Number(question.nums[0]) || 0) : 0)
+    : {
+        nums: [...question.nums],
+        op: question.op,
+        missingIndex: question.missingIndex,
+        answer: question.answer,
+        key: question.key
+      };
+  if (allModeDeck.length === 0) {
+    allModeDeck.push(item);
+  } else {
+    const pos = Math.min(allModeDeck.length, randomInt(2, 4));
+    allModeDeck.splice(pos, 0, item);
+  }
+}
+
+function generateAllModeQuestion() {
+  const cfg = getActiveConfig();
+  if (!cfg || allModeDeck.length === 0) return null;
+  const nextItem = allModeDeck.shift();
+  const { bucket } = ensureQuestionStatsBucket(userId, activeConfigId);
+
+  if (isQuizConfig(cfg)) {
+    const items = Array.isArray(cfg.items) ? cfg.items : [];
+    if (items.length < 2) return null;
+    const qIdx = Math.max(0, Math.min(items.length - 1, Number(nextItem) || 0));
+    let dIdx = null;
+    let choiceOrder = null;
+    if (isRaceMode && raceSessionData && !allModeRaceUsedInitial.has(qIdx)) {
+      allModeRaceUsedInitial.add(qIdx);
+      const raceMatch = (raceSessionData.session.questions || []).find((rawQ) => {
+        const nq = normalizeQuestionRecord(rawQ, activeConfigId);
+        return nq.op === '?' && Number(nq.nums && nq.nums[0]) === qIdx;
+      });
+      if (raceMatch) {
+        const normMatch = normalizeQuestionRecord(raceMatch, activeConfigId);
+        dIdx = Number(normMatch.nums && normMatch.nums[1]);
+        choiceOrder = normMatch.missingIndex === 1 ? 1 : 0;
+      }
+    }
+    if (dIdx === null || Number.isNaN(dIdx)) {
+      dIdx = sampleQuizDistractorIndex(cfg, qIdx);
+    }
+    if (choiceOrder === null) {
+      choiceOrder = randomInt(0, 1);
+    }
+    const key = `quiz_${qIdx}`;
+    return buildQuizQuestionFromIndices(
+      cfg,
+      qIdx,
+      dIdx,
+      choiceOrder,
+      bucket[key] ? { ...bucket[key] } : null
+    );
+  }
+
+  return {
+    nums: [...nextItem.nums],
+    op: nextItem.op,
+    missingIndex: nextItem.missingIndex,
+    answer: nextItem.answer,
+    key: nextItem.key,
+    lastPerf: bucket[nextItem.key] ? { ...bucket[nextItem.key] } : null
+  };
+}
+
 function generateQuestion() {
+  if (activePlayMode === 'all' && !isPracticeMode) return generateAllModeQuestion();
   if (isRaceMode) return generateRaceQuestion();
   return isPracticeMode ? generatePracticeQuestion() : generateRandomQuestion();
 }
@@ -447,10 +517,27 @@ function updateRaceHud() {
   if (!isRaceMode || !raceSessionData || !raceHudBar) return;
   const elapsedMs = Date.now() - gameStartTime;
   const oppStats = getOpponentStatsAt(raceSessionData.timeline, elapsedMs);
+  const oppName = raceSessionData.session.username || 'Opponent';
+
+  if (activePlayMode === 'all') {
+    const myDone = rightCount;
+    const oppDone = oppStats.right;
+    const diff = myDone - oppDone;
+    const totalQ = allModeTargetCount || Math.max(1, oppStats.totalQuestions);
+    if (raceVsText) {
+      raceVsText.textContent = `⚔️ You: ${myDone}/${totalQ} vs ${oppName}: ${oppDone}/${totalQ}`;
+    }
+    if (raceDiffBadge) {
+      raceDiffBadge.className =
+        'race-diff-badge ' + (diff > 0 ? 'ahead' : diff < 0 ? 'behind' : 'tied');
+      raceDiffBadge.textContent = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Tied';
+    }
+    return;
+  }
+
   const myScore = rightCount - wrongCount;
   const oppScore = oppStats.score;
   const diff = myScore - oppScore;
-  const oppName = raceSessionData.session.username || 'Opponent';
 
   if (raceVsText) {
     raceVsText.textContent = `⚔️ You: ${myScore} vs ${oppName}: ${oppScore}`;
@@ -468,7 +555,55 @@ function tickRaceHud() {
   raceRafId = requestAnimationFrame(tickRaceHud);
 }
 
+function stopStopwatch() {
+  if (stopwatchRafId) {
+    cancelAnimationFrame(stopwatchRafId);
+    stopwatchRafId = null;
+  }
+}
+
+function tickStopwatch() {
+  if (!isPlaying || isReplaying || activePlayMode !== 'all') {
+    stopwatchRafId = null;
+    return;
+  }
+  const elapsedMs = Math.max(0, Date.now() - gameStartTime);
+  timerDisplay.textContent = formatDurationMs(elapsedMs);
+  if (isRaceMode) {
+    updateRaceHud();
+  }
+  stopwatchRafId = requestAnimationFrame(tickStopwatch);
+}
+
 function updateHud() {
+  const isAllLive = isPlaying && !isReplaying && activePlayMode === 'all';
+  const isAllReplay = Boolean(
+    isReplaying &&
+    replaySessionData &&
+    replaySessionData.session &&
+    replaySessionData.session.mode === 'all'
+  );
+  if (isAllLive || isAllReplay) {
+    const targetCount = isAllReplay
+      ? (replaySessionData.session.targetCount ||
+          Math.max(
+            rightCount,
+            replaySessionData.timeline.segments.filter(s => s.question.right > 0).length
+          ))
+      : allModeTargetCount;
+    if (hudScoreLabel) hudScoreLabel.textContent = 'Progress';
+    scoreDisplay.textContent = `${rightCount} / ${targetCount}`;
+    rightDisplay.textContent = rightCount;
+    wrongDisplay.textContent = wrongCount;
+    const elapsedMs = isAllReplay ? replayElapsedMs : Math.max(0, Date.now() - gameStartTime);
+    timerDisplay.textContent = formatDurationMs(elapsedMs);
+    if (isRaceMode && isAllLive) {
+      updateRaceHud();
+    }
+    return;
+  }
+
+  if (hudScoreLabel) hudScoreLabel.textContent = 'Score';
   const score = rightCount - wrongCount;
   scoreDisplay.textContent = score;
   rightDisplay.textContent = rightCount;
@@ -578,11 +713,15 @@ function handleChoiceInput(choiceIdx) {
       currentQuestionRecord = null;
     }
     updateHud();
+    if (activePlayMode === 'all' && allModeDeck.length === 0) {
+      finishGame(true);
+      return;
+    }
     nextQuestion();
     return;
   }
 
-  // Wrong choice on 2-choice question: deduct 1 point, flash wrong/right briefly, and move to next question
+  // Wrong choice on 2-choice question: deduct 1 point (or requeue in 'all' mode), flash wrong/right briefly, and move to next question
   wrongCount += 1;
   currentStreak = 0;
   typedAnswer = chosenText;
@@ -597,6 +736,9 @@ function handleChoiceInput(choiceIdx) {
     currentGameQuestions.push(currentQuestionRecord);
     updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
     currentQuestionRecord = null;
+  }
+  if (activePlayMode === 'all' && !isPracticeMode) {
+    requeueAllModeQuestion(currentQuestion);
   }
   updateHud();
   if (isPracticeMode) {
@@ -619,12 +761,13 @@ function handleChoiceInput(choiceIdx) {
       if (isPlaying && !isReplaying) {
         nextQuestion();
       }
-    }, 190);
+    }, activePlayMode === 'all' ? 450 : 190);
   }
 }
 
 function handleDigitInput(digitStr) {
   if (!isPlaying || isReplaying || !currentQuestion || currentQuestion.op === '?') return;
+  if (quizChoiceLockTimeout) return;
 
   playKeyClickSound();
 
@@ -648,8 +791,13 @@ function handleDigitInput(digitStr) {
       currentQuestionRecord.durationMs = Date.now() - questionStartTime;
       currentGameQuestions.push(currentQuestionRecord);
       updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
+      currentQuestionRecord = null;
     }
     updateHud();
+    if (activePlayMode === 'all' && allModeDeck.length === 0) {
+      finishGame(true);
+      return;
+    }
     nextQuestion();
     return;
   }
@@ -670,6 +818,24 @@ function handleDigitInput(digitStr) {
     currentQuestionRecord.wrongAnswers.push(typedAnswer);
     currentQuestionRecord.wrong += 1;
     currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+    if (activePlayMode === 'all' && !isPracticeMode) {
+      currentQuestionRecord.right = 0;
+      currentGameQuestions.push(currentQuestionRecord);
+      updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
+      currentQuestionRecord = null;
+    }
+  }
+  if (activePlayMode === 'all' && !isPracticeMode) {
+    requeueAllModeQuestion(currentQuestion);
+    updateHud();
+    renderQuestion();
+    quizChoiceLockTimeout = setTimeout(() => {
+      quizChoiceLockTimeout = null;
+      if (isPlaying && !isReplaying) {
+        nextQuestion();
+      }
+    }, 350);
+    return;
   }
   updateHud();
   renderQuestion();
@@ -820,6 +986,7 @@ async function startGame(practice = false, raceTargetSession = null) {
   enterAndroidImmersiveFullscreen();
   if (isPlaying || isLoadingStudyPack) return;
   stopCelebration();
+  stopStopwatch();
   if (raceRafId) {
     cancelAnimationFrame(raceRafId);
     raceRafId = null;
@@ -832,6 +999,10 @@ async function startGame(practice = false, raceTargetSession = null) {
 
   if (raceTargetSession && raceTargetSession.configId && configs.some(c => c.id === raceTargetSession.configId)) {
     activeConfigId = raceTargetSession.configId;
+    if (raceTargetSession.mode === 'all' || raceTargetSession.mode === '1min') {
+      activeGameMode = raceTargetSession.mode;
+      localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+    }
     localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
     renderConfigsUI();
     renderLeaderboard();
@@ -858,7 +1029,11 @@ async function startGame(practice = false, raceTargetSession = null) {
       isLoadingStudyPack = false;
       if (playBtn) {
         playBtn.disabled = false;
-        playBtn.textContent = prevPlayText || "Play 1-Minute Game";
+        if (typeof updatePlayButtonLabel === 'function') {
+          updatePlayButtonLabel();
+        } else {
+          playBtn.textContent = prevPlayText || "Play 1-Minute Game";
+        }
       }
       if (practiceBtn) {
         practiceBtn.disabled = false;
@@ -875,6 +1050,42 @@ async function startGame(practice = false, raceTargetSession = null) {
   if (!isConfigPlayable(activeCfg)) return;
   const isQuiz = isQuizConfig(activeCfg);
 
+  const resolvedPlayMode = raceTargetSession
+    ? (raceTargetSession.mode === 'all' ? 'all' : '1min')
+    : (practice ? '1min' : (activeGameMode === 'all' ? 'all' : '1min'));
+
+  allModeRaceUsedInitial = new Set();
+  allModeDeck = [];
+  allModeTargetCount = 0;
+
+  if (resolvedPlayMode === 'all') {
+    if (raceTargetSession && Array.isArray(raceTargetSession.questions) && raceTargetSession.questions.length > 0) {
+      const seenRaceKeys = new Set();
+      raceTargetSession.questions.forEach((rawQ) => {
+        const nq = normalizeQuestionRecord(rawQ, activeCfg.id);
+        const key = getQuestionKeyFromRecord(nq);
+        if (seenRaceKeys.has(key)) return;
+        seenRaceKeys.add(key);
+        if (nq.op === '?') {
+          allModeDeck.push(Number(nq.nums && nq.nums[0]) || 0);
+        } else {
+          allModeDeck.push({
+            nums: [...nq.nums],
+            op: nq.op,
+            missingIndex: nq.missingIndex,
+            answer: nq.expected,
+            key
+          });
+        }
+      });
+    } else {
+      allModeDeck = buildAllModeDeck(activeCfg, ALL_MODE_MAX_QUESTIONS);
+    }
+    allModeTargetCount = allModeDeck.length;
+    if (allModeTargetCount === 0) return;
+  }
+
+  activePlayMode = resolvedPlayMode;
   isPlaying = true;
   isRaceMode = Boolean(raceTargetSession && Array.isArray(raceTargetSession.questions) && raceTargetSession.questions.length > 0);
   isPracticeMode = !isRaceMode && Boolean(practice);
@@ -925,21 +1136,25 @@ async function startGame(practice = false, raceTargetSession = null) {
   updateHud();
   nextQuestion();
 
-  if (isRaceMode) {
-    raceRafId = requestAnimationFrame(tickRaceHud);
-  }
-
   clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    timeLeft -= 1;
-    updateHud();
-    if (timeLeft >= 1 && timeLeft <= 5) {
-      playCountdownTickSound(timeLeft);
+  timerInterval = null;
+  if (activePlayMode === 'all') {
+    tickStopwatch();
+  } else {
+    if (isRaceMode) {
+      raceRafId = requestAnimationFrame(tickRaceHud);
     }
-    if (timeLeft <= 0) {
-      finishGame(true);
-    }
-  }, 1000);
+    timerInterval = setInterval(() => {
+      timeLeft -= 1;
+      updateHud();
+      if (timeLeft >= 1 && timeLeft <= 5) {
+        playCountdownTickSound(timeLeft);
+      }
+      if (timeLeft <= 0) {
+        finishGame(true);
+      }
+    }, 1000);
+  }
 }
 
 function startRace(targetSession) {
@@ -950,6 +1165,7 @@ function startRace(targetSession) {
 async function finishGame(saveScore) {
   clearInterval(timerInterval);
   timerInterval = null;
+  stopStopwatch();
   if (quizChoiceLockTimeout) {
     clearTimeout(quizChoiceLockTimeout);
     quizChoiceLockTimeout = null;
@@ -976,6 +1192,13 @@ async function finishGame(saveScore) {
     cancelAnimationFrame(raceRafId);
     raceRafId = null;
   }
+  const finishedMode = activePlayMode;
+  const finishedTargetCount = allModeTargetCount;
+  const completedAll =
+    finishedMode === 'all' &&
+    finishedTargetCount > 0 &&
+    rightCount >= finishedTargetCount &&
+    allModeDeck.length === 0;
   isPlaying = false;
   const wasPractice = isPracticeMode;
   const wasRace = isRaceMode;
@@ -983,6 +1206,10 @@ async function finishGame(saveScore) {
   isPracticeMode = false;
   isRaceMode = false;
   raceSessionData = null;
+  activePlayMode = '1min';
+  allModeDeck = [];
+  allModeTargetCount = 0;
+  allModeRaceUsedInitial = new Set();
   if (raceHudBar) raceHudBar.classList.add('hidden');
   if (raceOppEq) raceOppEq.classList.add('hidden');
 
@@ -995,7 +1222,7 @@ async function finishGame(saveScore) {
   flushQuestionStatsToStorage();
 
   const finalScore = rightCount - wrongCount;
-  const gameDurationMs = Date.now() - gameStartTime;
+  const gameDurationMs = Math.max(1, Date.now() - gameStartTime);
   const normalizedQuestions = currentGameQuestions.map(q => normalizeQuestionRecord(q, activeConfigId));
 
   deleteUserBtn.classList.remove('hidden');
@@ -1005,6 +1232,98 @@ async function finishGame(saveScore) {
   applyGameplayOrientation();
   homeView.classList.add('active');
   updateAllSwitcherRowsOverflow();
+
+  if (finishedMode === 'all') {
+    const shouldSaveLocal = Boolean(normalizedQuestions.length > 0 && (saveScore || !completedAll));
+    let opponentRecord = null;
+    if (wasRace && finishedRaceSession) {
+      const oppRight = typeof finishedRaceSession.right === 'number' ? finishedRaceSession.right : 0;
+      const oppWrong = typeof finishedRaceSession.wrong === 'number' ? finishedRaceSession.wrong : 0;
+      const oppScore = typeof finishedRaceSession.score === 'number'
+        ? finishedRaceSession.score
+        : oppRight - oppWrong;
+      opponentRecord = {
+        username: finishedRaceSession.username || 'Opponent',
+        score: oppScore,
+        right: oppRight,
+        wrong: oppWrong,
+        durationMs: finishedRaceSession.durationMs || GAME_DURATION_SECONDS * 1000,
+        targetCount: finishedRaceSession.targetCount || oppRight,
+        questions: (finishedRaceSession.questions || []).map(q => normalizeQuestionRecord(q, activeConfigId))
+      };
+    }
+
+    if (shouldSaveLocal) {
+      const sessionRecord = {
+        userId,
+        username,
+        configId: activeConfigId,
+        mode: 'all',
+        completedAll,
+        targetCount: finishedTargetCount,
+        playedAt: Date.now(),
+        isPractice: wasRace || !completedAll || !saveScore,
+        isRace: wasRace,
+        opponent: opponentRecord,
+        score: finalScore,
+        right: rightCount,
+        wrong: wrongCount,
+        durationMs: gameDurationMs,
+        questions: normalizedQuestions
+      };
+      lastCompletedSession = sessionRecord;
+      saveGameReviewToStorage(sessionRecord);
+      renderReview();
+
+      if (replayLastBtn) replayLastBtn.classList.toggle('hidden', normalizedQuestions.length === 0);
+
+      if (!saveScore || !completedAll) {
+        lastResult.classList.remove('new-high-score');
+        lastScoreLabel.textContent = `Ended Early (${rightCount}/${finishedTargetCount}) · Not Ranked`;
+        lastScoreValue.textContent = formatDurationMs(gameDurationMs);
+        lastScoreDetail.textContent = `${rightCount}/${finishedTargetCount} right · ${wrongCount} wrong`;
+        lastResult.classList.remove('hidden');
+        return;
+      }
+
+      if (wasRace && opponentRecord) {
+        const oppName = opponentRecord.username;
+        const oppDurMs = opponentRecord.durationMs;
+        const diffMs = gameDurationMs - oppDurMs;
+        lastResult.classList.toggle('new-high-score', diffMs < 0);
+        if (diffMs < 0) {
+          lastScoreLabel.textContent = `🏆 Beat ${oppName} by ${formatDurationMs(-diffMs)}! · Not Ranked`;
+        } else if (diffMs === 0) {
+          lastScoreLabel.textContent = `🤝 Tied with ${oppName}! · Not Ranked`;
+        } else {
+          lastScoreLabel.textContent = `⚔️ Race vs ${oppName} (+${formatDurationMs(diffMs)}) · Not Ranked`;
+        }
+        lastScoreValue.textContent = formatDurationMs(gameDurationMs);
+        lastScoreDetail.textContent =
+          `You: ${formatDurationMs(gameDurationMs)} (${wrongCount}✗) · ${oppName}: ${formatDurationMs(oppDurMs)} (${opponentRecord.wrong}✗)`;
+        lastResult.classList.remove('hidden');
+        triggerCelebration(diffMs < 0);
+        return;
+      }
+
+      const cachedEntry = timeLeaderboardsMap[activeConfigId] && timeLeaderboardsMap[activeConfigId][userId];
+      const isInitialNewBest =
+        !cachedEntry ||
+        typeof cachedEntry.durationMs !== 'number' ||
+        cachedEntry.durationMs <= 0 ||
+        gameDurationMs < cachedEntry.durationMs;
+      lastResult.classList.toggle('new-high-score', isInitialNewBest);
+      lastScoreLabel.textContent = isInitialNewBest ? '★ New Best Time!' : 'Last Time';
+      lastScoreValue.textContent = formatDurationMs(gameDurationMs);
+      lastScoreDetail.textContent = `${rightCount}/${finishedTargetCount} right · ${wrongCount} wrong`;
+      lastResult.classList.remove('hidden');
+      triggerCelebration(isInitialNewBest);
+      await submitTimeToLeaderboard(gameDurationMs, sessionRecord);
+    } else {
+      renderReview();
+    }
+    return;
+  }
 
   if (saveScore) {
     let opponentRecord = null;
@@ -1028,6 +1347,7 @@ async function finishGame(saveScore) {
       userId,
       username,
       configId: activeConfigId,
+      mode: '1min',
       playedAt: Date.now(),
       isPractice: wasPractice || wasRace,
       isRace: wasRace,

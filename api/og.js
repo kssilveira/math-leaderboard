@@ -23,6 +23,7 @@ export default async function handler(req) {
   const userParam = searchParams.get('user');
   const uParam = searchParams.get('u');
   const configParam = searchParams.get('config');
+  const modeParam = searchParams.get('mode') === 'all' ? 'all' : '1min';
 
   if (replayParam) {
     const decoded = decodeReplay(replayParam);
@@ -38,7 +39,7 @@ export default async function handler(req) {
   }
 
   if (userParam) {
-    const profile = await fetchUserProfileStats(userParam, uParam || 'Player');
+    const profile = await fetchUserProfileStats(userParam, uParam || 'Player', modeParam);
     return new ImageResponse(renderUserProfileCard(profile), {
       width: 1200,
       height: 630,
@@ -49,8 +50,8 @@ export default async function handler(req) {
   }
 
   if (configParam) {
-    const top10 = await fetchTop10Leaderboard(configParam);
-    return new ImageResponse(renderLeaderboardCard(top10, configParam), {
+    const top10 = await fetchTop10Leaderboard(configParam, modeParam);
+    return new ImageResponse(renderLeaderboardCard(top10, configParam, modeParam), {
       width: 1200,
       height: 630,
       headers: {

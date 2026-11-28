@@ -94,9 +94,11 @@ function decodeCompactQuestionsList(compactList, targetConfigId = activeConfigId
 
 function encodeReplayParam(session) {
   const cfgId = session.configId || activeConfigId;
+  const isAll = session.mode === 'all';
   const payload = {
     u: session.username || 'Player',
     c: cfgId,
+    ...(isAll ? { m: 'all', n: session.targetCount || session.right || 0 } : {}),
     s: typeof session.score === 'number' ? session.score : 0,
     r: typeof session.right === 'number' ? session.right : 0,
     w: typeof session.wrong === 'number' ? session.wrong : 0,
@@ -107,6 +109,7 @@ function encodeReplayParam(session) {
   if (session.opponent && Array.isArray(session.opponent.questions) && session.opponent.questions.length > 0) {
     payload.o = {
       u: session.opponent.username || 'Opponent',
+      ...(isAll ? { n: session.opponent.targetCount || session.opponent.right || 0 } : {}),
       s: typeof session.opponent.score === 'number' ? session.opponent.score : 0,
       r: typeof session.opponent.right === 'number' ? session.opponent.right : 0,
       w: typeof session.opponent.wrong === 'number' ? session.opponent.wrong : 0,
@@ -140,22 +143,34 @@ async function decodeReplayParam(encoded) {
     if (typeof ensureStudyConfigLoaded === "function") {
       await ensureStudyConfigLoaded(cfgId);
     }
+    const mode = payload.m === 'all' ? 'all' : '1min';
     const questions = decodeCompactQuestionsList(payload.q, cfgId);
+    const targetCount = mode === 'all'
+      ? (Number(payload.n || payload.r || questions.filter(q => q.right > 0).length) || 0)
+      : undefined;
     let opponent = null;
     if (payload.o && Array.isArray(payload.o.q) && payload.o.q.length > 0) {
+      const oppQuestions = decodeCompactQuestionsList(payload.o.q, cfgId);
+      const oppTargetCount = mode === 'all'
+        ? (Number(payload.o.n || payload.o.r || oppQuestions.filter(q => q.right > 0).length) || 0)
+        : undefined;
       opponent = {
         username: String(payload.o.u || 'Opponent'),
+        mode,
+        ...(oppTargetCount ? { targetCount: oppTargetCount } : {}),
         score: Number(payload.o.s) || 0,
         right: Number(payload.o.r) || 0,
         wrong: Number(payload.o.w) || 0,
         durationMs: Number(payload.o.d) || GAME_DURATION_SECONDS * 1000,
-        questions: decodeCompactQuestionsList(payload.o.q, cfgId)
+        questions: oppQuestions
       };
     }
 
     return {
       username: String(payload.u || 'Player'),
       configId: cfgId,
+      mode,
+      ...(targetCount ? { targetCount } : {}),
       isRace: Boolean(opponent),
       opponent,
       score: Number(payload.s) || 0,
@@ -220,20 +235,27 @@ async function copyReplayLink(session, btnEl) {
   await copyUrlWithFeedback(url, btnEl);
 }
 
-async function copyConfigLink(configId, btnEl) {
+async function copyConfigLink(configId, btnEl, mode = activeGameMode) {
   const cfgId = configId || activeConfigId;
   if (!cfgId) return;
-  const url = `${getShareBaseUrl()}?config=${encodeURIComponent(cfgId)}`;
+  const params = new URLSearchParams();
+  params.set('config', cfgId);
+  if (mode === 'all') params.set('mode', 'all');
+  const url = `${getShareBaseUrl()}?${params.toString()}`;
   await copyUrlWithFeedback(url, btnEl);
 }
 
-async function copyUserPageLink(targetUserId, targetUsername, btnEl) {
+async function copyUserPageLink(targetUserId, targetUsername, btnEl, mode = null) {
   const uId = targetUserId || viewedUserId || userId;
   if (!uId) return;
   const uName = targetUsername || resolveUsernameForUserId(uId, username);
+  const resolvedMode = mode === 'all' || mode === '1min'
+    ? mode
+    : (userView && userView.classList.contains('active') ? userPageMode : activeGameMode);
   const params = new URLSearchParams();
   params.set('user', uId);
   if (uName) params.set('u', uName);
+  if (resolvedMode === 'all') params.set('mode', 'all');
   const url = `${getShareBaseUrl()}?${params.toString()}`;
   await copyUrlWithFeedback(url, btnEl);
 }
@@ -244,6 +266,13 @@ async function checkUrlReplayOnLoad() {
   const replayParam = params.get('replay');
   const configParam = params.get('config');
   const userParam = params.get('user');
+  const rawModeParam = params.get('mode');
+  const modeParam = rawModeParam === 'all' ? 'all' : (rawModeParam === '1min' ? '1min' : null);
+
+  if (modeParam && !replayParam && !userParam) {
+    activeGameMode = modeParam;
+    localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+  }
 
   if (configParam) {
     const targetCfg = getConfigById(configParam);
@@ -260,11 +289,16 @@ async function checkUrlReplayOnLoad() {
     if (!replayParam && !userParam) {
       window.history.replaceState({}, '', window.location.pathname);
     }
+  } else if (modeParam && !replayParam && !userParam) {
+    renderConfigsUI();
+    renderLeaderboard();
+    renderReview();
+    window.history.replaceState({}, '', window.location.pathname);
   }
 
   if (userParam) {
     hasHandledInitialUrlReplay = true;
-    openUserPage(userParam, params.get('u') || '');
+    openUserPage(userParam, params.get('u') || '', modeParam);
     window.history.replaceState({}, '', window.location.pathname);
     return;
   }
@@ -277,6 +311,10 @@ async function checkUrlReplayOnLoad() {
   hasHandledInitialUrlReplay = true;
   const decoded = await decodeReplayParam(replayParam);
   if (decoded) {
+    if (decoded.mode === 'all' || decoded.mode === '1min') {
+      activeGameMode = decoded.mode;
+      localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+    }
     if (decoded.configId && configs.some(c => c.id === decoded.configId)) {
       activeConfigId = decoded.configId;
       localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
@@ -364,21 +402,26 @@ function renderReplayRaceChart(timeline, opponentTimeline, session) {
   }
 
   replayRaceChartWrap.classList.remove('hidden');
+  const isAll = Boolean(session && session.mode === 'all');
   const p1Name = session.username || 'Player';
   const p2Name = session.opponent.username || 'Opponent';
   if (replayChartP1Name) replayChartP1Name.textContent = p1Name;
   if (replayChartP2Name) replayChartP2Name.textContent = p2Name;
 
-  const totalDurationMs = Math.max(timeline.totalDurationMs, 500);
+  const totalDurationMs = isAll
+    ? Math.max(timeline.totalDurationMs, opponentTimeline.totalDurationMs, 500)
+    : Math.max(timeline.totalDurationMs, 500);
   const steps = 90;
   const samples = [];
   let minScore = 0;
-  let maxScore = 5;
+  let maxScore = isAll ? Math.max(5, session.targetCount || 0) : 5;
 
   for (let i = 0; i <= steps; i++) {
     const t = (i / steps) * totalDurationMs;
-    const p1 = getOpponentStatsAt(timeline, t).score;
-    const p2 = getOpponentStatsAt(opponentTimeline, t).score;
+    const p1Stats = getOpponentStatsAt(timeline, t);
+    const p2Stats = getOpponentStatsAt(opponentTimeline, t);
+    const p1 = isAll ? p1Stats.right : p1Stats.score;
+    const p2 = isAll ? p2Stats.right : p2Stats.score;
     const delta = p1 - p2;
     minScore = Math.min(minScore, p1, p2);
     maxScore = Math.max(maxScore, p1, p2);
@@ -460,9 +503,10 @@ function updateReplayRaceChartPlayhead(clampedMs, myScore, oppScore) {
     p2DotEl.setAttribute('cy', y2);
   }
   if (replayChartLive) {
-    const sec = Math.floor(clampedMs / 1000);
+    const isAll = Boolean(replaySessionData.session && replaySessionData.session.mode === 'all');
+    const timeStr = isAll ? formatDurationMs(clampedMs) : `${Math.floor(clampedMs / 1000)}s`;
     const diffStr = diff > 0 ? `+${diff}` : diff < 0 ? `−${Math.abs(diff)}` : '0';
-    replayChartLive.textContent = `${sec}s · ${myScore}–${oppScore} (Δ ${diffStr})`;
+    replayChartLive.textContent = `${timeStr} · ${myScore}–${oppScore} (Δ ${diffStr})`;
   }
 }
 
@@ -565,6 +609,7 @@ function renderReplayStateAt(elapsedMs) {
     }
   }
 
+  const isAll = Boolean(replaySessionData.session && replaySessionData.session.mode === 'all');
   rightCount = rCount;
   wrongCount = wCount;
   const totalSec = Math.round(Math.max(GAME_DURATION_SECONDS * 1000, totalDurationMs) / 1000);
@@ -573,13 +618,16 @@ function renderReplayStateAt(elapsedMs) {
 
   if (replaySessionData.opponentTimeline && replaySessionData.session.opponent && raceHudBar) {
     const oppStats = getOpponentStatsAt(replaySessionData.opponentTimeline, clampedMs);
-    const myScore = rCount - wCount;
-    const oppScore = oppStats.score;
-    const diff = myScore - oppScore;
+    const myVal = isAll ? rCount : (rCount - wCount);
+    const oppVal = isAll ? oppStats.right : oppStats.score;
+    const diff = myVal - oppVal;
     const playerName = replaySessionData.session.username || 'Player';
     const oppName = replaySessionData.session.opponent.username || 'Opponent';
+    const targetCount = replaySessionData.session.targetCount || Math.max(rCount, oppStats.right, 1);
     if (raceVsText) {
-      raceVsText.textContent = `⚔️ ${playerName}: ${myScore} vs ${oppName}: ${oppScore}`;
+      raceVsText.textContent = isAll
+        ? `⚔️ ${playerName}: ${rCount}/${targetCount} vs ${oppName}: ${oppStats.right}/${targetCount}`
+        : `⚔️ ${playerName}: ${myVal} vs ${oppName}: ${oppVal}`;
     }
     if (raceDiffBadge) {
       raceDiffBadge.className =
@@ -587,7 +635,7 @@ function renderReplayStateAt(elapsedMs) {
       raceDiffBadge.textContent = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Tied';
     }
     renderOpponentQuestion(oppName, oppStats);
-    updateReplayRaceChartPlayhead(clampedMs, myScore, oppScore);
+    updateReplayRaceChartPlayhead(clampedMs, myVal, oppVal);
   }
 
   if (activeSeg) {
@@ -738,10 +786,12 @@ async function startReplay(session) {
   if (raceHudBar) raceHudBar.classList.toggle('hidden', !hasOpponent);
   if (raceOppEq) raceOppEq.classList.toggle('hidden', !hasOpponent);
   if (replayResultBanner) {
+    const isAll = session.mode === 'all';
     const playerName = session.username || 'Player';
     const rightVal = typeof session.right === 'number' ? session.right : 0;
     const wrongVal = typeof session.wrong === 'number' ? session.wrong : 0;
     const scoreVal = typeof session.score === 'number' ? session.score : rightVal - wrongVal;
+    const targetCount = session.targetCount || rightVal;
 
     if (hasOpponent) {
       const opp = session.opponent;
@@ -749,23 +799,46 @@ async function startReplay(session) {
       const oppRight = typeof opp.right === 'number' ? opp.right : 0;
       const oppWrong = typeof opp.wrong === 'number' ? opp.wrong : 0;
       const oppScore = typeof opp.score === 'number' ? opp.score : oppRight - oppWrong;
-      const diff = scoreVal - oppScore;
-      const diffStr = diff > 0 ? `+${diff}` : String(diff);
+      if (isAll) {
+        const diffMs = (session.durationMs || 0) - (opp.durationMs || 0);
+        replayResultBanner.classList.toggle('new-high-score', diffMs < 0);
+        if (replayBannerLabel) {
+          if (diffMs < 0) {
+            replayBannerLabel.textContent = `🏆 ${playerName} beat ${oppName} by ${formatDurationMs(-diffMs)}! · Not Ranked`;
+          } else if (diffMs === 0) {
+            replayBannerLabel.textContent = `🤝 ${playerName} tied with ${oppName}! · Not Ranked`;
+          } else {
+            replayBannerLabel.textContent = `⚔️ ${playerName} vs ${oppName} (+${formatDurationMs(diffMs)}) · Not Ranked`;
+          }
+        }
+        if (replayBannerValue) replayBannerValue.textContent = formatDurationMs(session.durationMs);
+        if (replayBannerDetail) {
+          replayBannerDetail.textContent = `${playerName}: ${formatDurationMs(session.durationMs)} (${wrongVal}✗) · ${oppName}: ${formatDurationMs(opp.durationMs)} (${oppWrong}✗)`;
+        }
+      } else {
+        const diff = scoreVal - oppScore;
+        const diffStr = diff > 0 ? `+${diff}` : String(diff);
 
-      replayResultBanner.classList.toggle('new-high-score', diff > 0);
-      if (replayBannerLabel) {
-        if (diff > 0) {
-          replayBannerLabel.textContent = `🏆 ${playerName} beat ${oppName}! (${diffStr}) · Not Ranked`;
-        } else if (diff === 0) {
-          replayBannerLabel.textContent = `🤝 ${playerName} tied with ${oppName}! · Not Ranked`;
-        } else {
-          replayBannerLabel.textContent = `⚔️ ${playerName} vs ${oppName} (${diffStr}) · Not Ranked`;
+        replayResultBanner.classList.toggle('new-high-score', diff > 0);
+        if (replayBannerLabel) {
+          if (diff > 0) {
+            replayBannerLabel.textContent = `🏆 ${playerName} beat ${oppName}! (${diffStr}) · Not Ranked`;
+          } else if (diff === 0) {
+            replayBannerLabel.textContent = `🤝 ${playerName} tied with ${oppName}! · Not Ranked`;
+          } else {
+            replayBannerLabel.textContent = `⚔️ ${playerName} vs ${oppName} (${diffStr}) · Not Ranked`;
+          }
+        }
+        if (replayBannerValue) replayBannerValue.textContent = scoreVal;
+        if (replayBannerDetail) {
+          replayBannerDetail.textContent = `${playerName}: ${scoreVal} (${rightVal}✓ ${wrongVal}✗) · ${oppName}: ${oppScore} (${oppRight}✓ ${oppWrong}✗)`;
         }
       }
-      if (replayBannerValue) replayBannerValue.textContent = scoreVal;
-      if (replayBannerDetail) {
-        replayBannerDetail.textContent = `${playerName}: ${scoreVal} (${rightVal}✓ ${wrongVal}✗) · ${oppName}: ${oppScore} (${oppRight}✓ ${oppWrong}✗)`;
-      }
+    } else if (isAll) {
+      replayResultBanner.classList.remove('new-high-score');
+      if (replayBannerLabel) replayBannerLabel.textContent = `${playerName}'s Time`;
+      if (replayBannerValue) replayBannerValue.textContent = formatDurationMs(session.durationMs);
+      if (replayBannerDetail) replayBannerDetail.textContent = `${rightVal}/${targetCount} right · ${wrongVal} wrong`;
     } else {
       replayResultBanner.classList.remove('new-high-score');
       if (replayBannerLabel) replayBannerLabel.textContent = `${playerName}'s Score`;
@@ -774,14 +847,26 @@ async function startReplay(session) {
     }
     replayResultBanner.classList.remove('hidden');
   }
-  if (replayPlayBtn) replayPlayBtn.classList.remove('hidden');
+  if (replayPlayBtn) {
+    if (session.mode === 'all') {
+      const targetN = session.targetCount || getAllModeTargetCount(activeCfg, ALL_MODE_MAX_QUESTIONS);
+      replayPlayBtn.textContent = targetN ? `Play All (${targetN} Qs)` : `Play All (≤${ALL_MODE_MAX_QUESTIONS} Qs)`;
+    } else {
+      replayPlayBtn.textContent = 'Play 1-Minute Game';
+    }
+    replayPlayBtn.classList.remove('hidden');
+  }
   if (replayPanel) replayPanel.classList.remove('hidden');
   if (replayTitle) {
     if (hasOpponent) {
       const oppName = session.opponent.username || 'Opponent';
-      replayTitle.textContent = `Replay: ⚔️ ${session.username || 'Player'} (${session.score}) vs ${oppName} (${session.opponent.score})`;
+      replayTitle.textContent = session.mode === 'all'
+        ? `Replay: ⚔️ ${session.username || 'Player'} (${formatDurationMs(session.durationMs)}) vs ${oppName} (${formatDurationMs(session.opponent.durationMs)})`
+        : `Replay: ⚔️ ${session.username || 'Player'} (${session.score}) vs ${oppName} (${session.opponent.score})`;
     } else {
-      replayTitle.textContent = `Replay: ${session.username || 'Player'} (Score ${session.score})`;
+      replayTitle.textContent = session.mode === 'all'
+        ? `Replay: ${session.username || 'Player'} (${formatDurationMs(session.durationMs)})`
+        : `Replay: ${session.username || 'Player'} (Score ${session.score})`;
     }
   }
   if (replayPauseBtn) replayPauseBtn.textContent = '⏸ Pause';

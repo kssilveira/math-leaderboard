@@ -1,6 +1,7 @@
 import {
   resolveConfigIdAlias,
   formatConfigId,
+  formatDurationMs,
 } from './lib/config-labels.js';
 
 export const config = {
@@ -32,6 +33,10 @@ function decodeReplaySummary(encoded) {
     const totalMs = payload.q.reduce((sum, q) => sum + (Number(q[4]) || 0), 0);
     const avgSec = (totalMs / payload.q.length / 1000).toFixed(1);
 
+    const mode = payload.m === 'all' ? 'all' : '1min';
+    const targetCount = mode === 'all' ? (Number(payload.n || payload.r) || payload.q.length) : undefined;
+    const durationMs = Number(payload.d) || totalMs;
+
     let opponent = null;
     if (payload.o && typeof payload.o === 'object') {
       opponent = {
@@ -39,11 +44,15 @@ function decodeReplaySummary(encoded) {
         score: Number(payload.o.s) || 0,
         right: Number(payload.o.r) || 0,
         wrong: Number(payload.o.w) || 0,
+        durationMs: Number(payload.o.d) || 0,
       };
     }
 
     return {
       username: String(payload.u || 'Player'),
+      mode,
+      targetCount,
+      durationMs,
       score: Number(payload.s) || 0,
       right: Number(payload.r) || 0,
       wrong: Number(payload.w) || 0,
@@ -62,6 +71,7 @@ export default async function middleware(request) {
   const configParam = rawConfigParam ? resolveConfigIdAlias(rawConfigParam) : null;
   const userParam = url.searchParams.get('user');
   const uParam = url.searchParams.get('u');
+  const modeParam = url.searchParams.get('mode') === 'all' ? 'all' : '1min';
   const origin = url.origin;
 
   let ogTitle = '1-Minute Quiz — Global Leaderboards';
@@ -76,15 +86,33 @@ export default async function middleware(request) {
     if (summary) {
       if (summary.opponent) {
         const opp = summary.opponent;
-        const diff = summary.score - opp.score;
-        if (diff > 0) {
-          ogTitle = `${summary.username} beat ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
-        } else if (diff === 0) {
-          ogTitle = `${summary.username} tied with ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
+        if (summary.mode === 'all') {
+          const myTime = formatDurationMs(summary.durationMs);
+          const oppTime = formatDurationMs(opp.durationMs);
+          const diffMs = summary.durationMs - opp.durationMs;
+          if (diffMs < 0) {
+            ogTitle = `${summary.username} beat ${opp.username} (${myTime} vs ${oppTime}) in Time Attack!`;
+          } else if (diffMs === 0) {
+            ogTitle = `${summary.username} tied with ${opp.username} (${myTime}) in Time Attack!`;
+          } else {
+            ogTitle = `${summary.username} vs ${opp.username} (${myTime} vs ${oppTime}) in Time Attack!`;
+          }
+          ogDesc = `Watch Time Attack Ghost Race (${summary.targetCount} Qs): ${summary.username} (${myTime}, ${summary.wrong} wrong) vs ${opp.username} (${oppTime}, ${opp.wrong} wrong).`;
         } else {
-          ogTitle = `${summary.username} vs ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
+          const diff = summary.score - opp.score;
+          if (diff > 0) {
+            ogTitle = `${summary.username} beat ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
+          } else if (diff === 0) {
+            ogTitle = `${summary.username} tied with ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
+          } else {
+            ogTitle = `${summary.username} vs ${opp.username} (${summary.score} to ${opp.score}) in 1-Min Quiz!`;
+          }
+          ogDesc = `Watch Ghost Race replay: ${summary.username} (${summary.right} right · ${summary.wrong} wrong) vs ${opp.username} (${opp.right} right · ${opp.wrong} wrong).`;
         }
-        ogDesc = `Watch Ghost Race replay: ${summary.username} (${summary.right} right · ${summary.wrong} wrong) vs ${opp.username} (${opp.right} right · ${opp.wrong} wrong).`;
+      } else if (summary.mode === 'all') {
+        const myTime = formatDurationMs(summary.durationMs);
+        ogTitle = `${summary.username} finished ${summary.targetCount} Qs in ${myTime} — Time Attack!`;
+        ogDesc = `Watch Time Attack replay: ${summary.right}/${summary.targetCount} right · ${summary.wrong} wrong · ${summary.avgSec}s avg per question.`;
       } else {
         ogTitle = `${summary.username} scored ${summary.score} in 1-Min Quiz!`;
         ogDesc = `Watch replay: ${summary.right} right · ${summary.wrong} wrong · ${summary.avgSec}s avg per question.`;
@@ -92,17 +120,28 @@ export default async function middleware(request) {
     }
   } else if (userParam) {
     const playerName = uParam || 'Player';
-    ogTitle = `${playerName}'s Ranks & Scores — 1-Minute Quiz`;
-    ogDesc = `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language, Study & Other.`;
+    ogTitle = modeParam === 'all'
+      ? `${playerName}'s Time Attack Ranks — 1-Minute Quiz`
+      : `${playerName}'s Ranks & Scores — 1-Minute Quiz`;
+    ogDesc = modeParam === 'all'
+      ? `See ${playerName}'s global Time Attack (≤100 Qs) ranks and fastest times across Math, Geography, Language, Study & Other.`
+      : `See ${playerName}'s global leaderboard ranks and best scores across Math, Geography, Language, Study & Other.`;
     const imgParams = new URLSearchParams();
     imgParams.set('user', userParam);
     if (uParam) imgParams.set('u', uParam);
+    if (modeParam === 'all') imgParams.set('mode', 'all');
     ogImage = `${origin}/api/og?${imgParams.toString()}`;
   } else if (configParam) {
     const cfgLabel = formatConfigId(configParam);
-    ogTitle = `1-Minute Quiz — ${cfgLabel} Leaderboard`;
-    ogDesc = `Compete on the ${cfgLabel} 60-second global leaderboard in 1-Minute Quiz!`;
-    ogImage = `${origin}/api/og?config=${encodeURIComponent(configParam)}`;
+    if (modeParam === 'all') {
+      ogTitle = `Time Attack (≤100) — ${cfgLabel} Leaderboard`;
+      ogDesc = `Compete for the fastest time to answer all questions (up to 100) on ${cfgLabel} in 1-Minute Quiz!`;
+      ogImage = `${origin}/api/og?config=${encodeURIComponent(configParam)}&mode=all`;
+    } else {
+      ogTitle = `1-Minute Quiz — ${cfgLabel} Leaderboard`;
+      ogDesc = `Compete on the ${cfgLabel} 60-second global leaderboard in 1-Minute Quiz!`;
+      ogImage = `${origin}/api/og?config=${encodeURIComponent(configParam)}`;
+    }
   }
 
   const html = `<!DOCTYPE html>

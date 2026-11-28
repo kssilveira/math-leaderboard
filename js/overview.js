@@ -404,8 +404,98 @@ function closeUserPage(selectConfigId = null) {
   }
 }
 
+function formatOverviewPerfValue(perf, mode) {
+  if (!perf) return '—';
+  if (mode === 'all') {
+    return typeof perf.bestTimeMs === 'number' && perf.bestTimeMs > 0
+      ? formatDurationMs(perf.bestTimeMs)
+      : '—';
+  }
+  return perf.bestScore !== null && perf.bestScore !== undefined ? String(perf.bestScore) : '—';
+}
+
+function getOverviewRankUpHintText(perf, mode) {
+  if (!perf || perf.isSoleLeader || perf.nextRank === null) return '';
+  if (mode === 'all') {
+    if (perf.msToBeatNext === null) return '';
+    return perf.rank === 1
+      ? 'Faster for sole #1'
+      : `↑ −${formatDurationMs(perf.msToBeatNext)} to #${perf.nextRank}`;
+  }
+  if (perf.pointsToTieNext === null) return '';
+  return perf.rank === 1
+    ? '+1 for sole #1'
+    : `↑ +${perf.pointsToTieNext} to #${perf.nextRank}`;
+}
+
+function sortOverviewPerformanceItems(items, sortMode, mode) {
+  const isAll = mode === 'all';
+  items.sort((a, b) => {
+    const pa = a.perf;
+    const pb = b.perf;
+
+    if (sortMode === 'score') {
+      const aPlayed = pa.hasPlayed ? 0 : 1;
+      const bPlayed = pb.hasPlayed ? 0 : 1;
+      if (aPlayed !== bPlayed) return aPlayed - bPlayed;
+      if (isAll) {
+        if (pa.bestTimeMs !== null && pb.bestTimeMs !== null && pa.bestTimeMs !== pb.bestTimeMs) {
+          return pa.bestTimeMs - pb.bestTimeMs;
+        }
+      } else if (pa.bestScore !== null && pb.bestScore !== null && pb.bestScore !== pa.bestScore) {
+        return pb.bestScore - pa.bestScore;
+      }
+      if ((pa.rank ?? 9999) !== (pb.rank ?? 9999)) {
+        return (pa.rank ?? 9999) - (pb.rank ?? 9999);
+      }
+      return pb.totalPlayers - pa.totalPlayers;
+    }
+
+    if (sortMode === 'next') {
+      const getBucket = (p) => {
+        const diffVal = isAll ? p.msToBeatNext : p.pointsToTieNext;
+        if (p.rank !== null && !p.isSoleLeader && diffVal !== null) return 0;
+        if (!p.hasPlayed) return 1;
+        if (p.rank === null) return 2;
+        return 3;
+      };
+      const ba = getBucket(pa);
+      const bb = getBucket(pb);
+      if (ba !== bb) return ba - bb;
+      if (ba === 0) {
+        const da = isAll ? pa.msToBeatNext : pa.pointsToTieNext;
+        const db = isAll ? pb.msToBeatNext : pb.pointsToTieNext;
+        if (da !== db) return da - db;
+        return pb.rank - pa.rank;
+      }
+      if (ba === 1) return pb.totalPlayers - pa.totalPlayers;
+      if (isAll) {
+        return (pb.bestTimeMs ?? 0) - (pa.bestTimeMs ?? 0);
+      }
+      return (pa.bestScore ?? 0) - (pb.bestScore ?? 0);
+    }
+
+    // Default: 'rank'
+    const aRanked = pa.rank !== null ? 0 : (pa.hasPlayed ? 1 : 2);
+    const bRanked = pb.rank !== null ? 0 : (pb.hasPlayed ? 1 : 2);
+    if (aRanked !== bRanked) return aRanked - bRanked;
+    if (pa.rank !== null && pb.rank !== null && pa.rank !== pb.rank) {
+      return pa.rank - pb.rank;
+    }
+    if (isAll) {
+      if ((pa.bestTimeMs ?? Infinity) !== (pb.bestTimeMs ?? Infinity)) {
+        return (pa.bestTimeMs ?? Infinity) - (pb.bestTimeMs ?? Infinity);
+      }
+    } else if ((pb.bestScore ?? -999) !== (pa.bestScore ?? -999)) {
+      return (pb.bestScore ?? -999) - (pa.bestScore ?? -999);
+    }
+    return pb.totalPlayers - pa.totalPlayers;
+  });
+}
+
 function renderUserPage() {
   if (!userView || !viewedUserId || !userPageList) return;
+  const mode = (typeof userPageMode !== 'undefined' && userPageMode === 'all') ? 'all' : '1min';
   renderOverviewFilterControls(userFiltersPanel, userFilterToggleBtn, isUserPageFiltersOpen, renderUserPage);
   const resolvedName = resolveUsernameForUserId(viewedUserId, viewedUsername);
   viewedUsername = resolvedName;
@@ -418,11 +508,21 @@ function renderUserPage() {
     userPageName.textContent = isMe ? `${resolvedName} (you)` : resolvedName;
   }
 
+  if (typeof userMode1MinBtn !== 'undefined' && userMode1MinBtn) {
+    userMode1MinBtn.classList.toggle('active', mode === '1min');
+    userMode1MinBtn.setAttribute('aria-selected', mode === '1min' ? 'true' : 'false');
+  }
+  if (typeof userModeAllBtn !== 'undefined' && userModeAllBtn) {
+    userModeAllBtn.classList.toggle('active', mode === 'all');
+    userModeAllBtn.setAttribute('aria-selected', mode === 'all' ? 'true' : 'false');
+  }
+
   if (userSortRankBtn) {
     userSortRankBtn.classList.toggle('active', userPageSortMode === 'rank');
     userSortRankBtn.setAttribute('aria-selected', userPageSortMode === 'rank' ? 'true' : 'false');
   }
   if (userSortScoreBtn) {
+    userSortScoreBtn.textContent = mode === 'all' ? '⚡ By Time' : '📈 By Score';
     userSortScoreBtn.classList.toggle('active', userPageSortMode === 'score');
     userSortScoreBtn.setAttribute('aria-selected', userPageSortMode === 'score' ? 'true' : 'false');
   }
@@ -434,14 +534,14 @@ function renderUserPage() {
   const allItems = configs.map((cfg) => ({
     cfg,
     cat: getConfigCategory(cfg),
-    perf: getUserConfigPerformance(viewedUserId, cfg.id)
+    perf: getUserConfigPerformance(viewedUserId, cfg.id, mode)
   }));
   const filteredItems = allItems.filter((it) => isOverviewConfigVisible(it.cfg));
 
   const fullItems = filteredItems.filter(it => !isMiniConfig(it.cfg));
   const miniItems = filteredItems.filter(it => isMiniConfig(it.cfg));
-  const fullPlayedCount = fullItems.filter(it => it.perf.bestScore !== null).length;
-  const miniPlayedCount = miniItems.filter(it => it.perf.bestScore !== null).length;
+  const fullPlayedCount = fullItems.filter(it => it.perf.hasPlayed).length;
+  const miniPlayedCount = miniItems.filter(it => it.perf.hasPlayed).length;
 
   if (userScopeFullBtn) {
     userScopeFullBtn.classList.toggle('active', userPageScope === 'full');
@@ -454,23 +554,31 @@ function renderUserPage() {
     userScopeMiniBtn.textContent = `Mini (${miniPlayedCount}/${miniItems.length})`;
   }
 
-  const playedItems = allItems.filter(it => it.perf.bestScore !== null);
+  const playedItems = allItems.filter(it => it.perf.hasPlayed);
   const firstCount = playedItems.filter(it => it.perf.rank === 1).length;
   const bestRank = playedItems.reduce(
     (minR, it) => (it.perf.rank !== null && it.perf.rank < minR ? it.perf.rank : minR),
     Infinity
   );
-  const topScore = playedItems.reduce(
-    (maxS, it) => (it.perf.bestScore !== null && it.perf.bestScore > maxS ? it.perf.bestScore : maxS),
-    0
-  );
 
   if (userPageStats) {
     const rankStr = bestRank < Infinity ? `Best rank: #${bestRank}` : 'Unranked';
-    userPageStats.textContent =
-      playedItems.length > 0
-        ? `${playedItems.length} games played · ${firstCount} × 🏆 #1 · ${rankStr} · Top score: ${topScore}`
-        : 'No games recorded yet';
+    if (playedItems.length === 0) {
+      userPageStats.textContent = mode === 'all' ? 'No Time Attack runs recorded yet' : 'No games recorded yet';
+    } else if (mode === 'all') {
+      const fastestMs = playedItems.reduce(
+        (minMs, it) => (it.perf.bestTimeMs !== null && it.perf.bestTimeMs < minMs ? it.perf.bestTimeMs : minMs),
+        Infinity
+      );
+      const fastestStr = fastestMs < Infinity ? formatDurationMs(fastestMs) : '—';
+      userPageStats.textContent = `${playedItems.length} games completed · ${firstCount} × 🏆 #1 · ${rankStr} · Fastest: ${fastestStr}`;
+    } else {
+      const topScore = playedItems.reduce(
+        (maxS, it) => (it.perf.bestScore !== null && it.perf.bestScore > maxS ? it.perf.bestScore : maxS),
+        0
+      );
+      userPageStats.textContent = `${playedItems.length} games played · ${firstCount} × 🏆 #1 · ${rankStr} · Top score: ${topScore}`;
+    }
   }
 
   const scopedItems = userPageScope === 'mini' ? miniItems : fullItems;
@@ -480,52 +588,7 @@ function renderUserPage() {
   }
 
   const itemsToShow = [...scopedItems];
-  itemsToShow.sort((a, b) => {
-    const pa = a.perf;
-    const pb = b.perf;
-
-    if (userPageSortMode === 'score') {
-      const aPlayed = pa.bestScore !== null ? 0 : 1;
-      const bPlayed = pb.bestScore !== null ? 0 : 1;
-      if (aPlayed !== bPlayed) return aPlayed - bPlayed;
-      if (pa.bestScore !== null && pb.bestScore !== null && pb.bestScore !== pa.bestScore) {
-        return pb.bestScore - pa.bestScore;
-      }
-      return (pa.rank ?? 9999) - (pb.rank ?? 9999);
-    }
-
-    if (userPageSortMode === 'next') {
-      const getBucket = (p) => {
-        if (p.rank !== null && !p.isSoleLeader && p.pointsToTieNext !== null) return 0;
-        if (p.bestScore === null) return 1;
-        if (p.rank === null) return 2;
-        return 3;
-      };
-      const ba = getBucket(pa);
-      const bb = getBucket(pb);
-      if (ba !== bb) return ba - bb;
-      if (ba === 0) {
-        if (pa.pointsToTieNext !== pb.pointsToTieNext) {
-          return pa.pointsToTieNext - pb.pointsToTieNext;
-        }
-        return pb.rank - pa.rank;
-      }
-      if (ba === 1) return pb.totalPlayers - pa.totalPlayers;
-      return (pa.bestScore ?? 0) - (pb.bestScore ?? 0);
-    }
-
-    // Default: 'rank'
-    const aRanked = pa.rank !== null ? 0 : (pa.bestScore !== null ? 1 : 2);
-    const bRanked = pb.rank !== null ? 0 : (pb.bestScore !== null ? 1 : 2);
-    if (aRanked !== bRanked) return aRanked - bRanked;
-    if (pa.rank !== null && pb.rank !== null && pa.rank !== pb.rank) {
-      return pa.rank - pb.rank;
-    }
-    if ((pb.bestScore ?? -999) !== (pa.bestScore ?? -999)) {
-      return (pb.bestScore ?? -999) - (pa.bestScore ?? -999);
-    }
-    return pb.totalPlayers - pa.totalPlayers;
-  });
+  sortOverviewPerformanceItems(itemsToShow, userPageSortMode, mode);
 
   userPageList.innerHTML = '';
   if (itemsToShow.length === 0) {
@@ -533,7 +596,7 @@ function renderUserPage() {
     if (userPagePagination) userPagePagination.classList.add('hidden');
     return;
   }
-  const userContextKey = `${viewedUserId}|${userPageScope}|${userPageSortMode}|${getOverviewFilterSignature()}`;
+  const userContextKey = `${viewedUserId}|${mode}|${userPageScope}|${userPageSortMode}|${getOverviewFilterSignature()}`;
   if (userContextKey !== userPageLastContextKey) {
     userPage = 1;
     userPageLastContextKey = userContextKey;
@@ -548,6 +611,10 @@ function renderUserPage() {
     li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
     li.title = `Open ${formatConfigLabel(cfg)} leaderboard`;
     li.addEventListener('click', () => {
+      if (typeof activeGameMode !== 'undefined' && activeGameMode !== mode) {
+        activeGameMode = mode;
+        localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+      }
       closeUserPage(cfg.id);
     });
 
@@ -569,13 +636,11 @@ function renderUserPage() {
       }
       rankSpan.appendChild(rText);
 
-      if (!perf.isSoleLeader && perf.pointsToTieNext !== null && perf.nextRank !== null) {
+      const hintText = getOverviewRankUpHintText(perf, mode);
+      if (hintText) {
         const upHint = document.createElement('span');
         upHint.className = 'rank-up-hint';
-        upHint.textContent =
-          perf.rank === 1
-            ? '+1 for sole #1'
-            : `↑ +${perf.pointsToTieNext} to #${perf.nextRank}`;
+        upHint.textContent = hintText;
         rankSpan.appendChild(upHint);
       }
     } else if (perf.totalPlayers > 0) {
@@ -588,12 +653,12 @@ function renderUserPage() {
     rightGroup.className = 'overview-right-group';
 
     if (perf.entry) {
-      appendEntryActionButtons(rightGroup, perf.entry, cfg.id);
+      appendEntryActionButtons(rightGroup, perf.entry, cfg.id, mode);
     }
 
     const scoreSpan = document.createElement('span');
     scoreSpan.className = 'overview-score';
-    scoreSpan.textContent = perf.bestScore !== null ? String(perf.bestScore) : '—';
+    scoreSpan.textContent = formatOverviewPerfValue(perf, mode);
 
     const playNowBtn = document.createElement('button');
     playNowBtn.type = 'button';
@@ -602,6 +667,10 @@ function renderUserPage() {
     playNowBtn.title = `Play ${labelStr}`;
     playNowBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (typeof activeGameMode !== 'undefined' && activeGameMode !== mode) {
+        activeGameMode = mode;
+        localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+      }
       closeUserPage(cfg.id);
       startGame(false);
     });
@@ -653,6 +722,7 @@ function updateOverviewCollapseUI() {
 
 function renderOverview() {
   if (!overviewCard || !overviewList) return;
+  const mode = (typeof activeGameMode !== 'undefined' && activeGameMode === 'all') ? 'all' : '1min';
   updateOverviewCollapseUI();
   renderOverviewFilterControls(overviewFiltersPanel, overviewFilterToggleBtn, isOverviewFiltersOpen, renderOverview);
 
@@ -665,6 +735,7 @@ function renderOverview() {
     overviewSortRankBtn.setAttribute('aria-selected', overviewSortMode === 'rank' ? 'true' : 'false');
   }
   if (overviewSortScoreBtn) {
+    overviewSortScoreBtn.textContent = mode === 'all' ? '⚡ By Time' : '📈 By Score';
     overviewSortScoreBtn.classList.toggle('active', overviewSortMode === 'score');
     overviewSortScoreBtn.setAttribute('aria-selected', overviewSortMode === 'score' ? 'true' : 'false');
   }
@@ -674,13 +745,13 @@ function renderOverview() {
     .map((cfg) => ({
       cfg,
       cat: getConfigCategory(cfg),
-      perf: getUserConfigPerformance(userId, cfg.id)
+      perf: getUserConfigPerformance(userId, cfg.id, mode)
     }));
 
   const fullOverviewItems = allOverviewItems.filter(it => !isMiniConfig(it.cfg));
   const miniOverviewItems = allOverviewItems.filter(it => isMiniConfig(it.cfg));
-  const fullPlayedCount = fullOverviewItems.filter(it => it.perf.bestScore !== null).length;
-  const miniPlayedCount = miniOverviewItems.filter(it => it.perf.bestScore !== null).length;
+  const fullPlayedCount = fullOverviewItems.filter(it => it.perf.hasPlayed).length;
+  const miniPlayedCount = miniOverviewItems.filter(it => it.perf.hasPlayed).length;
 
   if (overviewScopeFullBtn) {
     overviewScopeFullBtn.classList.toggle('active', overviewScope === 'full');
@@ -695,7 +766,7 @@ function renderOverview() {
 
   const items = overviewScope === 'mini' ? miniOverviewItems : fullOverviewItems;
 
-  const playedCount = items.filter(it => it.perf.bestScore !== null).length;
+  const playedCount = items.filter(it => it.perf.hasPlayed).length;
   const firstPlaceCount = items.filter(it => it.perf.rank === 1).length;
   if (overviewSummaryBadge) {
     overviewSummaryBadge.textContent =
@@ -708,59 +779,9 @@ function renderOverview() {
     return;
   }
 
-  items.sort((a, b) => {
-    const pa = a.perf;
-    const pb = b.perf;
+  sortOverviewPerformanceItems(items, overviewSortMode, mode);
 
-    if (overviewSortMode === 'rank') {
-      const aRanked = pa.rank !== null ? 0 : (pa.bestScore !== null ? 1 : 2);
-      const bRanked = pb.rank !== null ? 0 : (pb.bestScore !== null ? 1 : 2);
-      if (aRanked !== bRanked) return aRanked - bRanked;
-      if (pa.rank !== null && pb.rank !== null && pa.rank !== pb.rank) {
-        return pa.rank - pb.rank;
-      }
-      if ((pb.bestScore ?? -999) !== (pa.bestScore ?? -999)) {
-        return (pb.bestScore ?? -999) - (pa.bestScore ?? -999);
-      }
-      return pb.totalPlayers - pa.totalPlayers;
-    }
-
-    if (overviewSortMode === 'score') {
-      const aPlayed = pa.bestScore !== null ? 0 : 1;
-      const bPlayed = pb.bestScore !== null ? 0 : 1;
-      if (aPlayed !== bPlayed) return aPlayed - bPlayed;
-      if (pa.bestScore !== null && pb.bestScore !== null && pb.bestScore !== pa.bestScore) {
-        return pb.bestScore - pa.bestScore;
-      }
-      if ((pa.rank ?? 9999) !== (pb.rank ?? 9999)) {
-        return (pa.rank ?? 9999) - (pb.rank ?? 9999);
-      }
-      return pb.totalPlayers - pa.totalPlayers;
-    }
-
-    // Default: 'next' (🎯 Play Next: closest to ranking up first, then unplayed, then #1 leaders)
-    const getBucket = (p) => {
-      if (p.rank !== null && !p.isSoleLeader && p.pointsToTieNext !== null) return 0; // Can climb rank!
-      if (p.bestScore === null) return 1; // Unplayed
-      if (p.rank === null) return 2; // Played locally, not on board
-      return 3; // Already sole #1
-    };
-    const ba = getBucket(pa);
-    const bb = getBucket(pb);
-    if (ba !== bb) return ba - bb;
-    if (ba === 0) {
-      if (pa.pointsToTieNext !== pb.pointsToTieNext) {
-        return pa.pointsToTieNext - pb.pointsToTieNext;
-      }
-      return pb.rank - pa.rank;
-    }
-    if (ba === 1) {
-      return pb.totalPlayers - pa.totalPlayers;
-    }
-    return (pa.bestScore ?? 0) - (pb.bestScore ?? 0);
-  });
-
-  const overviewContextKey = `${userId}|${overviewScope}|${overviewSortMode}|${getOverviewFilterSignature()}`;
+  const overviewContextKey = `${userId}|${mode}|${overviewScope}|${overviewSortMode}|${getOverviewFilterSignature()}`;
   if (overviewContextKey !== overviewLastContextKey) {
     overviewPage = 1;
     overviewLastContextKey = overviewContextKey;
@@ -807,13 +828,11 @@ function renderOverview() {
       }
       rankSpan.appendChild(rText);
 
-      if (!perf.isSoleLeader && perf.pointsToTieNext !== null && perf.nextRank !== null) {
+      const hintText = getOverviewRankUpHintText(perf, mode);
+      if (hintText) {
         const upHint = document.createElement('span');
         upHint.className = 'rank-up-hint';
-        upHint.textContent =
-          perf.rank === 1
-            ? `+1 for sole #1`
-            : `↑ +${perf.pointsToTieNext} to #${perf.nextRank}`;
+        upHint.textContent = hintText;
         rankSpan.appendChild(upHint);
       }
     } else if (perf.totalPlayers > 0) {
@@ -827,7 +846,7 @@ function renderOverview() {
 
     const scoreSpan = document.createElement('span');
     scoreSpan.className = 'overview-score';
-    scoreSpan.textContent = perf.bestScore !== null ? String(perf.bestScore) : '—';
+    scoreSpan.textContent = formatOverviewPerfValue(perf, mode);
 
     const playNowBtn = document.createElement('button');
     playNowBtn.type = 'button';

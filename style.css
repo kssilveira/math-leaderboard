@@ -426,6 +426,7 @@ html, body {
   color: var(--text);
   min-width: 22px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .filter-toggle-pill.has-filters:not(.active) {
@@ -763,6 +764,7 @@ html, body {
   font-weight: 800;
   color: var(--primary);
   line-height: 1.15;
+  font-variant-numeric: tabular-nums;
 }
 
 .result-score-detail {
@@ -1174,6 +1176,7 @@ html, body {
 .player-score {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .player-right-group {
@@ -1445,6 +1448,7 @@ html, body {
   font-size: 1.35rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .hud-subvalue {

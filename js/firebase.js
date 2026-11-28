@@ -1,22 +1,32 @@
 // --- Firebase Realtime Database Sync, Protected Writes & Replay Fetching ---
 
-async function refreshSingleConfigLeaderboard(configId, force = false) {
+async function refreshSingleConfigLeaderboard(configId, force = false, mode = activeGameMode) {
   if (!configId) return;
-  const lastAt = Math.max(lastFullSyncAt, configSyncTimestamps.get(configId) || 0);
+  const resolvedMode = mode === 'all' ? 'all' : '1min';
+  if (resolvedMode === 'all' && !firebaseTimeLeaderboardsSupported) return;
+  const syncMap = resolvedMode === 'all' ? timeConfigSyncTimestamps : configSyncTimestamps;
+  const lastAt = Math.max(lastFullSyncAt, syncMap.get(configId) || 0);
   if (!force && Date.now() - lastAt < CONFIG_REFRESH_TTL_MS) return;
 
+  const path = resolvedMode === 'all' ? 'timeLeaderboards' : 'leaderboards';
+  const targetMap = resolvedMode === 'all' ? timeLeaderboardsMap : leaderboardsMap;
+
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(configId)}.json`);
+    const res = await fetch(`${FIREBASE_DB_URL}/${path}/${encodeURIComponent(configId)}.json`);
+    if (res && (res.status === 401 || res.status === 403) && resolvedMode === 'all') {
+      firebaseTimeLeaderboardsSupported = false;
+      return;
+    }
     if (!res.ok) return;
     const boardData = await res.json();
-    configSyncTimestamps.set(configId, Date.now());
+    syncMap.set(configId, Date.now());
     if (boardData && typeof boardData === 'object') {
-      leaderboardsMap[configId] = boardData;
+      targetMap[configId] = boardData;
     } else {
-      delete leaderboardsMap[configId];
+      delete targetMap[configId];
     }
-    invalidateRankedLeaderboardCache(configId);
-    if (activeConfigId === configId) {
+    invalidateRankedLeaderboardCache(configId, resolvedMode);
+    if (activeConfigId === configId && activeGameMode === resolvedMode) {
       renderConfigsUI();
       renderLeaderboard();
     }
@@ -30,6 +40,31 @@ function isPlausibleLeaderboardSession(score, sessionData) {
     ? sessionData.questions
     : (Array.isArray(sessionData.q) ? sessionData.q : []);
   if (qs.length > 240) return false;
+  if (qs.length >= 5) {
+    const totalMs = qs.reduce((sum, item) => {
+      const dur = Array.isArray(item) ? Number(item[4]) : Number(item && item.durationMs);
+      return sum + (dur || 0);
+    }, 0);
+    if (totalMs / qs.length < MIN_AVG_QUESTION_MS) return false;
+  }
+  return true;
+}
+
+function isPlausibleTimeSession(durationMs, sessionData) {
+  if (typeof durationMs !== 'number' || durationMs < 500 || durationMs > ALL_MODE_MAX_DURATION_MS) {
+    return false;
+  }
+  if (!sessionData) return true;
+  if (sessionData.completedAll === false) return false;
+  const targetCount = Number(sessionData.targetCount || sessionData.right || 0);
+  if (targetCount < 2 || targetCount > ALL_MODE_MAX_QUESTIONS) return false;
+  if (typeof sessionData.right === 'number' && sessionData.right !== targetCount) return false;
+  const wrong = typeof sessionData.wrong === 'number' ? sessionData.wrong : 0;
+  if (wrong < 0 || wrong > 500) return false;
+  const qs = Array.isArray(sessionData.questions)
+    ? sessionData.questions
+    : (Array.isArray(sessionData.q) ? sessionData.q : []);
+  if (qs.length > 600) return false;
   if (qs.length >= 5) {
     const totalMs = qs.reduce((sum, item) => {
       const dur = Array.isArray(item) ? Number(item[4]) : Number(item && item.durationMs);
@@ -82,28 +117,47 @@ async function syncFromFirebase() {
 
     const configsPromise = fetch(`${FIREBASE_DB_URL}/configs.json`);
     const leaderboardsPromise = fetch(`${FIREBASE_DB_URL}/leaderboards.json`);
+    const timeLeaderboardsPromise = fetch(`${FIREBASE_DB_URL}/timeLeaderboards.json`).catch(() => null);
     let fullSyncApplied = false;
 
     if (!urlUserParam && !urlReplayParam && activeConfigId) {
       const initialConfigId = activeConfigId;
-      fetch(`${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(initialConfigId)}.json`)
+      const initialMode = activeGameMode === 'all' ? 'all' : '1min';
+      const initialPath = initialMode === 'all' ? 'timeLeaderboards' : 'leaderboards';
+      fetch(`${FIREBASE_DB_URL}/${initialPath}/${encodeURIComponent(initialConfigId)}.json`)
         .then((res) => (res && res.ok ? res.json() : null))
         .then((boardData) => {
           if (fullSyncApplied || !boardData || typeof boardData !== 'object') return;
-          leaderboardsMap[initialConfigId] = boardData;
-          invalidateRankedLeaderboardCache(initialConfigId);
-          configSyncTimestamps.set(initialConfigId, Date.now());
-          if (activeConfigId === initialConfigId && !isPlaying && !isReplaying) {
+          if (initialMode === 'all') {
+            timeLeaderboardsMap[initialConfigId] = boardData;
+            invalidateRankedLeaderboardCache(initialConfigId, 'all');
+            timeConfigSyncTimestamps.set(initialConfigId, Date.now());
+          } else {
+            leaderboardsMap[initialConfigId] = boardData;
+            invalidateRankedLeaderboardCache(initialConfigId, '1min');
+            configSyncTimestamps.set(initialConfigId, Date.now());
+          }
+          if (activeConfigId === initialConfigId && activeGameMode === initialMode && !isPlaying && !isReplaying) {
             renderLeaderboard({ skipOverview: true });
           }
         })
         .catch(() => {});
     }
 
-    const [configsRes, leaderboardsRes] = await Promise.all([configsPromise, leaderboardsPromise]);
+    const [configsRes, leaderboardsRes, timeLeaderboardsRes] = await Promise.all([
+      configsPromise,
+      leaderboardsPromise,
+      timeLeaderboardsPromise
+    ]);
 
     const cloudConfigs = configsRes.ok ? await configsRes.json() : null;
     const cloudLeaderboards = leaderboardsRes.ok ? await leaderboardsRes.json() : null;
+    if (timeLeaderboardsRes && (timeLeaderboardsRes.status === 401 || timeLeaderboardsRes.status === 403)) {
+      firebaseTimeLeaderboardsSupported = false;
+    }
+    const cloudTimeLeaderboards = timeLeaderboardsRes && timeLeaderboardsRes.ok
+      ? await timeLeaderboardsRes.json()
+      : null;
 
     const mergedLeaderboards = {};
     if (cloudLeaderboards && typeof cloudLeaderboards === 'object') {
@@ -128,6 +182,32 @@ async function syncFromFirebase() {
       });
     }
 
+    const mergedTimeLeaderboards = {};
+    if (cloudTimeLeaderboards && typeof cloudTimeLeaderboards === 'object') {
+      Object.entries(cloudTimeLeaderboards).forEach(([rawCfgId, boardObj]) => {
+        if (!boardObj || typeof boardObj !== 'object') return;
+        const cfgId = resolveConfigIdAlias(rawCfgId);
+        if (!mergedTimeLeaderboards[cfgId]) mergedTimeLeaderboards[cfgId] = {};
+        const targetBoard = mergedTimeLeaderboards[cfgId];
+        Object.entries(boardObj).forEach(([uId, entry]) => {
+          if (!entry || typeof entry !== 'object' || typeof entry.durationMs !== 'number' || entry.durationMs <= 0) {
+            return;
+          }
+          const existing = targetBoard[uId];
+          if (
+            !existing ||
+            entry.durationMs < existing.durationMs ||
+            (entry.durationMs === existing.durationMs &&
+              ((entry.wrong || 0) < (existing.wrong || 0) ||
+                ((entry.wrong || 0) === (existing.wrong || 0) &&
+                  (entry.updatedAt || Infinity) < (existing.updatedAt || Infinity))))
+          ) {
+            targetBoard[uId] = entry;
+          }
+        });
+      });
+    }
+
     // Preserve any optimistic local-user entries written while full sync was in flight
     const localUserIds = new Set(users.map((u) => u && u.userId).filter(Boolean));
     Object.entries(leaderboardsMap).forEach(([cfgId, boardObj]) => {
@@ -141,12 +221,25 @@ async function syncFromFirebase() {
         }
       });
     });
+    Object.entries(timeLeaderboardsMap).forEach(([cfgId, boardObj]) => {
+      if (!boardObj || typeof boardObj !== 'object') return;
+      Object.entries(boardObj).forEach(([uId, entry]) => {
+        if (!localUserIds.has(uId) || !entry || typeof entry.durationMs !== 'number' || entry.durationMs <= 0) return;
+        if (!mergedTimeLeaderboards[cfgId]) mergedTimeLeaderboards[cfgId] = {};
+        const existing = mergedTimeLeaderboards[cfgId][uId];
+        if (!existing || typeof existing.durationMs !== 'number' || entry.durationMs < existing.durationMs) {
+          mergedTimeLeaderboards[cfgId][uId] = entry;
+        }
+      });
+    });
 
     fullSyncApplied = true;
     leaderboardsMap = mergedLeaderboards;
+    timeLeaderboardsMap = mergedTimeLeaderboards;
     invalidateRankedLeaderboardCache();
     lastFullSyncAt = Date.now();
     configSyncTimestamps.clear();
+    timeConfigSyncTimestamps.clear();
 
     const defaultCfg = createDefaultConfig();
     const byId = new Map();
@@ -357,6 +450,53 @@ async function writeProtectedLeaderboardEntry(cfgId, uId, slimRecord, normalized
   return { ok: false, mode: 'inline', record: fallbackRecord };
 }
 
+async function writeProtectedTimeLeaderboardEntry(cfgId, uId, slimRecord, normalizedQuestions = null) {
+  if (!firebaseTimeLeaderboardsSupported) {
+    return { ok: false, mode: 'split', record: slimRecord };
+  }
+  const token = getUserSecret(uId);
+  const compactQ = Array.isArray(normalizedQuestions) && normalizedQuestions.length > 0
+    ? encodeCompactQuestionsList(normalizedQuestions, cfgId)
+    : [];
+  const recordToWrite = { ...slimRecord };
+  delete recordToWrite.questions;
+  delete recordToWrite.q;
+  if (compactQ.length > 0) {
+    recordToWrite.hasReplay = true;
+    timeReplayCacheMap.set(`${cfgId}__${uId}`, compactQ);
+  }
+
+  const splitPayload = {
+    [`userSecrets/${uId}`]: {
+      token,
+      proof: `${token}_${recordToWrite.updatedAt}`
+    },
+    [`timeLeaderboards/${cfgId}/${uId}`]: recordToWrite
+  };
+  if (compactQ.length > 0) {
+    splitPayload[`timeReplays/${cfgId}/${uId}`] = {
+      updatedAt: recordToWrite.updatedAt,
+      q: compactQ
+    };
+  }
+
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(splitPayload)
+    });
+    if (res && res.ok) {
+      markUserClaimed(uId);
+      return { ok: true, mode: 'split', record: recordToWrite };
+    }
+    if (res && (res.status === 401 || res.status === 403)) {
+      firebaseTimeLeaderboardsSupported = false;
+    }
+  } catch (_) {}
+  return { ok: false, mode: 'split', record: recordToWrite };
+}
+
 async function claimLocalUsersInFirebase() {
   const unclaimed = users.filter(u => u && u.userId && !claimedUserIds.has(u.userId));
   if (unclaimed.length === 0) return;
@@ -392,10 +532,75 @@ async function backfillLocalBestToLeaderboard() {
     const sepIdx = compKey.indexOf('__');
     if (sepIdx <= 0) return;
     const uId = compKey.slice(0, sepIdx);
-    const cfgId = compKey.slice(sepIdx + 2);
+    const rest = compKey.slice(sepIdx + 2);
+    const isAllModeKey = rest.endsWith('__all');
+    const cfgId = isAllModeKey ? rest.slice(0, -5) : rest;
     if (!uId || !cfgId) return;
 
-    const bestLocal = getBestLocalSession(uId, cfgId);
+    if (isAllModeKey) {
+      if (!firebaseTimeLeaderboardsSupported) return;
+      const bestLocal = getBestLocalSession(uId, cfgId, 'all');
+      if (!bestLocal || !isPlausibleTimeSession(bestLocal.durationMs, bestLocal)) return;
+
+      const existing = timeLeaderboardsMap[cfgId] && timeLeaderboardsMap[cfgId][uId];
+      const hasExisting = existing && typeof existing.durationMs === 'number' && existing.durationMs > 0;
+      const existingHasReplay = hasExisting && entryHasReplay(existing);
+      const localHasQuestions = sessionHasQuestions(bestLocal);
+
+      const needsUpload =
+        !hasExisting ||
+        bestLocal.durationMs < existing.durationMs ||
+        (!existingHasReplay && localHasQuestions);
+
+      if (!needsUpload) return;
+
+      const userObj = users.find(u => u.userId === uId);
+      const resolvedUsername = (userObj && userObj.username) || (existing && existing.username) || username || 'Player';
+      const useLocalStats = !hasExisting || bestLocal.durationMs <= existing.durationMs;
+      const bestDurationMs = hasExisting ? Math.min(existing.durationMs, bestLocal.durationMs) : bestLocal.durationMs;
+      const targetCount = useLocalStats
+        ? (bestLocal.targetCount || bestLocal.right || 0)
+        : (existing.targetCount || existing.right || 0);
+      const rawQuestions = localHasQuestions ? getSessionQuestions(bestLocal, cfgId) : [];
+      const normalizedQuestions = rawQuestions.map(q => normalizeQuestionRecord(q, cfgId));
+      const baseUpdatedAt = (hasExisting && bestLocal.durationMs >= existing.durationMs && existing.updatedAt)
+        ? existing.updatedAt + 1
+        : (bestLocal.playedAt || Date.now());
+
+      const slimRecord = {
+        userId: uId,
+        username: resolvedUsername,
+        durationMs: bestDurationMs,
+        right: useLocalStats ? (bestLocal.right || targetCount) : (existing.right || targetCount),
+        wrong: useLocalStats ? (bestLocal.wrong || 0) : (existing.wrong || 0),
+        targetCount,
+        updatedAt: baseUpdatedAt
+      };
+      if (normalizedQuestions.length > 0) {
+        slimRecord.hasReplay = true;
+      }
+
+      if (!timeLeaderboardsMap[cfgId]) {
+        timeLeaderboardsMap[cfgId] = {};
+      }
+      timeLeaderboardsMap[cfgId][uId] = slimRecord;
+      invalidateRankedLeaderboardCache(cfgId, 'all');
+
+      if (!uploadsByUser.has(uId)) {
+        uploadsByUser.set(uId, []);
+      }
+      uploadsByUser.get(uId).push(async () => {
+        await ensureConfigPublishedInFirebase(cfgId);
+        const res = await writeProtectedTimeLeaderboardEntry(cfgId, uId, slimRecord, normalizedQuestions);
+        if (res && res.ok && res.record) {
+          timeLeaderboardsMap[cfgId][uId] = res.record;
+          invalidateRankedLeaderboardCache(cfgId, 'all');
+        }
+      });
+      return;
+    }
+
+    const bestLocal = getBestLocalSession(uId, cfgId, '1min');
     if (!bestLocal || !isPlausibleLeaderboardSession(bestLocal.score, bestLocal)) return;
 
     const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][uId];
@@ -560,12 +765,125 @@ async function submitScoreToLeaderboard(score, sessionData) {
     invalidateRankedLeaderboardCache(configId);
   }
 
-  await refreshSingleConfigLeaderboard(configId, true);
+  await refreshSingleConfigLeaderboard(configId, true, '1min');
+}
+
+async function submitTimeToLeaderboard(durationMs, sessionData) {
+  if (!isPlausibleTimeSession(durationMs, sessionData)) {
+    return;
+  }
+  const configId = activeConfigId;
+  const targetCount = Number(sessionData.targetCount || sessionData.right || 0);
+  const cachedEntry = timeLeaderboardsMap[configId] && timeLeaderboardsMap[configId][userId];
+  const cachedHasReplay = cachedEntry && entryHasReplay(cachedEntry);
+
+  if (
+    cachedEntry &&
+    typeof cachedEntry.durationMs === 'number' &&
+    cachedEntry.durationMs > 0 &&
+    durationMs >= cachedEntry.durationMs &&
+    cachedHasReplay
+  ) {
+    lastResult.classList.remove('new-high-score');
+    lastScoreLabel.textContent = 'Last Time';
+    refreshSingleConfigLeaderboard(configId, true, 'all');
+    return;
+  }
+
+  const sessionQuestions = getSessionQuestions(sessionData, configId);
+  const isOptimisticBest =
+    !cachedEntry ||
+    typeof cachedEntry.durationMs !== 'number' ||
+    cachedEntry.durationMs <= 0 ||
+    durationMs < cachedEntry.durationMs;
+  const optimisticQuestions = sessionQuestions.map(q => normalizeQuestionRecord(q, configId));
+  if (isOptimisticBest || !cachedHasReplay) {
+    const optimisticRecord = {
+      userId,
+      username,
+      durationMs: isOptimisticBest ? durationMs : cachedEntry.durationMs,
+      right: isOptimisticBest ? targetCount : (cachedEntry.right ?? targetCount),
+      wrong: isOptimisticBest ? wrongCount : (cachedEntry.wrong ?? wrongCount),
+      targetCount: isOptimisticBest ? targetCount : (cachedEntry.targetCount ?? targetCount),
+      updatedAt: Date.now()
+    };
+    if (optimisticQuestions.length > 0) {
+      optimisticRecord.hasReplay = true;
+      timeReplayCacheMap.set(`${configId}__${userId}`, encodeCompactQuestionsList(optimisticQuestions, configId));
+    }
+    if (!timeLeaderboardsMap[configId]) timeLeaderboardsMap[configId] = {};
+    timeLeaderboardsMap[configId][userId] = optimisticRecord;
+    invalidateRankedLeaderboardCache(configId, 'all');
+    renderConfigsUI();
+    renderLeaderboard();
+  }
+
+  if (!firebaseTimeLeaderboardsSupported) return;
+
+  const userUrl = `${FIREBASE_DB_URL}/timeLeaderboards/${encodeURIComponent(configId)}/${encodeURIComponent(userId)}.json`;
+  const [, existingRes] = await Promise.all([
+    ensureConfigPublishedInFirebase(configId),
+    fetch(userUrl).catch(() => null)
+  ]);
+
+  if (existingRes && (existingRes.status === 401 || existingRes.status === 403)) {
+    firebaseTimeLeaderboardsSupported = false;
+    return;
+  }
+
+  const existing = existingRes && existingRes.ok ? await existingRes.json() : null;
+  const hasExisting = existing && typeof existing.durationMs === 'number' && existing.durationMs > 0;
+  const isNewBestTime = !hasExisting || durationMs < existing.durationMs;
+  const bestDurationMs = hasExisting ? Math.min(existing.durationMs, durationMs) : durationMs;
+
+  lastResult.classList.toggle('new-high-score', isNewBestTime);
+  lastScoreLabel.textContent = isNewBestTime ? '★ New Best Time!' : 'Last Time';
+
+  const existingHasReplay = hasExisting && entryHasReplay(existing);
+  const useSessionQuestions = isNewBestTime || (durationMs === existing.durationMs && !existingHasReplay);
+  const bestLocal = useSessionQuestions ? null : getBestLocalSession(userId, configId, 'all');
+  const sourceSession = useSessionQuestions
+    ? sessionData
+    : (existingHasReplay ? existing : (bestLocal || sessionData));
+
+  const sourceQuestions = getSessionQuestions(sourceSession, configId);
+  const normalizedQuestions = sourceQuestions.map(q => normalizeQuestionRecord(q, configId));
+
+  const nextUpdatedAt = isNewBestTime
+    ? Date.now()
+    : ((existing && existing.updatedAt ? existing.updatedAt : Date.now()) + 1);
+
+  const sourceTargetCount = Number(
+    (sourceSession && (sourceSession.targetCount || sourceSession.right)) || targetCount
+  );
+  const slimRecord = {
+    userId,
+    username,
+    durationMs: bestDurationMs,
+    right: sourceSession && typeof sourceSession.right === 'number' ? sourceSession.right : sourceTargetCount,
+    wrong: sourceSession && typeof sourceSession.wrong === 'number' ? sourceSession.wrong : wrongCount,
+    targetCount: sourceTargetCount,
+    updatedAt: nextUpdatedAt
+  };
+  if (normalizedQuestions.length > 0 || existingHasReplay) {
+    slimRecord.hasReplay = true;
+  }
+
+  if (isNewBestTime || useSessionQuestions) {
+    const writeRes = await writeProtectedTimeLeaderboardEntry(configId, userId, slimRecord, normalizedQuestions);
+    if (!timeLeaderboardsMap[configId]) timeLeaderboardsMap[configId] = {};
+    timeLeaderboardsMap[configId][userId] = (writeRes && writeRes.record) ? writeRes.record : slimRecord;
+    invalidateRankedLeaderboardCache(configId, 'all');
+  }
+
+  await refreshSingleConfigLeaderboard(configId, true, 'all');
 }
 
 async function updateUsernameInFirebase(targetUserId, newUsername) {
   const configIds = Object.keys(leaderboardsMap);
+  const timeConfigIds = Object.keys(timeLeaderboardsMap);
   const affected = [];
+  const affectedTime = [];
   let maxUpdatedAt = Date.now() - 1;
   for (const cfgId of configIds) {
     const existing = leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId];
@@ -576,7 +894,16 @@ async function updateUsernameInFirebase(targetUserId, newUsername) {
       }
     }
   }
-  if (affected.length === 0) return;
+  for (const cfgId of timeConfigIds) {
+    const existing = timeLeaderboardsMap[cfgId] && timeLeaderboardsMap[cfgId][targetUserId];
+    if (existing) {
+      affectedTime.push({ cfgId, existing });
+      if (typeof existing.updatedAt === 'number' && existing.updatedAt > maxUpdatedAt) {
+        maxUpdatedAt = existing.updatedAt;
+      }
+    }
+  }
+  if (affected.length === 0 && affectedTime.length === 0) return;
 
   const nextUpdatedAt = maxUpdatedAt + 1;
   const token = getUserSecret(targetUserId);
@@ -595,9 +922,23 @@ async function updateUsernameInFirebase(targetUserId, newUsername) {
       updatedAt: nextUpdatedAt
     };
     leaderboardsMap[cfgId][targetUserId] = updatedRecord;
-    invalidateRankedLeaderboardCache(cfgId);
+    invalidateRankedLeaderboardCache(cfgId, '1min');
     patchBody[`leaderboards/${cfgId}/${targetUserId}`] = updatedRecord;
   });
+
+  if (firebaseTimeLeaderboardsSupported) {
+    affectedTime.forEach(({ cfgId, existing }) => {
+      const updatedRecord = {
+        ...existing,
+        userId: targetUserId,
+        username: newUsername,
+        updatedAt: nextUpdatedAt
+      };
+      timeLeaderboardsMap[cfgId][targetUserId] = updatedRecord;
+      invalidateRankedLeaderboardCache(cfgId, 'all');
+      patchBody[`timeLeaderboards/${cfgId}/${targetUserId}`] = updatedRecord;
+    });
+  }
 
   renderLeaderboard();
 
@@ -609,12 +950,28 @@ async function updateUsernameInFirebase(targetUserId, newUsername) {
     });
     if (res && res.ok) {
       markUserClaimed(targetUserId);
+      return;
+    }
+    if (res && (res.status === 401 || res.status === 403) && affectedTime.length > 0 && affected.length > 0) {
+      firebaseTimeLeaderboardsSupported = false;
+      Object.keys(patchBody).forEach((k) => {
+        if (k.startsWith('timeLeaderboards/')) delete patchBody[k];
+      });
+      const retryRes = await fetch(`${FIREBASE_DB_URL}/.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchBody)
+      }).catch(() => null);
+      if (retryRes && retryRes.ok) {
+        markUserClaimed(targetUserId);
+      }
     }
   } catch (_) {}
 }
 
 async function deleteUserFromFirebase(targetUserId, knownSecret) {
   const configIds = Object.keys(leaderboardsMap);
+  const timeConfigIds = Object.keys(timeLeaderboardsMap);
   const token = knownSecret || getUserSecret(targetUserId);
   const deleteProof = `${token}_delete_${Date.now()}`;
   const patchBody = {
@@ -627,13 +984,25 @@ async function deleteUserFromFirebase(targetUserId, knownSecret) {
   configIds.forEach((cfgId) => {
     if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
       delete leaderboardsMap[cfgId][targetUserId];
-      invalidateRankedLeaderboardCache(cfgId);
+      invalidateRankedLeaderboardCache(cfgId, '1min');
       replayCacheMap.delete(`${cfgId}__${targetUserId}`);
       patchBody[`leaderboards/${cfgId}/${targetUserId}`] = null;
       if (firebaseReplaysPathSupported) {
         patchBody[`replays/${cfgId}/${targetUserId}`] = null;
       }
       hasEntries = true;
+    }
+  });
+  timeConfigIds.forEach((cfgId) => {
+    if (timeLeaderboardsMap[cfgId] && timeLeaderboardsMap[cfgId][targetUserId]) {
+      delete timeLeaderboardsMap[cfgId][targetUserId];
+      invalidateRankedLeaderboardCache(cfgId, 'all');
+      timeReplayCacheMap.delete(`${cfgId}__${targetUserId}`);
+      if (firebaseTimeLeaderboardsSupported) {
+        patchBody[`timeLeaderboards/${cfgId}/${targetUserId}`] = null;
+        patchBody[`timeReplays/${cfgId}/${targetUserId}`] = null;
+        hasEntries = true;
+      }
     }
   });
   renderConfigsUI();
@@ -645,25 +1014,45 @@ async function deleteUserFromFirebase(targetUserId, knownSecret) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patchBody)
       });
-      if (res && (res.status === 401 || res.status === 403) && firebaseReplaysPathSupported) {
-        firebaseReplaysPathSupported = false;
-        Object.keys(patchBody).forEach((k) => {
-          if (k.startsWith('replays/')) delete patchBody[k];
-        });
-        await fetch(`${FIREBASE_DB_URL}/.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patchBody)
-        }).catch(() => {});
+      if (res && (res.status === 401 || res.status === 403)) {
+        let changed = false;
+        if (firebaseTimeLeaderboardsSupported) {
+          firebaseTimeLeaderboardsSupported = false;
+          Object.keys(patchBody).forEach((k) => {
+            if (k.startsWith('timeLeaderboards/') || k.startsWith('timeReplays/')) {
+              delete patchBody[k];
+              changed = true;
+            }
+          });
+        }
+        if (firebaseReplaysPathSupported) {
+          firebaseReplaysPathSupported = false;
+          Object.keys(patchBody).forEach((k) => {
+            if (k.startsWith('replays/')) {
+              delete patchBody[k];
+              changed = true;
+            }
+          });
+        }
+        if (changed && Object.keys(patchBody).length > 1) {
+          await fetch(`${FIREBASE_DB_URL}/.json`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patchBody)
+          }).catch(() => {});
+        }
       }
     } catch (_) {}
   }
 }
 
-async function fetchRemoteReplayQuestions(cfgId, targetUserId) {
+async function fetchRemoteReplayQuestions(cfgId, targetUserId, mode = activeGameMode) {
+  const resolvedMode = mode === 'all' ? 'all' : '1min';
+  const cacheMap = resolvedMode === 'all' ? timeReplayCacheMap : replayCacheMap;
+  const replayRoot = resolvedMode === 'all' ? 'timeReplays' : 'replays';
   const cacheKey = `${cfgId}__${targetUserId}`;
-  if (replayCacheMap.has(cacheKey)) {
-    const cached = replayCacheMap.get(cacheKey);
+  if (cacheMap.has(cacheKey)) {
+    const cached = cacheMap.get(cacheKey);
     if (Array.isArray(cached) && cached.length > 0) {
       return Array.isArray(cached[0])
         ? decodeCompactQuestionsList(cached, cfgId)
@@ -674,25 +1063,26 @@ async function fetchRemoteReplayQuestions(cfgId, targetUserId) {
 
   try {
     const res = await fetch(
-      `${FIREBASE_DB_URL}/replays/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`
+      `${FIREBASE_DB_URL}/${replayRoot}/${encodeURIComponent(cfgId)}/${encodeURIComponent(targetUserId)}.json`
     );
     if (!res.ok) return [];
     const data = await res.json();
     if (!data || typeof data !== 'object') return [];
     if (Array.isArray(data.q) && data.q.length > 0) {
-      replayCacheMap.set(cacheKey, data.q);
+      cacheMap.set(cacheKey, data.q);
       return decodeCompactQuestionsList(data.q, cfgId);
     }
     if (Array.isArray(data.questions) && data.questions.length > 0) {
-      replayCacheMap.set(cacheKey, data.questions);
+      cacheMap.set(cacheKey, data.questions);
       return data.questions.map(q => normalizeQuestionRecord(q, cfgId));
     }
   } catch (_) {}
   return [];
 }
 
-async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId) {
+async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId, mode = activeGameMode) {
   if (!entry) return null;
+  const resolvedMode = mode === 'all' || entry.mode === 'all' ? 'all' : '1min';
   if (typeof ensureStudyConfigLoaded === "function") {
     await ensureStudyConfigLoaded(targetConfigId);
   }
@@ -702,13 +1092,18 @@ async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId)
   } else if (Array.isArray(entry.q) && entry.q.length > 0) {
     questions = decodeCompactQuestionsList(entry.q, targetConfigId);
   } else if (entry.hasReplay && entry.userId) {
-    questions = await fetchRemoteReplayQuestions(targetConfigId, entry.userId);
+    questions = await fetchRemoteReplayQuestions(targetConfigId, entry.userId, resolvedMode);
   }
   if (!questions || questions.length === 0) return null;
+  const targetCount = resolvedMode === 'all'
+    ? (Number(entry.targetCount || entry.right || questions.filter(q => q.right > 0).length) || 0)
+    : undefined;
   return {
     username: entry.username,
     configId: targetConfigId,
-    score: entry.score,
+    mode: resolvedMode,
+    ...(targetCount ? { targetCount } : {}),
+    score: typeof entry.score === 'number' ? entry.score : (entry.right || 0) - (entry.wrong || 0),
     right: entry.right,
     wrong: entry.wrong,
     durationMs: entry.durationMs || GAME_DURATION_SECONDS * 1000,
@@ -716,30 +1111,34 @@ async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId)
   };
 }
 
-async function resolveMyBestReplaySession() {
+async function resolveMyBestReplaySession(mode = activeGameMode) {
+  const resolvedMode = mode === 'all' ? 'all' : '1min';
   if (typeof ensureStudyConfigLoaded === "function") {
     await ensureStudyConfigLoaded(activeConfigId);
   }
-  const boardObj = leaderboardsMap[activeConfigId] || {};
+  const boardMap = resolvedMode === 'all' ? timeLeaderboardsMap : leaderboardsMap;
+  const boardObj = boardMap[activeConfigId] || {};
   const myEntry = boardObj[userId];
-  const bestLocal = getBestLocalSession(userId, activeConfigId);
+  const bestLocal = getBestLocalSession(userId, activeConfigId, resolvedMode);
 
   if (myEntry) {
     if (
       (Array.isArray(myEntry.questions) && myEntry.questions.length > 0) ||
       (Array.isArray(myEntry.q) && myEntry.q.length > 0)
     ) {
-      return await resolveEntryReplaySession(myEntry, activeConfigId);
+      return await resolveEntryReplaySession(myEntry, activeConfigId, resolvedMode);
     }
-    if (
-      bestLocal &&
-      typeof bestLocal.score === 'number' &&
-      bestLocal.score >= myEntry.score &&
-      sessionHasQuestions(bestLocal)
-    ) {
+    const localBeatsOrMatchesRemote = bestLocal && (
+      resolvedMode === 'all'
+        ? (typeof bestLocal.durationMs === 'number' && bestLocal.durationMs > 0 && bestLocal.durationMs <= myEntry.durationMs)
+        : (typeof bestLocal.score === 'number' && bestLocal.score >= myEntry.score)
+    );
+    if (localBeatsOrMatchesRemote && sessionHasQuestions(bestLocal)) {
       return {
         username: myEntry.username || username,
         configId: activeConfigId,
+        mode: resolvedMode,
+        ...(resolvedMode === 'all' ? { targetCount: bestLocal.targetCount || bestLocal.right } : {}),
         score: bestLocal.score,
         right: bestLocal.right,
         wrong: bestLocal.wrong,
@@ -748,7 +1147,7 @@ async function resolveMyBestReplaySession() {
       };
     }
     if (myEntry.hasReplay) {
-      const remote = await resolveEntryReplaySession(myEntry, activeConfigId);
+      const remote = await resolveEntryReplaySession(myEntry, activeConfigId, resolvedMode);
       if (remote) return remote;
     }
   }
@@ -757,6 +1156,8 @@ async function resolveMyBestReplaySession() {
     return {
       username,
       configId: activeConfigId,
+      mode: resolvedMode,
+      ...(resolvedMode === 'all' ? { targetCount: bestLocal.targetCount || bestLocal.right } : {}),
       score: bestLocal.score,
       right: bestLocal.right,
       wrong: bestLocal.wrong,

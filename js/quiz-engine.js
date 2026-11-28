@@ -4,6 +4,24 @@ function randomInt(low, high) {
   return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
+function formatDurationMs(ms) {
+  const totalTenths = Math.max(0, Math.round((Number(ms) || 0) / 100));
+  if (totalTenths < 600) {
+    return `${(totalTenths / 10).toFixed(1)}s`;
+  }
+  const mins = Math.floor(totalTenths / 600);
+  const secs = Math.floor((totalTenths % 600) / 10);
+  const tenths = totalTenths % 10;
+  return `${mins}:${String(secs).padStart(2, '0')}.${tenths}`;
+}
+
+function formatDurationDeltaMs(deltaMs) {
+  const num = Number(deltaMs) || 0;
+  if (Math.round(num / 100) === 0) return '0.0s';
+  const sign = num < 0 ? '−' : '+';
+  return `${sign}${formatDurationMs(Math.abs(num))}`;
+}
+
 function normalizeQuestionRecord(q, targetConfigId = activeConfigId) {
   const nums = Array.isArray(q.nums) ? [...q.nums] : [0, 0, 0];
   const op = q.op || '+';
@@ -497,4 +515,176 @@ function buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder, lastPerf = n
     key,
     lastPerf
   };
+}
+
+function shuffleArrayInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomInt(0, i);
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function enumerateMathUniqueQuestions(cfg, limit = 101) {
+  const items = [];
+  if (!cfg || !Array.isArray(cfg.ops)) return { items, capped: false };
+  const { ops, min1, max1, min2, max2, min3, max3 } = cfg;
+  if (min1 > max1 || min2 > max2 || min3 > max3) return { items, capped: false };
+
+  const seen = new Set();
+  let capped = false;
+
+  const pushEquation = (a, op, b, c) => {
+    const nums = [a, b, c];
+    const indices = getValidMissingIndices(a, op, b, c);
+    for (let k = 0; k < indices.length; k++) {
+      const missingIndex = indices[k];
+      const key = `${a}${op}${b}=${c}?${missingIndex}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({
+        nums,
+        op,
+        missingIndex,
+        answer: nums[missingIndex],
+        key
+      });
+      if (items.length >= limit) {
+        capped = true;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (ops.includes('+')) {
+    const aLow = Math.max(min1, min3 - max2);
+    const aHigh = Math.min(max1, max3 - min2);
+    for (let a = aLow; a <= aHigh && !capped; a++) {
+      const bLow = Math.max(min2, min3 - a);
+      const bHigh = Math.min(max2, max3 - a);
+      for (let b = bLow; b <= bHigh; b++) {
+        if (pushEquation(a, '+', b, a + b)) break;
+      }
+    }
+  }
+
+  if (!capped && ops.includes('-')) {
+    const aLow = Math.max(min1, min2 + min3);
+    const aHigh = Math.min(max1, max2 + max3);
+    for (let a = aLow; a <= aHigh && !capped; a++) {
+      const bLow = Math.max(min2, a - max3);
+      const bHigh = Math.min(max2, a - min3);
+      for (let b = bLow; b <= bHigh; b++) {
+        if (pushEquation(a, '-', b, a - b)) break;
+      }
+    }
+  }
+
+  if (!capped && ops.includes('×')) {
+    for (let a = min1; a <= max1 && !capped; a++) {
+      let bLow;
+      let bHigh;
+      if (a === 0) {
+        if (min3 <= 0 && 0 <= max3) {
+          bLow = min2;
+          bHigh = max2;
+        } else {
+          bLow = 1;
+          bHigh = 0;
+        }
+      } else if (a > 0) {
+        bLow = Math.max(min2, Math.ceil(min3 / a));
+        bHigh = Math.min(max2, Math.floor(max3 / a));
+      } else {
+        bLow = Math.max(min2, Math.ceil(max3 / a));
+        bHigh = Math.min(max2, Math.floor(min3 / a));
+      }
+      for (let b = bLow; b <= bHigh; b++) {
+        if (pushEquation(a, '×', b, a * b)) break;
+      }
+    }
+  }
+
+  if (!capped && ops.includes('÷')) {
+    for (let b = min2; b <= max2 && !capped; b++) {
+      if (b === 0) continue;
+      const cLow = b > 0
+        ? Math.max(min3, Math.ceil(min1 / b))
+        : Math.max(min3, Math.ceil(max1 / b));
+      const cHigh = b > 0
+        ? Math.min(max3, Math.floor(max1 / b))
+        : Math.min(max3, Math.floor(min1 / b));
+      for (let c = cLow; c <= cHigh; c++) {
+        if (pushEquation(b * c, '÷', b, c)) break;
+      }
+    }
+  }
+
+  return { items, capped };
+}
+
+function getAllModeTargetCount(cfg, maxCount = 100) {
+  if (!cfg) return 0;
+  if (isQuizConfig(cfg)) {
+    if (cfg.isLazyStudy && !cfg.studyDataLoaded) return null;
+    const len = Array.isArray(cfg.items) ? cfg.items.length : 0;
+    return Math.min(len, maxCount);
+  }
+  const { items } = enumerateMathUniqueQuestions(cfg, maxCount + 1);
+  return Math.min(items.length, maxCount);
+}
+
+function buildAllModeDeck(cfg, maxCount = 100) {
+  if (!cfg) return [];
+  if (isQuizConfig(cfg)) {
+    const items = Array.isArray(cfg.items) ? cfg.items : [];
+    if (items.length < 2) return [];
+    const indices = Array.from({ length: items.length }, (_, i) => i);
+    shuffleArrayInPlace(indices);
+    return indices.slice(0, Math.min(items.length, maxCount));
+  }
+
+  const samplers = getValidSamplers(cfg);
+  if (samplers.length === 0) return [];
+  const { items, capped } = enumerateMathUniqueQuestions(cfg, maxCount + 1);
+  if (!capped) {
+    return shuffleArrayInPlace([...items]);
+  }
+
+  const deck = [];
+  const seenKeys = new Set();
+  const maxAttempts = maxCount * 25;
+  for (let attempt = 0; attempt < maxAttempts && deck.length < maxCount; attempt++) {
+    const sampleFn = samplers[randomInt(0, samplers.length - 1)];
+    const { a, b, c, op } = sampleFn();
+    const nums = [a, b, c];
+    const validIndices = getValidMissingIndices(a, op, b, c);
+    const missingIndex = validIndices[randomInt(0, validIndices.length - 1)];
+    const key = `${a}${op}${b}=${c}?${missingIndex}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    deck.push({
+      nums,
+      op,
+      missingIndex,
+      answer: nums[missingIndex],
+      key
+    });
+  }
+
+  if (deck.length < maxCount) {
+    const fallbackPool = shuffleArrayInPlace([...items]);
+    for (let i = 0; i < fallbackPool.length && deck.length < maxCount; i++) {
+      const candidate = fallbackPool[i];
+      if (!seenKeys.has(candidate.key)) {
+        seenKeys.add(candidate.key);
+        deck.push(candidate);
+      }
+    }
+  }
+
+  return deck;
 }

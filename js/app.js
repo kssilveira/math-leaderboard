@@ -21,10 +21,13 @@ const STORAGE_KEYS = {
   landscapeConfigs: 'math_landscape_configs_v1',
   overviewScope: 'math_overview_scope_v1',
   overviewExcludedFilters: 'math_overview_filters_v1',
-  studyAutoSpeak: 'math_study_auto_speak_v1'
+  studyAutoSpeak: 'math_study_auto_speak_v1',
+  activeGameMode: 'math_active_game_mode_v1'
 };
 
 const GAME_DURATION_SECONDS = 60;
+const ALL_MODE_MAX_QUESTIONS = 100;
+const ALL_MODE_MAX_DURATION_MS = 1800000;
 const ALL_OPS = ['+', '-', '×', '÷'];
 const COMPACT_OPS = ['+', '-', '×', '÷', '?'];
 const MAX_LOCAL_USERS = 8;
@@ -52,6 +55,7 @@ let questionStatsDirty = false;
 let hasCompactedLegacyHistory = false;
 
 let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
+let timeLeaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, durationMs, right, wrong, targetCount, updatedAt } } }
 const knownCloudConfigIds = new Set();
 const claimedUserIds = new Set();
 try {
@@ -65,9 +69,18 @@ try {
 let hasRunInitialBackfill = false;
 let lastFullSyncAt = 0;
 const configSyncTimestamps = new Map();
+const timeConfigSyncTimestamps = new Map();
 const CONFIG_REFRESH_TTL_MS = 30000;
 const replayCacheMap = new Map();
+const timeReplayCacheMap = new Map();
 let firebaseReplaysPathSupported = true;
+let firebaseTimeLeaderboardsSupported = true;
+let activeGameMode = localStorage.getItem(STORAGE_KEYS.activeGameMode) === 'all' ? 'all' : '1min';
+let activePlayMode = '1min';
+let allModeDeck = [];
+let allModeTargetCount = 0;
+let allModeRaceUsedInitial = new Set();
+let stopwatchRafId = null;
 const rawSavedCategory = localStorage.getItem(STORAGE_KEYS.activeCategory);
 let activeCategory = rawSavedCategory === 'chem' ? 'other' : (rawSavedCategory || 'math');
 const VALID_LANG_FILTERS = ['en', 'pt', 'es', 'fr', 'de'];
@@ -132,6 +145,7 @@ let overviewSortMode = 'next'; // 'next' | 'rank' | 'score'
 let overviewScope = localStorage.getItem(STORAGE_KEYS.overviewScope) === 'mini' ? 'mini' : 'full';
 let userPageSortMode = 'rank'; // 'rank' | 'score' | 'next'
 let userPageScope = 'full';
+let userPageMode = activeGameMode;
 let viewedUserId = null;
 let viewedUsername = '';
 let isReviewExpanded = localStorage.getItem(STORAGE_KEYS.reviewExpanded) === '1';
@@ -205,6 +219,8 @@ const deleteUserBtn = document.getElementById('delete-user-btn');
 
 const categoryListEl = document.getElementById('category-list');
 const categoryBtns = categoryListEl ? Array.from(categoryListEl.querySelectorAll('[data-category]')) : [];
+const modeListEl = document.getElementById('mode-list');
+const modeBtns = modeListEl ? Array.from(modeListEl.querySelectorAll('[data-mode]')) : [];
 const learnLangRow = document.getElementById('learn-lang-row');
 const learnLangListEl = document.getElementById('learn-lang-list');
 const withLangRow = document.getElementById('with-lang-row');
@@ -243,6 +259,8 @@ const shareUserPageBtn = document.getElementById('share-user-page-btn');
 const userSortRankBtn = document.getElementById('user-sort-rank-btn');
 const userSortScoreBtn = document.getElementById('user-sort-score-btn');
 const userSortNextBtn = document.getElementById('user-sort-next-btn');
+const userMode1MinBtn = document.getElementById('user-mode-1min-btn');
+const userModeAllBtn = document.getElementById('user-mode-all-btn');
 const userScopeFullBtn = document.getElementById('user-scope-full-btn');
 const userScopeMiniBtn = document.getElementById('user-scope-mini-btn');
 const userFilterToggleBtn = document.getElementById('user-filter-toggle-btn');
@@ -291,11 +309,15 @@ const reviewBody = document.getElementById('review-body');
 const reviewSummaryBadge = document.getElementById('review-summary-badge');
 const chartSection = document.querySelector('.chart-section');
 const historyChart = document.getElementById('history-chart');
+const chartLegendPrimary = document.getElementById('chart-legend-primary');
+const chartLegendSecondaryWrap = document.getElementById('chart-legend-secondary-wrap');
+const chartLegendBest = document.getElementById('chart-legend-best');
 const sortImproveBtn = document.getElementById('sort-improve-btn');
 const sortOrderBtn = document.getElementById('sort-order-btn');
 const sortPracticeBtn = document.getElementById('sort-practice-btn');
 const reviewList = document.getElementById('review-list');
 const timerDisplay = document.getElementById('timer-display');
+const hudScoreLabel = document.getElementById('hud-score-label');
 const scoreDisplay = document.getElementById('score-display');
 const rightDisplay = document.getElementById('right-display');
 const wrongDisplay = document.getElementById('wrong-display');
@@ -843,6 +865,7 @@ function preloadStudyConfigInBackground(cfgOrId) {
   ensureStudyConfigLoaded(targetCfg)
     .then((loaded) => {
       if (loaded && activeConfigId === targetId && !isPlaying && !isReplaying) {
+        updatePlayButtonLabel();
         renderReview();
       }
     })
@@ -913,9 +936,17 @@ function getPartConfigsForBase(baseConfigId) {
     .sort((a, b) => (a.partIndex || 0) - (b.partIndex || 0));
 }
 
-function getLeaderboardSize(configId) {
-  const board = leaderboardsMap[configId];
-  return board ? Object.keys(board).length : 0;
+function getLeaderboardSize(configId, mode = activeGameMode) {
+  const boardMap = mode === 'all' ? timeLeaderboardsMap : leaderboardsMap;
+  const board = boardMap[configId];
+  if (board && Object.keys(board).length > 0) {
+    return Object.keys(board).length;
+  }
+  if (mode === 'all') {
+    const fallback = leaderboardsMap[configId];
+    return fallback ? Object.keys(fallback).length : 0;
+  }
+  return 0;
 }
 
 function getConfigFamilyLeaderboardSize(cfg) {
@@ -994,14 +1025,16 @@ function getActiveConfig() {
 }
 
 function appendPillPerfMeta(btn, cfgId) {
-  const perf = getUserConfigPerformance(userId, cfgId);
-  if (perf.rank !== null || perf.bestScore !== null) {
+  const mode = activeGameMode === 'all' ? 'all' : '1min';
+  const perf = getUserConfigPerformance(userId, cfgId, mode);
+  if (perf.rank !== null || perf.hasPlayed) {
+    const valStr = mode === 'all' ? formatDurationMs(perf.bestTimeMs) : String(perf.bestScore);
     const meta = document.createElement('span');
     meta.className = 'pill-meta';
     if (perf.rank !== null) {
-      meta.textContent = ` · #${perf.rank} (${perf.bestScore})`;
+      meta.textContent = ` · #${perf.rank} (${valStr})`;
     } else {
-      meta.textContent = ` · (${perf.bestScore})`;
+      meta.textContent = ` · (${valStr})`;
     }
     btn.appendChild(meta);
   }
@@ -1225,12 +1258,45 @@ function updateAllSwitcherRowsOverflow(options = {}) {
   switcherRows.forEach((row) => syncSwitcherRowOverflow(row, options));
 }
 
+function updatePlayButtonLabel() {
+  if (!playBtn || isLoadingStudyPack) return;
+  if (activeGameMode === 'all') {
+    const activeCfg = getActiveConfig();
+    const targetCount = getAllModeTargetCount(activeCfg, ALL_MODE_MAX_QUESTIONS);
+    playBtn.textContent = targetCount
+      ? `Play All (${targetCount} Qs)`
+      : `Play All (≤${ALL_MODE_MAX_QUESTIONS} Qs)`;
+  } else {
+    playBtn.textContent = 'Play 1-Minute Game';
+  }
+}
+
+function switchGameMode(targetMode) {
+  if (isPlaying) return;
+  const nextMode = targetMode === 'all' ? 'all' : '1min';
+  if (nextMode === activeGameMode) return;
+  activeGameMode = nextMode;
+  leaderboardPage = 1;
+  localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+  lastResult.classList.add('hidden');
+  renderConfigsUI();
+  renderLeaderboard();
+  renderReview();
+  refreshSingleConfigLeaderboard(activeConfigId, false, activeGameMode);
+}
+
 function renderConfigsUI() {
   const activeCfg = getActiveConfig();
   if (!activeCfg) return;
   const activeBaseCfg = getBaseConfig(activeCfg) || activeCfg;
   activeCategory = getConfigCategory(activeCfg);
   localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+
+  modeBtns.forEach((btn) => {
+    const isModeActive = btn.dataset.mode === activeGameMode;
+    btn.classList.toggle('active', isModeActive);
+    btn.setAttribute('aria-selected', isModeActive ? 'true' : 'false');
+  });
 
   if (categoryListEl && categoryBtns.length > 0) {
     const sortedBtns = [...categoryBtns].sort((a, b) =>
@@ -1419,6 +1485,7 @@ function renderConfigsUI() {
   }
 
   updateLandscapeToggleUI();
+  updatePlayButtonLabel();
 }
 
 async function switchCategory(targetCat) {
@@ -1691,6 +1758,10 @@ categoryBtns.forEach((btn) => {
   btn.addEventListener('click', () => switchCategory(btn.dataset.category));
 });
 
+modeBtns.forEach((btn) => {
+  btn.addEventListener('click', () => switchGameMode(btn.dataset.mode));
+});
+
 switcherRows.forEach((row) => {
   const expandBtn = row.querySelector('.expand-pill-btn');
   const key = row.dataset.switcherKey;
@@ -1764,7 +1835,7 @@ quitBtn.addEventListener('click', () => {
   if (isReplaying) {
     stopReplay(true);
   } else {
-    finishGame(true);
+    finishGame(activePlayMode !== 'all');
   }
 });
 
@@ -1944,6 +2015,20 @@ if (userSortNextBtn) {
 if (userScopeFullBtn) {
   userScopeFullBtn.addEventListener('click', () => {
     userPageScope = 'full';
+    renderUserPage();
+  });
+}
+
+if (userMode1MinBtn) {
+  userMode1MinBtn.addEventListener('click', () => {
+    userPageMode = '1min';
+    renderUserPage();
+  });
+}
+
+if (userModeAllBtn) {
+  userModeAllBtn.addEventListener('click', () => {
+    userPageMode = 'all';
     renderUserPage();
   });
 }
@@ -2256,7 +2341,13 @@ function initConfigs() {
 
   configs = Array.from(byId.values());
   rebuildConfigsIndex();
-  const urlConfigParam = new URLSearchParams(window.location.search).get('config');
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlModeParam = urlParams.get('mode');
+  if (urlModeParam === 'all' || urlModeParam === '1min') {
+    activeGameMode = urlModeParam;
+    localStorage.setItem(STORAGE_KEYS.activeGameMode, activeGameMode);
+  }
+  const urlConfigParam = urlParams.get('config');
   const savedConfigId = resolveConfigIdAlias(urlConfigParam || localStorage.getItem(STORAGE_KEYS.activeConfigId));
   const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
   activeConfigId = activeCfg.id;

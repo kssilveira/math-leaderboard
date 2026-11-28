@@ -111,6 +111,18 @@
         </div>
       </div>
 
+      <!-- Mode Switcher -->
+      <div id="mode-switcher-row" class="switcher-row" data-switcher-key="mode" aria-label="Game Mode">
+        <span class="switcher-label">Mode</span>
+        <div id="mode-list" class="pill-list" role="tablist">
+          <button type="button" class="pill-btn active" data-mode="1min" role="tab" aria-selected="true">⏱️ 1-Min</button>
+          <button type="button" class="pill-btn" data-mode="all" role="tab" aria-selected="false">🏁 All (≤100)</button>
+        </div>
+        <div class="switcher-actions hidden">
+          <button class="add-pill-btn expand-pill-btn hidden" type="button" aria-expanded="false" title="Expand or collapse modes">▾ All</button>
+        </div>
+      </div>
+
       <!-- Category Switcher -->
       <div id="category-switcher-row" class="switcher-row" data-switcher-key="topic" aria-label="Quiz Categories">
         <span class="switcher-label">Topic</span>
@@ -258,7 +270,16 @@
         </button>
 
         <div id="overview-body" class="review-body">
-          <div class="scope-tabs" role="tablist" aria-label="Filter full or mini games">
+          <div class="scope-tabs" role="tablist" aria-label="Filter game mode">
+          <button type="button" id="user-mode-1min-btn" class="pill-btn scope-pill active" role="tab" aria-selected="true">
+            ⏱️ 1-Min
+          </button>
+          <button type="button" id="user-mode-all-btn" class="pill-btn scope-pill" role="tab" aria-selected="false">
+            🏁 All (≤100)
+          </button>
+        </div>
+
+        <div class="scope-tabs" role="tablist" aria-label="Filter full or mini games">
             <button type="button" id="overview-scope-full-btn" class="pill-btn scope-pill active" role="tab" aria-selected="true">
               Full Games
             </button>
@@ -304,9 +325,9 @@
         <div id="review-body" class="review-body hidden">
           <div class="chart-section">
             <div class="chart-legend" aria-label="Chart legend">
-              <span class="legend-item"><span class="legend-dot dot-score"></span>Score</span>
-              <span class="legend-item"><span class="legend-dot dot-right"></span>Right</span>
-              <span class="legend-item"><span class="legend-dot dot-my-best"></span>Best</span>
+              <span class="legend-item"><span class="legend-dot dot-score"></span><span id="chart-legend-primary">Score</span></span>
+              <span id="chart-legend-secondary-wrap" class="legend-item"><span class="legend-dot dot-right"></span><span id="chart-legend-secondary">Right</span></span>
+              <span class="legend-item"><span class="legend-dot dot-my-best"></span><span id="chart-legend-best">Best</span></span>
             </div>
             <svg id="history-chart" class="history-chart" viewBox="0 0 360 160" role="img" aria-label="Past games progress chart"></svg>
           </div>
@@ -381,6 +402,15 @@
           <span id="user-page-count-badge" class="badge">0 games</span>
         </div>
 
+        <div class="scope-tabs" role="tablist" aria-label="Filter game mode">
+          <button type="button" id="user-mode-1min-btn" class="pill-btn scope-pill active" role="tab" aria-selected="true">
+            ⏱️ 1-Min
+          </button>
+          <button type="button" id="user-mode-all-btn" class="pill-btn scope-pill" role="tab" aria-selected="false">
+            🏁 All (≤100)
+          </button>
+        </div>
+
         <div class="scope-tabs" role="tablist" aria-label="Filter full or mini games">
           <button type="button" id="user-scope-full-btn" class="pill-btn scope-pill active" role="tab" aria-selected="true">
             Full Games
@@ -435,7 +465,7 @@
           <span id="timer-display" class="hud-value">60s</span>
         </div>
         <div class="hud-stat hud-score">
-          <span class="hud-label">Score</span>
+          <span id="hud-score-label" class="hud-label">Score</span>
           <span id="score-display" class="hud-value">0</span>
         </div>
         <div class="hud-stat">

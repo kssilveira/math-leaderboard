@@ -553,6 +553,141 @@ await runAsyncCheck('Split OG card modules VDOM & replay decode check', async ()
     ],
   });
   assert.equal(homeVdom.type, 'div');
+
+  const timePayload = {
+    u: 'Alex',
+    c: 'cfg_other_morse_char',
+    m: 'all',
+    n: 2,
+    d: 41800,
+    s: 1,
+    r: 2,
+    w: 1,
+    q: [[0, 4, 1, 0, 1200, ['B']], [1, 4, 2, 1, 900]],
+    o: { u: 'Sam', n: 2, d: 45300, s: 2, r: 2, w: 0, q: [[0, 4, 1, 0, 1400], [1, 4, 2, 1, 1100]] },
+  };
+  const timeDecoded = replayCard.decodeReplay(Buffer.from(JSON.stringify(timePayload), 'utf8').toString('base64url'));
+  assert.equal(timeDecoded.mode, 'all');
+  assert.equal(timeDecoded.durationMs, 41800);
+  assert.equal(replayCard.renderReplayCard(timeDecoded).type, 'div');
+  assert.equal(boardCard.renderLeaderboardCard([{ rank: 1, username: 'Alex', score: '41.8s' }], 'cfg_other_morse_char', 'all').type, 'div');
+  assert.equal(
+    userCard.renderUserProfileCard({
+      userId: 'u_1',
+      mode: 'all',
+      username: 'Alex',
+      gamesRanked: 1,
+      firstPlaceCount: 1,
+      bestRank: 1,
+      topScore: '41.8s',
+      performances: [{ cfgId: 'cfg_other_morse_char', label: '📡 Morse → 🔤 Character', rank: 1, totalPlayers: 3, score: '41.8s', right: 36, wrong: 0 }],
+    }).type,
+    'div'
+  );
+});
+
+// 12. Time Attack (All <= 100) deck generation, time formatting, ranking & replay round-trip
+await runAsyncCheck('Time Attack deck builder, time formatting, ascending ranking & replay round-trip', async () => {
+  assert.equal(rt.formatDurationMs(0), '0.0s');
+  assert.equal(rt.formatDurationMs(42340), '42.3s');
+  assert.equal(rt.formatDurationMs(59950), '1:00.0');
+  assert.equal(rt.formatDurationMs(74200), '1:14.2');
+  assert.equal(rt.formatDurationDeltaMs(-2400), '−2.4s');
+  assert.equal(rt.formatDurationDeltaMs(1300), '+1.3s');
+
+  const morseCfg = rt.getConfigById('cfg_other_morse_char');
+  assert.equal(rt.getAllModeTargetCount(morseCfg, 100), 36);
+  const morseDeck = rt.buildAllModeDeck(morseCfg, 100);
+  assert.equal(morseDeck.length, 36);
+  assert.equal(new Set(morseDeck).size, 36);
+
+  const geoCfg = rt.getConfigById('cfg_geo_flag_country');
+  assert.equal(rt.getAllModeTargetCount(geoCfg, 100), 100);
+  const geoDeck = rt.buildAllModeDeck(geoCfg, 100);
+  assert.equal(geoDeck.length, 100);
+  assert.equal(new Set(geoDeck).size, 100);
+
+  const smallMathCfg = { id: 'cfg_add_1_2_1_2_2_4', category: 'math', type: 'math', ops: ['+'], min1: 1, max1: 2, min2: 1, max2: 2, min3: 2, max3: 4 };
+  assert.equal(rt.getAllModeTargetCount(smallMathCfg, 100), 12);
+  const smallMathDeck = rt.buildAllModeDeck(smallMathCfg, 100);
+  assert.equal(smallMathDeck.length, 12);
+  assert.equal(new Set(smallMathDeck.map((q) => q.key)).size, 12);
+
+  const defaultMathCfg = rt.getConfigById('cfg_add-sub_0_10_0_10_0_20');
+  assert.equal(rt.getAllModeTargetCount(defaultMathCfg, 100), 100);
+  const largeMathDeck = rt.buildAllModeDeck(defaultMathCfg, 100);
+  assert.equal(largeMathDeck.length, 100);
+  assert.equal(new Set(largeMathDeck.map((q) => q.key)).size, 100);
+
+  const timeSession = {
+    username: 'Alice',
+    configId: 'cfg_other_morse_char',
+    mode: 'all',
+    targetCount: 2,
+    score: 1,
+    right: 2,
+    wrong: 1,
+    durationMs: 41800,
+    questions: [
+      { nums: [0, 1, 0], op: '?', missingIndex: 0, expected: 'A', distractor: 'B', answers: ['B'], wrongAnswers: ['B'], right: 0, wrong: 1, durationMs: 1100 },
+      { nums: [1, 2, 1], op: '?', missingIndex: 1, expected: 'B', distractor: 'C', answers: ['B'], wrongAnswers: [], right: 1, wrong: 0, durationMs: 900 },
+      { nums: [0, 2, 0], op: '?', missingIndex: 0, expected: 'A', distractor: 'C', answers: ['A'], wrongAnswers: [], right: 1, wrong: 0, durationMs: 800 },
+    ],
+    opponent: {
+      username: 'Bob',
+      mode: 'all',
+      targetCount: 2,
+      score: 2,
+      right: 2,
+      wrong: 0,
+      durationMs: 45300,
+      questions: [
+        { nums: [0, 1, 0], op: '?', missingIndex: 0, expected: 'A', distractor: 'B', answers: ['A'], wrongAnswers: [], right: 1, wrong: 0, durationMs: 1200 },
+        { nums: [1, 2, 1], op: '?', missingIndex: 1, expected: 'B', distractor: 'C', answers: ['B'], wrongAnswers: [], right: 1, wrong: 0, durationMs: 1100 },
+      ],
+    },
+  };
+  const encodedTime = rt.encodeReplayParam(timeSession);
+  const decodedTime = await rt.decodeReplayParam(encodedTime);
+  assert.equal(decodedTime.mode, 'all');
+  assert.equal(decodedTime.targetCount, 2);
+  assert.equal(decodedTime.durationMs, 41800);
+  assert.equal(decodedTime.opponent.durationMs, 45300);
+
+  const lbCtx = {
+    activeGameMode: 'all',
+    activeConfigId: 'cfg_other_morse_char',
+    leaderboardsMap: {},
+    timeLeaderboardsMap: {
+      cfg_other_morse_char: {
+        u_slow: { userId: 'u_slow', username: 'Slow', durationMs: 52000, right: 36, wrong: 0, targetCount: 36, updatedAt: 100 },
+        u_fast: { userId: 'u_fast', username: 'Fast', durationMs: 39100, right: 36, wrong: 1, targetCount: 36, updatedAt: 200 },
+        u_tie: { userId: 'u_tie', username: 'Tie', durationMs: 39100, right: 36, wrong: 0, targetCount: 36, updatedAt: 300 },
+      },
+    },
+    formatDurationMs: rt.formatDurationMs,
+    getBestLocalSession: () => null,
+    sessionHasQuestions: () => false,
+    entryHasReplay: () => false,
+  };
+  lbCtx.window = lbCtx;
+  lbCtx.globalThis = lbCtx;
+  vm.createContext(lbCtx);
+  vm.runInContext(readRoot('js/leaderboard.js'), lbCtx, { filename: 'js/leaderboard.js' });
+  const ranked = lbCtx.getRankedLeaderboard('cfg_other_morse_char', 'all');
+  assert.equal(ranked.rankedEntries.length, 3);
+  assert.equal(ranked.rankedEntries[0].userId, 'u_tie');
+  assert.equal(ranked.rankedEntries[0].rank, 1);
+  assert.equal(ranked.rankedEntries[1].userId, 'u_fast');
+  assert.equal(ranked.rankedEntries[1].rank, 1);
+  assert.equal(ranked.rankedEntries[2].userId, 'u_slow');
+  assert.equal(ranked.rankedEntries[2].rank, 3);
+
+  const mwMod = await import('../middleware.js');
+  const mwRes = await mwMod.default(new Request('https://math-leaderboard.vercel.app/?config=cfg_geo_flag_country&mode=all'));
+  const mwHtml = await mwRes.text();
+  assert.ok(mwHtml.includes('Time Attack (≤100)'), 'Middleware should emit Time Attack OG title for &mode=all');
+  assert.ok(mwHtml.includes('mode=all'), 'Middleware should forward mode=all to OG image URL');
 });
 
 console.log('');

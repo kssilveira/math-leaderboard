@@ -1,13 +1,20 @@
 // --- Local Storage History, Compaction, Question Stats & Migrations ---
 
-function getBestLocalSession(targetUserId, targetConfigId) {
-  const key = `${targetUserId}__${targetConfigId}`;
+function getHistoryBucketKey(targetUserId, targetConfigId, mode = '1min') {
+  return mode === 'all' ? `${targetUserId}__${targetConfigId}__all` : `${targetUserId}__${targetConfigId}`;
+}
+
+function getBestLocalSession(targetUserId, targetConfigId, mode = (typeof activeGameMode !== 'undefined' ? activeGameMode : '1min')) {
+  const resolvedMode = mode === 'all' ? 'all' : '1min';
+  const key = getHistoryBucketKey(targetUserId, targetConfigId, resolvedMode);
   if (bestLocalSessionCache.has(key)) {
     return bestLocalSessionCache.get(key);
   }
   const historyMap = getGameHistoryMap();
   const sessions = Array.isArray(historyMap[key]) ? historyMap[key] : [];
-  const regular = sessions.filter(s => s && !s.isPractice && typeof s.score === 'number');
+  const regular = resolvedMode === 'all'
+    ? sessions.filter(s => s && !s.isPractice && s.completedAll !== false && typeof s.durationMs === 'number' && s.durationMs > 0)
+    : sessions.filter(s => s && !s.isPractice && typeof s.score === 'number');
   if (regular.length === 0) {
     bestLocalSessionCache.set(key, null);
     return null;
@@ -16,7 +23,17 @@ function getBestLocalSession(targetUserId, targetConfigId) {
   let best = regular[0];
   for (let i = 1; i < regular.length; i++) {
     const s = regular[i];
-    if (s.score > best.score) {
+    if (resolvedMode === 'all') {
+      if (s.durationMs < best.durationMs) {
+        best = s;
+      } else if (s.durationMs === best.durationMs) {
+        if (!sessionHasQuestions(best) && sessionHasQuestions(s)) {
+          best = s;
+        } else if (sessionHasQuestions(best) === sessionHasQuestions(s) && (s.wrong || 0) < (best.wrong || 0)) {
+          best = s;
+        }
+      }
+    } else if (s.score > best.score) {
       best = s;
     } else if (
       s.score === best.score &&
@@ -152,12 +169,19 @@ function trimHistoryMapBuckets(map, maxPerBucket) {
   Object.keys(map).forEach((compKey) => {
     const list = map[compKey];
     if (!Array.isArray(list) || list.length <= maxPerBucket) return;
+    const isAllBucket = compKey.endsWith('__all');
     let bestIdx = -1;
-    let bestScore = -Infinity;
+    let bestVal = isAllBucket ? Infinity : -Infinity;
     for (let i = 0; i < list.length; i++) {
       const s = list[i];
-      if (s && !s.isPractice && typeof s.score === 'number' && s.score > bestScore) {
-        bestScore = s.score;
+      if (!s || s.isPractice) continue;
+      if (isAllBucket) {
+        if (s.completedAll !== false && typeof s.durationMs === 'number' && s.durationMs > 0 && s.durationMs < bestVal) {
+          bestVal = s.durationMs;
+          bestIdx = i;
+        }
+      } else if (typeof s.score === 'number' && s.score > bestVal) {
+        bestVal = s.score;
         bestIdx = i;
       }
     }
@@ -302,10 +326,11 @@ function saveGameReviewToStorage(gameSession) {
     hasCompactedLegacyHistory = true;
     compactAllLegacyHistoryEntries(map);
   }
-  const key = `${gameSession.userId}__${gameSession.configId}`;
+  const mode = gameSession && gameSession.mode === 'all' ? 'all' : '1min';
+  const key = getHistoryBucketKey(gameSession.userId, gameSession.configId, mode);
   const historyList = Array.isArray(map[key]) ? map[key] : [];
   historyList.unshift(compactSessionForStorage(gameSession));
-  map[key] = historyList.slice(0, 20); // Keep last 20 games per user+config
+  map[key] = historyList.slice(0, 20); // Keep last 20 games per user+config+mode
   bestLocalSessionCache.delete(key);
   persistGameHistoryMap();
 }
@@ -388,26 +413,28 @@ function migrateRenamedConfigsInLocalStorage() {
           const sep = compKey.indexOf('__');
           if (sep <= 0) return;
           const uId = compKey.slice(0, sep);
-          const cfgId = compKey.slice(sep + 2);
+          const rest = compKey.slice(sep + 2);
+          const isAllSuffix = rest.endsWith('__all');
+          const cfgId = isAllSuffix ? rest.slice(0, -5) : rest;
           const canonical = resolveConfigIdAlias(cfgId);
           if (canonical === cfgId) return;
 
           const oldList = Array.isArray(map[compKey]) ? map[compKey] : [];
-          const targetKey = `${uId}__${canonical}`;
+          const targetKey = getHistoryBucketKey(uId, canonical, isAllSuffix ? 'all' : '1min');
           const targetList = Array.isArray(map[targetKey]) ? [...map[targetKey]] : [];
           const seen = new Set(
-            targetList.map((s) => `${s?.timestamp || 0}|${s?.score}|${s?.right}|${s?.wrong}|${s?.isPractice ? 1 : 0}`)
+            targetList.map((s) => `${s?.timestamp || s?.playedAt || 0}|${s?.score}|${s?.durationMs || 0}|${s?.right}|${s?.wrong}|${s?.isPractice ? 1 : 0}`)
           );
           oldList.forEach((s) => {
             if (!s || typeof s !== 'object') return;
             const normSession = { ...s, configId: canonical };
-            const sig = `${normSession.timestamp || 0}|${normSession.score}|${normSession.right}|${normSession.wrong}|${normSession.isPractice ? 1 : 0}`;
+            const sig = `${normSession.timestamp || normSession.playedAt || 0}|${normSession.score}|${normSession.durationMs || 0}|${normSession.right}|${normSession.wrong}|${normSession.isPractice ? 1 : 0}`;
             if (!seen.has(sig)) {
               seen.add(sig);
               targetList.push(normSession);
             }
           });
-          targetList.sort((a, b) => (Number(b?.timestamp) || 0) - (Number(a?.timestamp) || 0));
+          targetList.sort((a, b) => (Number(b?.timestamp || b?.playedAt) || 0) - (Number(a?.timestamp || a?.playedAt) || 0));
           map[targetKey] = targetList;
           delete map[compKey];
           changed = true;
