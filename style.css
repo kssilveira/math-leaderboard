@@ -509,6 +509,28 @@ html, body {
   gap: 8px;
 }
 
+.overview-load-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 8px;
+  padding: 8px 9px 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.overview-load-more-info {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-load-more-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .pill-btn {
   border: 1px solid var(--border);
   background: var(--surface);

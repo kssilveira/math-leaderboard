@@ -1,5 +1,15 @@
 // Overview ("My Ranks & Scores") and Player Profile Page filters & rendering.
 
+const OVERVIEW_PAGE_SIZE = 30;
+let overviewVisibleLimit = OVERVIEW_PAGE_SIZE;
+let overviewLastContextKey = '';
+let userPageVisibleLimit = OVERVIEW_PAGE_SIZE;
+let userPageLastContextKey = '';
+
+function getOverviewFilterSignature() {
+  return Array.from(overviewExcludedTags).sort().join(',');
+}
+
 function getOverviewFilterGroups() {
   const cefrOrder =
     typeof window !== 'undefined' && Array.isArray(window.STUDY_CEFR_ORDER)
@@ -360,6 +370,37 @@ function createOverviewEmptyRow(onReset) {
   return li;
 }
 
+function createOverviewLoadMoreRow(shownCount, totalCount, onShowMore, onShowAll) {
+  const li = document.createElement('li');
+  li.className = 'overview-load-more-row';
+
+  const info = document.createElement('span');
+  info.className = 'overview-load-more-info';
+  info.textContent = `Showing ${shownCount} of ${totalCount}`;
+
+  const actions = document.createElement('div');
+  actions.className = 'overview-load-more-actions';
+
+  if (totalCount - shownCount > OVERVIEW_PAGE_SIZE) {
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.className = 'inline-btn';
+    moreBtn.textContent = `Show ${OVERVIEW_PAGE_SIZE} more`;
+    moreBtn.addEventListener('click', onShowMore);
+    actions.appendChild(moreBtn);
+  }
+
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'inline-btn';
+  allBtn.textContent = `Show all (${totalCount})`;
+  allBtn.addEventListener('click', onShowAll);
+  actions.appendChild(allBtn);
+
+  li.append(info, actions);
+  return li;
+}
+
 function closeUserPage(selectConfigId = null) {
   viewedUserId = null;
   if (userView) userView.classList.remove('active');
@@ -512,7 +553,14 @@ function renderUserPage() {
     userPageList.appendChild(createOverviewEmptyRow(renderUserPage));
     return;
   }
-  itemsToShow.forEach(({ cfg, cat, perf }) => {
+  const userContextKey = `${viewedUserId}|${userPageScope}|${userPageSortMode}|${getOverviewFilterSignature()}`;
+  if (userContextKey !== userPageLastContextKey) {
+    userPageVisibleLimit = OVERVIEW_PAGE_SIZE;
+    userPageLastContextKey = userContextKey;
+  }
+  const visibleItems = itemsToShow.slice(0, userPageVisibleLimit);
+  const fragment = document.createDocumentFragment();
+  visibleItems.forEach(({ cfg, cat, perf }) => {
     const li = document.createElement('li');
     li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
     li.title = `Open ${formatConfigLabel(cfg)} leaderboard`;
@@ -580,8 +628,25 @@ function renderUserPage() {
     leftGroup.className = 'user-row-left';
     leftGroup.append(nameSpan, rankSpan);
     li.append(leftGroup, rightGroup);
-    userPageList.appendChild(li);
+    fragment.appendChild(li);
   });
+  if (visibleItems.length < itemsToShow.length) {
+    fragment.appendChild(
+      createOverviewLoadMoreRow(
+        visibleItems.length,
+        itemsToShow.length,
+        () => {
+          userPageVisibleLimit += OVERVIEW_PAGE_SIZE;
+          renderUserPage();
+        },
+        () => {
+          userPageVisibleLimit = itemsToShow.length;
+          renderUserPage();
+        }
+      )
+    );
+  }
+  userPageList.appendChild(fragment);
 }
 
 function updateOverviewCollapseUI() {
@@ -705,12 +770,22 @@ function renderOverview() {
     return (pa.bestScore ?? 0) - (pb.bestScore ?? 0);
   });
 
+  const overviewContextKey = `${userId}|${overviewScope}|${overviewSortMode}|${getOverviewFilterSignature()}`;
+  const contextChanged = overviewContextKey !== overviewLastContextKey;
+  if (contextChanged) {
+    overviewVisibleLimit = OVERVIEW_PAGE_SIZE;
+    overviewLastContextKey = overviewContextKey;
+  }
+  const prevScrollTop = contextChanged ? 0 : overviewList.scrollTop;
+
   overviewList.innerHTML = '';
   if (items.length === 0) {
     overviewList.appendChild(createOverviewEmptyRow(renderOverview));
     return;
   }
-  items.forEach(({ cfg, cat, perf }) => {
+  const visibleItems = items.slice(0, overviewVisibleLimit);
+  const fragment = document.createDocumentFragment();
+  visibleItems.forEach(({ cfg, cat, perf }) => {
     const li = document.createElement('li');
     li.className = 'overview-row' + (cfg.id === activeConfigId ? ' is-active' : '');
     li.title = 'Tap to view this leaderboard';
@@ -782,6 +857,24 @@ function renderOverview() {
 
     rightGroup.append(scoreSpan, playNowBtn);
     li.append(nameSpan, rankSpan, rightGroup);
-    overviewList.appendChild(li);
+    fragment.appendChild(li);
   });
+  if (visibleItems.length < items.length) {
+    fragment.appendChild(
+      createOverviewLoadMoreRow(
+        visibleItems.length,
+        items.length,
+        () => {
+          overviewVisibleLimit += OVERVIEW_PAGE_SIZE;
+          renderOverview();
+        },
+        () => {
+          overviewVisibleLimit = items.length;
+          renderOverview();
+        }
+      )
+    );
+  }
+  overviewList.appendChild(fragment);
+  overviewList.scrollTop = prevScrollTop;
 }
