@@ -74,10 +74,16 @@ export default async function middleware(request) {
   const modeParam = url.searchParams.get('mode') === 'all' ? 'all' : '1min';
   const origin = url.origin;
 
-  let ogTitle = '1-Minute Quiz — Global Leaderboards';
+  let ogTitle =
+    modeParam === 'all'
+      ? '1-Minute Quiz — Time Attack (≤100) Leaderboards'
+      : '1-Minute Quiz — Global Leaderboards';
   let ogDesc =
-    '1-minute mobile quiz game (Math, Geography, Language, Study & Other) with replays, ghost races, and global leaderboards.';
-  let ogImage = `${origin}/api/og?v=3`;
+    'Mobile quiz game with 60s sprints & Time Attack (≤100 Qs) across Math, Geography, Language, Study & Other — with replays, ghost races, and global leaderboards.';
+  let ogImage =
+    modeParam === 'all'
+      ? `${origin}/api/og?mode=all&v=4`
+      : `${origin}/api/og?v=4`;
   let targetUrl = CANONICAL_APP_URL + url.search;
 
   if (replayParam) {

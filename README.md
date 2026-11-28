@@ -9,7 +9,7 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   3. **Join on the Web**: **https://play.google.com/apps/testing/io.github.kssilveira.twa**
 - **Share URL** (live Open Graph previews + redirect to GitHub Pages): **https://math-leaderboard.vercel.app/**
 
-  [![Root OG Image](https://math-leaderboard.vercel.app/api/og?v=3)](https://math-leaderboard.vercel.app)
+  [![Root OG Image](https://math-leaderboard.vercel.app/api/og?v=4)](https://math-leaderboard.vercel.app)
 
 - **Example Game Leaderboard (`+ − (0..10, 0..10, 0..20)`)**: click on the image below
 

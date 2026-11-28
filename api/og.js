@@ -60,8 +60,8 @@ export default async function handler(req) {
     });
   }
 
-  const overview = await fetchHomeOverviewStats();
-  return new ImageResponse(renderHomeOverviewCard(overview), {
+  const overview = await fetchHomeOverviewStats(modeParam);
+  return new ImageResponse(renderHomeOverviewCard(overview, modeParam), {
     width: 1200,
     height: 630,
     headers: {

@@ -108,6 +108,7 @@ const SAMPLE_TIME_RACE_REPLAY = encodeReplayPayload({
 
 const GALLERY_EXAMPLES = [
   { title: 'Home Overview', query: '' },
+  { title: 'Home Overview (Time Attack)', query: 'mode=all' },
   { title: 'Math Leaderboard', query: 'config=cfg_add-sub_0_10_0_10_0_20' },
   { title: 'Time Attack Leaderboard', query: 'config=cfg_add-sub_0_10_0_10_0_20&mode=all' },
   { title: 'Geography Map Leaderboard', query: 'config=cfg_geo_map_country' },

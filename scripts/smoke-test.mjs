@@ -561,6 +561,19 @@ await runAsyncCheck('Split OG card modules VDOM & replay decode check', async ()
   });
   assert.equal(homeVdom.type, 'div');
 
+  const homeAllVdom = homeCard.renderHomeOverviewCard(
+    {
+      mode: 'all',
+      activeGames: 3,
+      uniquePlayers: 5,
+      featuredGames: [
+        { cfgId: 'cfg_other_morse_char', category: 'other', label: '📡 Morse → 🔤 Character', leaderName: 'Alex', topScore: '41.8s' },
+      ],
+    },
+    'all'
+  );
+  assert.equal(homeAllVdom.type, 'div');
+
   const timePayload = {
     u: 'Alex',
     c: 'cfg_other_morse_char',
@@ -691,6 +704,16 @@ await runAsyncCheck('Time Attack deck builder, time formatting, ascending rankin
   assert.equal(ranked.rankedEntries[2].rank, 3);
 
   const mwMod = await import('../middleware.js');
+  const mwHomeRes = await mwMod.default(new Request('https://math-leaderboard.vercel.app/'));
+  const mwHomeHtml = await mwHomeRes.text();
+  assert.ok(mwHomeHtml.includes('/api/og?v=4'), 'Middleware should emit ?v=4 home OG image');
+  assert.ok(mwHomeHtml.includes('Time Attack'), 'Middleware should mention Time Attack in home OG description');
+
+  const mwHomeAllRes = await mwMod.default(new Request('https://math-leaderboard.vercel.app/?mode=all'));
+  const mwHomeAllHtml = await mwHomeAllRes.text();
+  assert.ok(mwHomeAllHtml.includes('/api/og?mode=all&amp;v=4'), 'Middleware should emit ?mode=all&v=4 home OG image');
+  assert.ok(mwHomeAllHtml.includes('Time Attack (≤100)'), 'Middleware should emit Time Attack (≤100) title for home ?mode=all');
+
   const mwRes = await mwMod.default(new Request('https://math-leaderboard.vercel.app/?config=cfg_geo_flag_country&mode=all'));
   const mwHtml = await mwRes.text();
   assert.ok(mwHtml.includes('Time Attack (≤100)'), 'Middleware should emit Time Attack OG title for &mode=all');
