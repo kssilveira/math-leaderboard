@@ -352,9 +352,9 @@ html, body {
   margin-left: 3px;
 }
 
-.overview-list {
-  max-height: 290px;
-  overflow-y: auto;
+.review-list.overview-list {
+  max-height: none;
+  overflow-y: visible;
 }
 
 .overview-row {
@@ -507,28 +507,6 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-}
-
-.overview-load-more-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px 8px;
-  padding: 8px 9px 4px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.overview-load-more-info {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.overview-load-more-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .pill-btn {

@@ -1,10 +1,20 @@
 // Overview ("My Ranks & Scores") and Player Profile Page filters & rendering.
 
-const OVERVIEW_PAGE_SIZE = 30;
-let overviewVisibleLimit = OVERVIEW_PAGE_SIZE;
+const OVERVIEW_PAGE_SIZE = 10;
+const USER_PAGE_SIZE = 30;
+let overviewPage = 1;
 let overviewLastContextKey = '';
-let userPageVisibleLimit = OVERVIEW_PAGE_SIZE;
+let userPage = 1;
 let userPageLastContextKey = '';
+
+function scrollCardTopIfAboveViewport(el) {
+  if (!el) return;
+  const card = el.closest('.leaderboard-card');
+  if (!card || typeof card.getBoundingClientRect !== 'function') return;
+  if (card.getBoundingClientRect().top < 0) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 function getOverviewFilterSignature() {
   return Array.from(overviewExcludedTags).sort().join(',');
@@ -370,37 +380,6 @@ function createOverviewEmptyRow(onReset) {
   return li;
 }
 
-function createOverviewLoadMoreRow(shownCount, totalCount, onShowMore, onShowAll) {
-  const li = document.createElement('li');
-  li.className = 'overview-load-more-row';
-
-  const info = document.createElement('span');
-  info.className = 'overview-load-more-info';
-  info.textContent = `Showing ${shownCount} of ${totalCount}`;
-
-  const actions = document.createElement('div');
-  actions.className = 'overview-load-more-actions';
-
-  if (totalCount - shownCount > OVERVIEW_PAGE_SIZE) {
-    const moreBtn = document.createElement('button');
-    moreBtn.type = 'button';
-    moreBtn.className = 'inline-btn';
-    moreBtn.textContent = `Show ${OVERVIEW_PAGE_SIZE} more`;
-    moreBtn.addEventListener('click', onShowMore);
-    actions.appendChild(moreBtn);
-  }
-
-  const allBtn = document.createElement('button');
-  allBtn.type = 'button';
-  allBtn.className = 'inline-btn';
-  allBtn.textContent = `Show all (${totalCount})`;
-  allBtn.addEventListener('click', onShowAll);
-  actions.appendChild(allBtn);
-
-  li.append(info, actions);
-  return li;
-}
-
 function closeUserPage(selectConfigId = null) {
   viewedUserId = null;
   if (userView) userView.classList.remove('active');
@@ -551,14 +530,18 @@ function renderUserPage() {
   userPageList.innerHTML = '';
   if (itemsToShow.length === 0) {
     userPageList.appendChild(createOverviewEmptyRow(renderUserPage));
+    if (userPagePagination) userPagePagination.classList.add('hidden');
     return;
   }
   const userContextKey = `${viewedUserId}|${userPageScope}|${userPageSortMode}|${getOverviewFilterSignature()}`;
   if (userContextKey !== userPageLastContextKey) {
-    userPageVisibleLimit = OVERVIEW_PAGE_SIZE;
+    userPage = 1;
     userPageLastContextKey = userContextKey;
   }
-  const visibleItems = itemsToShow.slice(0, userPageVisibleLimit);
+  const totalPages = Math.max(1, Math.ceil(itemsToShow.length / USER_PAGE_SIZE));
+  userPage = Math.max(1, Math.min(totalPages, userPage));
+  const startIdx = (userPage - 1) * USER_PAGE_SIZE;
+  const visibleItems = itemsToShow.slice(startIdx, startIdx + USER_PAGE_SIZE);
   const fragment = document.createDocumentFragment();
   visibleItems.forEach(({ cfg, cat, perf }) => {
     const li = document.createElement('li');
@@ -630,23 +613,30 @@ function renderUserPage() {
     li.append(leftGroup, rightGroup);
     fragment.appendChild(li);
   });
-  if (visibleItems.length < itemsToShow.length) {
-    fragment.appendChild(
-      createOverviewLoadMoreRow(
-        visibleItems.length,
-        itemsToShow.length,
-        () => {
-          userPageVisibleLimit += OVERVIEW_PAGE_SIZE;
-          renderUserPage();
-        },
-        () => {
-          userPageVisibleLimit = itemsToShow.length;
-          renderUserPage();
-        }
-      )
-    );
-  }
   userPageList.appendChild(fragment);
+
+  const activeIdx = itemsToShow.findIndex((it) => it.cfg.id === activeConfigId);
+  const activePage = activeIdx >= 0 ? Math.floor(activeIdx / USER_PAGE_SIZE) + 1 : null;
+  renderPaginationControls(userPagePagination, {
+    currentPage: userPage,
+    totalPages,
+    onPageChange: (page) => {
+      userPage = page;
+      renderUserPage();
+      scrollCardTopIfAboveViewport(userPageList);
+    },
+    extraAction: activePage && activePage !== userPage
+      ? {
+          label: `📍 Current (P${activePage})`,
+          title: `Jump to current game (Page ${activePage})`,
+          onClick: () => {
+            userPage = activePage;
+            renderUserPage();
+            scrollCardTopIfAboveViewport(userPageList);
+          }
+        }
+      : null
+  });
 }
 
 function updateOverviewCollapseUI() {
@@ -771,19 +761,21 @@ function renderOverview() {
   });
 
   const overviewContextKey = `${userId}|${overviewScope}|${overviewSortMode}|${getOverviewFilterSignature()}`;
-  const contextChanged = overviewContextKey !== overviewLastContextKey;
-  if (contextChanged) {
-    overviewVisibleLimit = OVERVIEW_PAGE_SIZE;
+  if (overviewContextKey !== overviewLastContextKey) {
+    overviewPage = 1;
     overviewLastContextKey = overviewContextKey;
   }
-  const prevScrollTop = contextChanged ? 0 : overviewList.scrollTop;
 
   overviewList.innerHTML = '';
   if (items.length === 0) {
     overviewList.appendChild(createOverviewEmptyRow(renderOverview));
+    if (overviewPagination) overviewPagination.classList.add('hidden');
     return;
   }
-  const visibleItems = items.slice(0, overviewVisibleLimit);
+  const totalPages = Math.max(1, Math.ceil(items.length / OVERVIEW_PAGE_SIZE));
+  overviewPage = Math.max(1, Math.min(totalPages, overviewPage));
+  const startIdx = (overviewPage - 1) * OVERVIEW_PAGE_SIZE;
+  const visibleItems = items.slice(startIdx, startIdx + OVERVIEW_PAGE_SIZE);
   const fragment = document.createDocumentFragment();
   visibleItems.forEach(({ cfg, cat, perf }) => {
     const li = document.createElement('li');
@@ -859,22 +851,28 @@ function renderOverview() {
     li.append(nameSpan, rankSpan, rightGroup);
     fragment.appendChild(li);
   });
-  if (visibleItems.length < items.length) {
-    fragment.appendChild(
-      createOverviewLoadMoreRow(
-        visibleItems.length,
-        items.length,
-        () => {
-          overviewVisibleLimit += OVERVIEW_PAGE_SIZE;
-          renderOverview();
-        },
-        () => {
-          overviewVisibleLimit = items.length;
-          renderOverview();
-        }
-      )
-    );
-  }
   overviewList.appendChild(fragment);
-  overviewList.scrollTop = prevScrollTop;
+
+  const activeIdx = items.findIndex((it) => it.cfg.id === activeConfigId);
+  const activePage = activeIdx >= 0 ? Math.floor(activeIdx / OVERVIEW_PAGE_SIZE) + 1 : null;
+  renderPaginationControls(overviewPagination, {
+    currentPage: overviewPage,
+    totalPages,
+    onPageChange: (page) => {
+      overviewPage = page;
+      renderOverview();
+      scrollCardTopIfAboveViewport(overviewList);
+    },
+    extraAction: activePage && activePage !== overviewPage
+      ? {
+          label: `📍 Current (P${activePage})`,
+          title: `Jump to current game (Page ${activePage})`,
+          onClick: () => {
+            overviewPage = activePage;
+            renderOverview();
+            scrollCardTopIfAboveViewport(overviewList);
+          }
+        }
+      : null
+  });
 }

@@ -195,6 +195,79 @@ function getPageButtonNumbers(currentPage, totalPages) {
   return result;
 }
 
+function renderPaginationControls(containerEl, { currentPage, totalPages, onPageChange, extraAction = null }) {
+  if (!containerEl) return;
+  containerEl.innerHTML = '';
+  if (totalPages <= 1) {
+    containerEl.classList.add('hidden');
+    return;
+  }
+
+  const navGroup = document.createElement('div');
+  navGroup.className = 'page-nav-group';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'page-btn';
+  prevBtn.textContent = '‹';
+  prevBtn.title = 'Previous page';
+  prevBtn.setAttribute('aria-label', 'Previous page');
+  prevBtn.disabled = currentPage <= 1;
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) onPageChange(currentPage - 1);
+  });
+  navGroup.appendChild(prevBtn);
+
+  const pageTokens = getPageButtonNumbers(currentPage, totalPages);
+  pageTokens.forEach((token) => {
+    if (token === '...') {
+      const dots = document.createElement('span');
+      dots.className = 'page-ellipsis';
+      dots.textContent = '…';
+      navGroup.appendChild(dots);
+    } else {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'page-btn' + (token === currentPage ? ' active' : '');
+      btn.textContent = String(token);
+      btn.setAttribute('aria-label', `Page ${token}`);
+      if (token === currentPage) {
+        btn.setAttribute('aria-current', 'page');
+      }
+      btn.addEventListener('click', () => {
+        if (token !== currentPage) onPageChange(token);
+      });
+      navGroup.appendChild(btn);
+    }
+  });
+
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'page-btn';
+  nextBtn.textContent = '›';
+  nextBtn.title = 'Next page';
+  nextBtn.setAttribute('aria-label', 'Next page');
+  nextBtn.disabled = currentPage >= totalPages;
+  nextBtn.addEventListener('click', () => {
+    if (currentPage < totalPages) onPageChange(currentPage + 1);
+  });
+  navGroup.appendChild(nextBtn);
+
+  containerEl.appendChild(navGroup);
+
+  if (extraAction && extraAction.label && typeof extraAction.onClick === 'function') {
+    const extraBtn = document.createElement('button');
+    extraBtn.type = 'button';
+    extraBtn.className = 'page-btn';
+    extraBtn.textContent = extraAction.label;
+    if (extraAction.title) extraBtn.title = extraAction.title;
+    extraBtn.addEventListener('click', extraAction.onClick);
+    containerEl.appendChild(extraBtn);
+  }
+
+  containerEl.classList.remove('hidden');
+}
+
 function renderLeaderboard(options = {}) {
   const { skipOverview = false } = options;
   const { rankedEntries, byUserId } = getRankedLeaderboard(activeConfigId);
@@ -330,85 +403,24 @@ function renderLeaderboard(options = {}) {
   }
 
   // Pagination & Jump to Page controls
-  if (leaderboardPagination) {
-    leaderboardPagination.innerHTML = '';
-    if (totalPages > 1) {
-      const navGroup = document.createElement('div');
-      navGroup.className = 'page-nav-group';
-
-      const prevBtn = document.createElement('button');
-      prevBtn.type = 'button';
-      prevBtn.className = 'page-btn';
-      prevBtn.textContent = '‹';
-      prevBtn.title = 'Previous page';
-      prevBtn.setAttribute('aria-label', 'Previous page');
-      prevBtn.disabled = leaderboardPage <= 1;
-      prevBtn.addEventListener('click', () => {
-        if (leaderboardPage > 1) {
-          leaderboardPage -= 1;
-          renderLeaderboard({ skipOverview: true });
-        }
-      });
-      navGroup.appendChild(prevBtn);
-
-      const pageTokens = getPageButtonNumbers(leaderboardPage, totalPages);
-      pageTokens.forEach((token) => {
-        if (token === '...') {
-          const dots = document.createElement('span');
-          dots.className = 'page-ellipsis';
-          dots.textContent = '…';
-          navGroup.appendChild(dots);
-        } else {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'page-btn' + (token === leaderboardPage ? ' active' : '');
-          btn.textContent = String(token);
-          btn.setAttribute('aria-label', `Page ${token}`);
-          if (token === leaderboardPage) {
-            btn.setAttribute('aria-current', 'page');
-          }
-          btn.addEventListener('click', () => {
-            leaderboardPage = token;
+  renderPaginationControls(leaderboardPagination, {
+    currentPage: leaderboardPage,
+    totalPages,
+    onPageChange: (page) => {
+      leaderboardPage = page;
+      renderLeaderboard({ skipOverview: true });
+    },
+    extraAction: myEntry && myPage !== leaderboardPage
+      ? {
+          label: `🎯 My Rank (P${myPage})`,
+          title: `Jump to your page (Page ${myPage})`,
+          onClick: () => {
+            leaderboardPage = myPage;
             renderLeaderboard({ skipOverview: true });
-          });
-          navGroup.appendChild(btn);
+          }
         }
-      });
-
-      const nextBtn = document.createElement('button');
-      nextBtn.type = 'button';
-      nextBtn.className = 'page-btn';
-      nextBtn.textContent = '›';
-      nextBtn.title = 'Next page';
-      nextBtn.setAttribute('aria-label', 'Next page');
-      nextBtn.disabled = leaderboardPage >= totalPages;
-      nextBtn.addEventListener('click', () => {
-        if (leaderboardPage < totalPages) {
-          leaderboardPage += 1;
-          renderLeaderboard({ skipOverview: true });
-        }
-      });
-      navGroup.appendChild(nextBtn);
-
-      leaderboardPagination.appendChild(navGroup);
-
-      if (myEntry && myPage !== leaderboardPage) {
-        const myPageBtn = document.createElement('button');
-        myPageBtn.type = 'button';
-        myPageBtn.className = 'page-btn';
-        myPageBtn.textContent = `🎯 My Rank (P${myPage})`;
-        myPageBtn.addEventListener('click', () => {
-          leaderboardPage = myPage;
-          renderLeaderboard({ skipOverview: true });
-        });
-        leaderboardPagination.appendChild(myPageBtn);
-      }
-
-      leaderboardPagination.classList.remove('hidden');
-    } else {
-      leaderboardPagination.classList.add('hidden');
-    }
-  }
+      : null
+  });
 
   if (!skipOverview) {
     renderOverview();
