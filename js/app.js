@@ -1824,10 +1824,40 @@ async function ensureConfigPublishedInFirebase(configId) {
 
 async function syncFromFirebase() {
   try {
-    const [configsRes, leaderboardsRes] = await Promise.all([
-      fetch(`${FIREBASE_DB_URL}/configs.json`),
-      fetch(`${FIREBASE_DB_URL}/leaderboards.json`)
-    ]);
+    const initialParams = new URLSearchParams(window.location.search);
+    const urlReplayParam = initialParams.get('replay');
+    const urlUserParam = initialParams.get('user');
+    const urlConfigParam = initialParams.get('config');
+
+    if (
+      urlReplayParam &&
+      !urlUserParam &&
+      (!urlConfigParam || getConfigById(resolveConfigIdAlias(urlConfigParam)))
+    ) {
+      checkUrlReplayOnLoad();
+    }
+
+    const configsPromise = fetch(`${FIREBASE_DB_URL}/configs.json`);
+    const leaderboardsPromise = fetch(`${FIREBASE_DB_URL}/leaderboards.json`);
+    let fullSyncApplied = false;
+
+    if (!urlUserParam && !urlReplayParam && activeConfigId) {
+      const initialConfigId = activeConfigId;
+      fetch(`${FIREBASE_DB_URL}/leaderboards/${encodeURIComponent(initialConfigId)}.json`)
+        .then((res) => (res && res.ok ? res.json() : null))
+        .then((boardData) => {
+          if (fullSyncApplied || !boardData || typeof boardData !== 'object') return;
+          leaderboardsMap[initialConfigId] = boardData;
+          invalidateRankedLeaderboardCache(initialConfigId);
+          configSyncTimestamps.set(initialConfigId, Date.now());
+          if (activeConfigId === initialConfigId && !isPlaying && !isReplaying) {
+            renderLeaderboard({ skipOverview: true });
+          }
+        })
+        .catch(() => {});
+    }
+
+    const [configsRes, leaderboardsRes] = await Promise.all([configsPromise, leaderboardsPromise]);
 
     const cloudConfigs = configsRes.ok ? await configsRes.json() : null;
     const cloudLeaderboards = leaderboardsRes.ok ? await leaderboardsRes.json() : null;
@@ -1854,6 +1884,22 @@ async function syncFromFirebase() {
         });
       });
     }
+
+    // Preserve any optimistic local-user entries written while full sync was in flight
+    const localUserIds = new Set(users.map((u) => u && u.userId).filter(Boolean));
+    Object.entries(leaderboardsMap).forEach(([cfgId, boardObj]) => {
+      if (!boardObj || typeof boardObj !== 'object') return;
+      Object.entries(boardObj).forEach(([uId, entry]) => {
+        if (!localUserIds.has(uId) || !entry || typeof entry.score !== 'number') return;
+        if (!mergedLeaderboards[cfgId]) mergedLeaderboards[cfgId] = {};
+        const existing = mergedLeaderboards[cfgId][uId];
+        if (!existing || typeof existing.score !== 'number' || entry.score > existing.score) {
+          mergedLeaderboards[cfgId][uId] = entry;
+        }
+      });
+    });
+
+    fullSyncApplied = true;
     leaderboardsMap = mergedLeaderboards;
     invalidateRankedLeaderboardCache();
     lastFullSyncAt = Date.now();
@@ -1927,16 +1973,14 @@ async function syncFromFirebase() {
 
     configs = Array.from(byId.values());
     rebuildConfigsIndex();
-    await backfillLocalBestToLeaderboard();
     sortConfigsByLeaderboardSize();
 
-    const urlConfigParam = !hasHandledInitialUrlReplay
-      ? new URLSearchParams(window.location.search).get('config')
-      : null;
-    const savedConfigId =
-      urlConfigParam ||
+    const activeUrlConfigParam = !hasHandledInitialUrlReplay ? urlConfigParam : null;
+    const savedConfigId = resolveConfigIdAlias(
+      activeUrlConfigParam ||
       localStorage.getItem(STORAGE_KEYS.activeConfigId) ||
-      (isPlaying || replaySessionData ? activeConfigId : '');
+      (isPlaying || replaySessionData ? activeConfigId : '')
+    );
     const localIds = new Set(getLocalConfigs().map(c => c.id));
     let mathCount = 0;
     configs = configs.filter((c) => {
@@ -1952,17 +1996,33 @@ async function syncFromFirebase() {
     sortConfigsByLeaderboardSize();
     rebuildConfigsIndex();
 
-    const activeCfg = configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0];
+    const activeCfg = (isPlaying || isReplaying)
+      ? (configs.find(c => c.id === activeConfigId) || configs[0])
+      : (configs.find(c => c.id === savedConfigId) || configs.find(c => !isMiniConfig(c)) || configs[0]);
     activeConfigId = activeCfg.id;
     activeCategory = getConfigCategory(activeCfg);
-    localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
-    localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
 
-    renderConfigsUI();
-    renderLeaderboard();
-    renderReview();
-    preloadStudyConfigInBackground(activeConfigId);
+    if (!isPlaying && !isReplaying) {
+      localStorage.setItem(STORAGE_KEYS.activeConfigId, activeConfigId);
+      localStorage.setItem(STORAGE_KEYS.activeCategory, activeCategory);
+      renderConfigsUI();
+      renderLeaderboard();
+      renderReview();
+      preloadStudyConfigInBackground(activeConfigId);
+    }
     checkUrlReplayOnLoad();
+
+    backfillLocalBestToLeaderboard()
+      .then((didBackfill) => {
+        if (!didBackfill) return;
+        sortConfigsByLeaderboardSize();
+        rebuildConfigsIndex();
+        if (!isPlaying && !isReplaying) {
+          renderConfigsUI();
+          renderLeaderboard();
+        }
+      })
+      .catch(() => {});
   } catch (err) {
     console.error('Failed to sync with Firebase:', err);
   }
@@ -2108,7 +2168,7 @@ async function claimLocalUsersInFirebase() {
 }
 
 async function backfillLocalBestToLeaderboard() {
-  if (hasRunInitialBackfill) return;
+  if (hasRunInitialBackfill) return false;
   hasRunInitialBackfill = true;
 
   await claimLocalUsersInFirebase();
@@ -2178,7 +2238,7 @@ async function backfillLocalBestToLeaderboard() {
     });
   });
 
-  if (uploadsByUser.size === 0) return;
+  if (uploadsByUser.size === 0) return false;
   await Promise.all(
     Array.from(uploadsByUser.values()).map(async (userTasks) => {
       for (const runUpload of userTasks) {
@@ -2186,6 +2246,7 @@ async function backfillLocalBestToLeaderboard() {
       }
     })
   );
+  return true;
 }
 
 async function submitScoreToLeaderboard(score, sessionData) {
