@@ -469,7 +469,7 @@ const BASE_QUIZ_CONFIGS = [
   // Language (50 configs: 20 Translations, 10 Emoji↔Lang, 5 Synonym, 5 Antonym, 10 Idiom↔Meaning)
   ...buildLanguageQuizConfigs(),
 
-  // Study (CEFR / Proficiency standards — German A1 & A2 with DE, EN, PT-BR, ES & FR)
+  // Study (CEFR / Proficiency standards — German & English A1 & A2)
   ...buildStudyQuizConfigs(),
 
   // Other (4 configs: 118 IUPAC chemical elements & 36 International Morse Code characters)
@@ -744,6 +744,46 @@ function getLoadedStudyCourseRawData(learn, cefr) {
       initialVocabCount: null
     };
   }
+  if (learn === 'en' && cefr === 'a1') {
+    if (
+      typeof STUDY_EN_A1_VOCAB_CORE === 'undefined' ||
+      typeof STUDY_EN_A1_ARTICLES === 'undefined' ||
+      typeof STUDY_EN_A1_VERBS === 'undefined' ||
+      typeof STUDY_EN_A1_GRAMMAR === 'undefined' ||
+      typeof STUDY_EN_A1_PHRASES_CORE === 'undefined' ||
+      typeof STUDY_EN_A1_PACKS === 'undefined'
+    ) {
+      return null;
+    }
+    return {
+      vocabCore: STUDY_EN_A1_VOCAB_CORE,
+      articles: STUDY_EN_A1_ARTICLES,
+      verbs: STUDY_EN_A1_VERBS,
+      grammar: STUDY_EN_A1_GRAMMAR,
+      phrasesCore: STUDY_EN_A1_PHRASES_CORE,
+      packs: STUDY_EN_A1_PACKS
+    };
+  }
+  if (learn === 'en' && cefr === 'a2') {
+    if (
+      typeof STUDY_EN_A2_VOCAB_CORE === 'undefined' ||
+      typeof STUDY_EN_A2_ARTICLES === 'undefined' ||
+      typeof STUDY_EN_A2_VERBS === 'undefined' ||
+      typeof STUDY_EN_A2_GRAMMAR === 'undefined' ||
+      typeof STUDY_EN_A2_PHRASES_CORE === 'undefined' ||
+      typeof STUDY_EN_A2_PACKS === 'undefined'
+    ) {
+      return null;
+    }
+    return {
+      vocabCore: STUDY_EN_A2_VOCAB_CORE,
+      articles: STUDY_EN_A2_ARTICLES,
+      verbs: STUDY_EN_A2_VERBS,
+      grammar: STUDY_EN_A2_GRAMMAR,
+      phrasesCore: STUDY_EN_A2_PHRASES_CORE,
+      packs: STUDY_EN_A2_PACKS
+    };
+  }
   return null;
 }
 
@@ -839,13 +879,19 @@ function hydrateStudyCourseData(learn, cefr, withLang = '') {
   const articlesBaseId = `cfg_study_${learn}_${learn}_${cefr}_articles`;
   const articlesCfg = STUDY_CONFIGS_BY_ID.get(articlesBaseId);
   if (articlesCfg && !articlesCfg.studyDataLoaded) {
-    const artData = buildGermanArticleTrackData(
-      raw.vocabCore,
-      raw.artExtra,
-      partDefs.articles || [],
-      raw.initialVocabCount
-    );
-    hydrateStudyTrack(articlesBaseId, artData.items, artData.parts);
+    if (Array.isArray(raw.articles)) {
+      const articleItems = raw.articles.map(([p, c, d, note]) => [p, c, d, note]);
+      const articleParts = buildPartsFromSetKeys(raw.articles, partDefs.articles || [], 4);
+      hydrateStudyTrack(articlesBaseId, articleItems, articleParts);
+    } else {
+      const artData = buildGermanArticleTrackData(
+        raw.vocabCore,
+        raw.artExtra,
+        partDefs.articles || [],
+        raw.initialVocabCount
+      );
+      hydrateStudyTrack(articlesBaseId, artData.items, artData.parts);
+    }
   }
 
   const packCodes = withLang && withLang !== learn ? [withLang] : Object.keys(raw.packs || {});

@@ -1,6 +1,6 @@
 # 1-Minute Quiz (Math, Geography, Language, Study & Other)
 
-Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — German A1 & A2 with German, English, Brazilian Portuguese, Spanish & French), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — German & English A1 & A2 with German, English, Brazilian Portuguese, Spanish & French), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
 - **Android App (Google Play Closed Testing)**:
@@ -43,13 +43,13 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - All 20 directed translation pairs across English, Portuguese, Spanish, French, and German (1,000 most common words each).
     - `😀 Emoji ↔ Language` across all 5 languages (top 1,000 most used emojis).
     - `Word → Synonym` (300 pairs), `Word → Antonym` (300 pairs), and `Idiom ↔ Meaning` (200 idioms & phrasal verbs) for each language, with a **Lang** sub-filter and 4 mini-sets per game.
-  - **🎓 Study (CEFR Tracks — German A1 & A2)**:
-    - Filterable by **Learn** (`🇩🇪 DE`), **With** (`🇩🇪 DE` default, `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, or `🇫🇷 FR`), and **CEFR** (`A1`, `A2`), with tracks as games and thematic/topic splits as sets:
-      - `Words (DE ↔ EN / PT / ES / FR)` (738 A1 & 717 A2 Goethe-Zertifikat words with noun articles, part-of-speech–matched distractors, and 7 thematic sets per level).
-      - `Grammar` (214 A1 & 215 A2 cloze & structure drills with rule notes across 5 topic sets per level).
-      - `Verbs & Conjugation` (188 A1 & 190 A2 drills across 4 sets per level).
-      - `Articles & Gender` (454 A1 & 501 A2 drills across 3 noun-gender sets + case/adjective-ending cloze set per level).
-      - `Phrases (DE ↔ EN / PT / ES / FR)` (106 A1 & 108 A2 functional everyday phrases in both directions across 4 sets per level).
+  - **🎓 Study (CEFR Tracks — German & English A1 & A2)**:
+    - Filterable by **Learn** (`🇩🇪 DE`, `🇬🇧 EN`), **With** (`🇩🇪 DE`, `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, `🇫🇷 FR`), and **CEFR** (`A1`, `A2`), with tracks as games and thematic/topic splits as sets:
+      - `Words` (`DE ↔ EN/PT/ES/FR` with 738 A1 & 717 A2 words; `EN ↔ PT/ES/FR/DE` with 720 A1 & 717 A2 words; part-of-speech–matched distractors across 7 thematic sets per level).
+      - `Grammar` (214 A1 & 215 A2 German; 215 A1 & 215 A2 English cloze & structure drills with rule notes across 5 topic sets per level).
+      - `Verbs & Conjugation / Tenses` (188 A1 & 190 A2 German; 192 A1 & 192 A2 English drills across 4 sets per level).
+      - `Articles & Gender / Prepositions` (454 A1 & 501 A2 German noun-gender + case drills; 200 A1 & 200 A2 English article & preposition drills across 4 sets per level).
+      - `Phrases` (`DE ↔ EN/PT/ES/FR` with 106 A1 & 108 A2 phrases; `EN ↔ PT/ES/FR/DE` with 108 A1 & 108 A2 functional everyday phrases in both directions across 4 sets per level).
     - Features highlighted inline cloze blanks (`___`) during play and concise grammar rule notes in **Progress & Review**.
   - **🧩 Other (4 built-in configs — Chemical Elements & Morse Code)**:
     - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
