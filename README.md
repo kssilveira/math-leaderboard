@@ -1,6 +1,6 @@
 # 1-Minute Quiz (Math, Geography, Language, Study & Other)
 
-Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — German, English, Portuguese, Spanish & French A1 & A2 with German, English, Brazilian Portuguese, Spanish & French), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
+Mobile-friendly quiz game with **60-second sprints (`⏱️ 1-Min`)** and **Time Attack (`🏁 All (≤100)`)** across **Math**, **Geography** (193 UN member states), **Language** (words, emojis, synonyms, antonyms & idioms), **Study** (CEFR language proficiency tracks — German, English, Portuguese, Spanish & French A1 & A2 with German, English, Brazilian Portuguese, Spanish & French), and **Other** (118 chemical elements & Morse code) with multi-user support, practice mode, interactive replays, ghost races, and global leaderboards backed by Firebase Realtime Database.
 
 - **Play**: **https://kssilveira.github.io/math-leaderboard/**
 - **Android App (Google Play Closed Testing)**:
@@ -55,12 +55,10 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
     - `Symbol → Element` (`Au` → `Gold`) and `Element → Symbol` (`Gold` → `Au`) across all 118 IUPAC elements.
     - `Morse → Character` (`• • •` → `S`) and `Character → Morse` (`S` → `• • •`) across all 36 International Morse Code characters (`A–Z`, `0–9`).
   - Topics are sorted by their maximum leaderboard size, and within each category, game configurations are sorted by popularity (leaderboard size), with a **`▾ All (N)` / `▴ Less`** toggle to expand the list vertically across multiple rows instead of scrolling horizontally.
-- **1-Minute Math Game**:
-  - Randomly hides one of the 3 numbers in the equation (`a op b = c`).
-  - On-screen mobile keypad formatted with 3 digits per row (plus physical keyboard support).
-  - Right answers automatically advance to the next question.
-  - Wrong answers stay visible and are automatically erased when a new answer starts being typed.
-  - Score is `total right - total wrong` in the 1-minute window (ending a game early also saves the current score), followed by a celebratory confetti & score-pop animation at the end of each game.
+- **Two Game Modes (`⏱️ 1-Min` & `🏁 All (≤100)` Time Attack)**:
+  - **⏱️ 1-Min**: 60-second sprint scored as `total right - total wrong` (ending a game early also saves the current score).
+  - **🏁 All (≤100) (Time Attack)**: Shuffled deck of all unique questions in the selected game/set (capped at 100 questions, 30-minute max), timed by stopwatch and ranked by fastest completion time (`durationMs`, tie-broken by fewer mistakes); quitting early saves locally for review without ranking.
+  - **Math & 2-Choice Controls**: Math games randomly hide one of the 3 numbers (`a op b = c`) with an on-screen 3-column numeric keypad and physical keyboard support; right answers auto-advance, wrong answers stay visible until a new answer starts being typed, and every game ends with a celebratory confetti & score-pop animation.
   - **🔊 Zero-Asset Sound Effects & Haptics**: Web Audio API synthesis + `navigator.vibrate` (soft click on keypad press, ascending streak chime on right answers, descending buzz + phone vibration on wrong answers, final 5-second countdown ticks, and a victory chord on game end), with a persistent `🔊`/`🔇` toggle in the header.
   - **🌙 Dark Mode (`☀️`/`🌙` Toggle)**: Defaults to system `prefers-color-scheme` with a zero-flash header toggle persisted in `localStorage` (`math_theme_v1`) and dynamic `<meta name="theme-color">` status bar coloring.
   - **📱 Landscape Mode Toggle**: Per-game orientation toggle next to Play (and during gameplay) for playing in portrait or landscape.
@@ -69,26 +67,26 @@ Mobile-friendly 1-minute quiz game across **Math**, **Geography** (193 UN member
   - Shows a `Last:` badge above the equation with previous wrong attempts and running average duration.
   - Updates per-question stats without submitting practice scores to the global leaderboard.
 - **My Ranks & Scores**:
-  - Collapsible overview card showing your ranks and best scores across games with **Full Games** / **Mini Games** scope tabs, **🎯 Play Next**, **🏆 By Rank**, and **📈 By Score** sorting, multi-facet `🎛️ Filters` (Topic, Learn, With, CEFR), pagination, and **🔗 Share My Page**.
+  - Collapsible overview card following the active mode (`⏱️ 1-Min` scores or `🏁 All (≤100)` fastest times), showing your ranks and best performances across games with **Full Games** / **Mini Games** scope tabs, **🎯 Play Next**, **🏆 By Rank**, and **📈 By Score** sorting, multi-facet `🎛️ Filters` (Topic, Learn, With, CEFR), pagination, and **🔗 Share My Page**.
 - **Progress & Review**:
   - Collapsible section (collapsed by default so first-time visitors see the leaderboard immediately, with expand/collapse state saved in `localStorage`).
-  - **Progress Chart**: Plots `Score`, `Right`, and cumulative `Best` across past games.
+  - **Progress Chart**: Plots `Score`, `Right`, and cumulative `Best` across past games in `⏱️ 1-Min` mode, or `Time (s)` and `Best (s)` in `🏁 All (≤100)` mode.
   - **Review Tabs**:
     - **Mistakes & Slowest**: Questions from the last game sorted by mistakes first, then slowest time.
     - **Order Played**: Questions from the last game in the exact order played.
     - **To Practice**: All tracked questions across past games with running average duration and mistake history.
 - **Interactive Replays, Ghost Race Mode & Shareable Links**:
-  - Watch step-by-step replays (`▶` / `▶ Replay`) of your last game, your best game, or any player's best game on the global leaderboard or a player profile (`1×` / `2×` / `4×` speed, pause/resume, restart, top score summary banner, and live question log).
-  - **⚔️ Ghost Race Mode**: Open any replay via `▶` / `▶ Replay` and tap **`⚔️ Race`** in the replay banner to play that exact sequence of questions yourself against a live split counter (`⚔️ You: 18 vs Player: 16 | +2`) without affecting the ranked leaderboard.
-  - **Head-to-Head Race Replays**: Replays of Ghost Races show a head-to-head outcome banner, both players' live scores, the opponent's live equation & typed digits (`#race-opp-eq`), and an interactive **Score Timeline Chart** (`#replay-race-chart`) with green/red lead-deficit shading.
-  - **Interactive Replay Timeline Bar**: Scrub or tap anywhere along the 60-second timeline or score chart (with green right-answer and red wrong-answer markers, or tap any question row in the log) to jump to any moment in the replay.
-  - Includes a **Play 1-Minute Game** button at the top of the replay view so recipients of a shared replay can jump right into playing.
+  - Watch step-by-step replays (`▶` / `▶ Replay`) of your last game, your best game, or any player's best game on the global leaderboard or a player profile (`1×` / `2×` / `4×` speed, pause/resume, restart, top score/time summary banner, and live question log) in both `⏱️ 1-Min` and `🏁 All (≤100)` modes.
+  - **⚔️ Ghost Race Mode**: Open any replay via `▶` / `▶ Replay` and tap **`⚔️ Race`** in the replay banner to play that exact sequence of questions yourself against a live split counter (`⚔️ You: 18 vs Player: 16 | +2` in `1-Min`, or live progress & completion-time comparison in `All (≤100)`) without affecting the ranked leaderboard.
+  - **Head-to-Head Race Replays**: Replays of Ghost Races show a head-to-head outcome banner, both players' live scores or completion progress, the opponent's live equation & typed digits (`#race-opp-eq`), and an interactive **Score Timeline Chart** (`#replay-race-chart`) with green/red lead-deficit shading.
+  - **Interactive Replay Timeline Bar**: Scrub or tap anywhere along the replay timeline or score chart (with green right-answer and red wrong-answer markers, or tap any question row in the log) to jump to any moment in the replay.
+  - Includes a **Play** button at the top of the replay view so recipients of a shared replay can jump right into playing.
   - **🔗 Share Replay** (`🔗 Share Replay` inside the replay banner) copies a self-contained `?replay=...` URL (`https://math-leaderboard.vercel.app/?replay=...`).
 - **Global Leaderboards, Player Profile Pages & Live Open Graph Previews**:
-  - Each game configuration has its own paginated global leaderboard in Firebase Realtime Database using standard competition ranking (tied scores share the same rank), with unified page navigation (also used by **My Ranks & Scores** and **Player Profile**), a pinned current-user row, `🎯 My Rank` page jump, and exact points needed to tie/pass the next rank up.
-  - **Player Profile Pages (`?user=<userId>&u=<username>`)**: Click any player's name on the leaderboard (or `👤 Page`) to open their full-screen Player Profile showing their performances across all games (with **Full Games** / **Mini Games** tabs, `🎛️ Filters`, and pagination) sorted by **🏆 By Rank**, **📈 By Score**, or **🎯 Play Next**, with direct links to each game config and `▶` replay buttons.
-  - **Shareable Game Configs (`?config=<configId>`)**: Click `🔗` in the Leaderboard header to share a direct link to any game configuration's leaderboard.
-  - `api/og.js` and `middleware.js` on Vercel serve dynamic `1200 × 630` Open Graph preview images for the multi-category home overview (`/api/og`), live config leaderboards (`/api/og?config=...`), player profile pages (`/api/og?user=...`), solo replays, and head-to-head Ghost Race replays while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
+  - Each game configuration has separate paginated global leaderboards in Firebase Realtime Database for `⏱️ 1-Min` (highest score) and `🏁 All (≤100)` (fastest completion time) using standard competition ranking (tied scores/times share the same rank), with unified page navigation (also used by **My Ranks & Scores** and **Player Profile**), a pinned current-user row, `🎯 My Rank` page jump, and exact gap needed to tie/pass the next rank up.
+  - **Player Profile Pages (`?user=<userId>&u=<username>`)**: Click any player's name on the leaderboard (or `👤 Page`) to open their full-screen Player Profile with a `⏱️ 1-Min` / `🏁 All (≤100)` mode toggle, **Full Games** / **Mini Games** tabs, `🎛️ Filters`, and pagination sorted by **🏆 By Rank**, **📈 By Score**, or **🎯 Play Next**, with direct links to each game config and `▶` replay buttons.
+  - **Shareable Game Configs & Mode Links (`?config=<configId>`, `?mode=all`)**: Click `🔗` in the Leaderboard header to share a direct link to any game configuration's leaderboard (preserving `?mode=all` when in Time Attack mode).
+  - `api/og.js` and `middleware.js` on Vercel serve dynamic `1200 × 630` Open Graph preview images for the multi-category home overview (`/api/og` and `/api/og?mode=all`), live config leaderboards (`/api/og?config=...` and `&mode=all`), player profile pages (`/api/og?user=...` and `&mode=all`), solo replays, and head-to-head Ghost Race replays (both `1-Min` and `Time Attack`) while redirecting browsers to GitHub Pages so `localStorage` remains on a single domain.
 - **Installable Phone App (PWA)**:
   - Includes a Web App Manifest (`manifest.json`), home-screen icons, safe-area inset padding, Android immersive fullscreen, a header `📲` install button, and an offline-capable Service Worker (`sw.js`).
   - **iPhone / iPad (Safari)**: Open `https://kssilveira.github.io/math-leaderboard/` → tap `📲` (or **Share** → **Add to Home Screen**).
