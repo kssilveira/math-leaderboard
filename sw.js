@@ -50,9 +50,9 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first for same-origin app assets so updates deploy immediately when online,
-// with cache fallback for offline play. Lazy Study packs live in STUDY_DATA_CACHE so
-// APP_SHELL version bumps do not wipe already-downloaded offline courses.
+// Stale-while-revalidate for same-origin app assets so cached shell, datasets, and
+// icons load immediately while refreshing in the background. Lazy Study packs live
+// in STUDY_DATA_CACHE so APP_SHELL version bumps preserve offline courses.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -60,24 +60,37 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
+  const isNavigate = request.mode === 'navigate';
   const targetCache = isStudyDataRequest(url) ? STUDY_DATA_CACHE : CACHE_NAME;
+  const cacheKey = isNavigate
+    ? (url.pathname.endsWith('/') ? './index.html' : `${url.origin}${url.pathname}`)
+    : request;
 
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response && response.status === 200) {
-          const copy = response.clone();
-          caches.open(targetCache).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request, { ignoreSearch: true });
-        if (cached) return cached;
-        if (request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-        return Response.error();
-      })
+    caches.open(targetCache).then(async (cache) => {
+      const cached = await cache.match(cacheKey, { ignoreSearch: true });
+      const networkPromise = fetch(request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            cache.put(cacheKey, response.clone()).catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => null);
+
+      if (cached) {
+        event.waitUntil(networkPromise);
+        return cached;
+      }
+
+      const networkResponse = await networkPromise;
+      if (networkResponse) return networkResponse;
+
+      if (isNavigate) {
+        const fallback = await caches.match('./index.html');
+        if (fallback) return fallback;
+      }
+      return Response.error();
+    })
   );
 });
