@@ -50,6 +50,22 @@ function isPlausibleLeaderboardSession(score, sessionData) {
   return true;
 }
 
+function isBetterTimeAttackResult(candDurationMs, candWrong, existingEntry) {
+  if (typeof candDurationMs !== 'number' || candDurationMs <= 0) return false;
+  if (!existingEntry || typeof existingEntry.durationMs !== 'number' || existingEntry.durationMs <= 0) {
+    return true;
+  }
+  if (candDurationMs < existingEntry.durationMs) return true;
+  if (candDurationMs === existingEntry.durationMs) {
+    const nextWrong = typeof candWrong === 'number' && !Number.isNaN(candWrong) ? candWrong : 0;
+    const prevWrong = typeof existingEntry.wrong === 'number' && !Number.isNaN(existingEntry.wrong)
+      ? existingEntry.wrong
+      : Infinity;
+    return nextWrong < prevWrong;
+  }
+  return false;
+}
+
 function isPlausibleTimeSession(durationMs, sessionData) {
   if (typeof durationMs !== 'number' || durationMs < 500 || durationMs > ALL_MODE_MAX_DURATION_MS) {
     return false;
@@ -227,7 +243,7 @@ async function syncFromFirebase() {
         if (!localUserIds.has(uId) || !entry || typeof entry.durationMs !== 'number' || entry.durationMs <= 0) return;
         if (!mergedTimeLeaderboards[cfgId]) mergedTimeLeaderboards[cfgId] = {};
         const existing = mergedTimeLeaderboards[cfgId][uId];
-        if (!existing || typeof existing.durationMs !== 'number' || entry.durationMs < existing.durationMs) {
+        if (!existing || isBetterTimeAttackResult(entry.durationMs, entry.wrong || 0, existing)) {
           mergedTimeLeaderboards[cfgId][uId] = entry;
         }
       });
@@ -280,9 +296,8 @@ async function syncFromFirebase() {
           knownCloudConfigIds.add(normalized.id);
           byId.set(normalized.id, normalized);
 
-          // Migrate any legacy non-canonical config key in Firebase
-          if (key !== normalized.id) {
-            fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(key)}.json`, { method: 'DELETE' }).catch(() => {});
+          // Publish under canonical key if not already present (Firebase rules disallow DELETE/overwrite on /configs)
+          if (key !== normalized.id && !cloudConfigs[normalized.id]) {
             fetch(`${FIREBASE_DB_URL}/configs/${encodeURIComponent(normalized.id)}.json`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -546,25 +561,26 @@ async function backfillLocalBestToLeaderboard() {
       const hasExisting = existing && typeof existing.durationMs === 'number' && existing.durationMs > 0;
       const existingHasReplay = hasExisting && entryHasReplay(existing);
       const localHasQuestions = sessionHasQuestions(bestLocal);
+      const isBetterLocal = isBetterTimeAttackResult(bestLocal.durationMs, bestLocal.wrong || 0, existing);
 
       const needsUpload =
         !hasExisting ||
-        bestLocal.durationMs < existing.durationMs ||
+        isBetterLocal ||
         (!existingHasReplay && localHasQuestions);
 
       if (!needsUpload) return;
 
       const userObj = users.find(u => u.userId === uId);
       const resolvedUsername = (userObj && userObj.username) || (existing && existing.username) || username || 'Player';
-      const useLocalStats = !hasExisting || bestLocal.durationMs <= existing.durationMs;
+      const useLocalStats = !hasExisting || isBetterLocal;
       const bestDurationMs = hasExisting ? Math.min(existing.durationMs, bestLocal.durationMs) : bestLocal.durationMs;
       const targetCount = useLocalStats
         ? (bestLocal.targetCount || bestLocal.right || 0)
         : (existing.targetCount || existing.right || 0);
       const rawQuestions = localHasQuestions ? getSessionQuestions(bestLocal, cfgId) : [];
       const normalizedQuestions = rawQuestions.map(q => normalizeQuestionRecord(q, cfgId));
-      const baseUpdatedAt = (hasExisting && bestLocal.durationMs >= existing.durationMs && existing.updatedAt)
-        ? existing.updatedAt + 1
+      const baseUpdatedAt = hasExisting
+        ? Math.max((existing.updatedAt || 0) + 1, bestLocal.playedAt || Date.now())
         : (bestLocal.playedAt || Date.now());
 
       const slimRecord = {
@@ -774,6 +790,7 @@ async function submitTimeToLeaderboard(durationMs, sessionData) {
   }
   const configId = activeConfigId;
   const targetCount = Number(sessionData.targetCount || sessionData.right || 0);
+  const candWrong = typeof sessionData.wrong === 'number' ? sessionData.wrong : wrongCount;
   const cachedEntry = timeLeaderboardsMap[configId] && timeLeaderboardsMap[configId][userId];
   const cachedHasReplay = cachedEntry && entryHasReplay(cachedEntry);
 
@@ -781,7 +798,7 @@ async function submitTimeToLeaderboard(durationMs, sessionData) {
     cachedEntry &&
     typeof cachedEntry.durationMs === 'number' &&
     cachedEntry.durationMs > 0 &&
-    durationMs >= cachedEntry.durationMs &&
+    !isBetterTimeAttackResult(durationMs, candWrong, cachedEntry) &&
     cachedHasReplay
   ) {
     lastResult.classList.remove('new-high-score');
@@ -791,11 +808,7 @@ async function submitTimeToLeaderboard(durationMs, sessionData) {
   }
 
   const sessionQuestions = getSessionQuestions(sessionData, configId);
-  const isOptimisticBest =
-    !cachedEntry ||
-    typeof cachedEntry.durationMs !== 'number' ||
-    cachedEntry.durationMs <= 0 ||
-    durationMs < cachedEntry.durationMs;
+  const isOptimisticBest = isBetterTimeAttackResult(durationMs, candWrong, cachedEntry);
   const optimisticQuestions = sessionQuestions.map(q => normalizeQuestionRecord(q, configId));
   if (isOptimisticBest || !cachedHasReplay) {
     const optimisticRecord = {
@@ -833,11 +846,19 @@ async function submitTimeToLeaderboard(durationMs, sessionData) {
 
   const existing = existingRes && existingRes.ok ? await existingRes.json() : null;
   const hasExisting = existing && typeof existing.durationMs === 'number' && existing.durationMs > 0;
-  const isNewBestTime = !hasExisting || durationMs < existing.durationMs;
+  const isNewBestTime = isBetterTimeAttackResult(durationMs, candWrong, existing);
+  const isFasterTime = !hasExisting || durationMs < existing.durationMs;
+  const isCleanerTie =
+    hasExisting &&
+    isNewBestTime &&
+    durationMs === existing.durationMs &&
+    candWrong < (typeof existing.wrong === 'number' ? existing.wrong : Infinity);
   const bestDurationMs = hasExisting ? Math.min(existing.durationMs, durationMs) : durationMs;
 
   lastResult.classList.toggle('new-high-score', isNewBestTime);
-  lastScoreLabel.textContent = isNewBestTime ? '★ New Best Time!' : 'Last Time';
+  lastScoreLabel.textContent = isFasterTime
+    ? '★ New Best Time!'
+    : (isCleanerTie ? '★ New Best (Fewer Mistakes)!' : 'Last Time');
 
   const existingHasReplay = hasExisting && entryHasReplay(existing);
   const useSessionQuestions = isNewBestTime || (durationMs === existing.durationMs && !existingHasReplay);
@@ -849,9 +870,10 @@ async function submitTimeToLeaderboard(durationMs, sessionData) {
   const sourceQuestions = getSessionQuestions(sourceSession, configId);
   const normalizedQuestions = sourceQuestions.map(q => normalizeQuestionRecord(q, configId));
 
-  const nextUpdatedAt = isNewBestTime
-    ? Date.now()
-    : ((existing && existing.updatedAt ? existing.updatedAt : Date.now()) + 1);
+  const nextUpdatedAt = Math.max(
+    Date.now(),
+    existing && typeof existing.updatedAt === 'number' ? existing.updatedAt + 1 : 0
+  );
 
   const sourceTargetCount = Number(
     (sourceSession && (sourceSession.targetCount || sourceSession.right)) || targetCount

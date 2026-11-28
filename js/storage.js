@@ -27,9 +27,9 @@ function getBestLocalSession(targetUserId, targetConfigId, mode = (typeof active
       if (s.durationMs < best.durationMs) {
         best = s;
       } else if (s.durationMs === best.durationMs) {
-        if (!sessionHasQuestions(best) && sessionHasQuestions(s)) {
-          best = s;
-        } else if (sessionHasQuestions(best) === sessionHasQuestions(s) && (s.wrong || 0) < (best.wrong || 0)) {
+        const sWrong = s.wrong || 0;
+        const bestWrong = best.wrong || 0;
+        if (sWrong < bestWrong || (sWrong === bestWrong && !sessionHasQuestions(best) && sessionHasQuestions(s))) {
           best = s;
         }
       }

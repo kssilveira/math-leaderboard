@@ -1,4 +1,4 @@
-const CACHE_NAME = 'math-leaderboard-v86';
+const CACHE_NAME = 'math-leaderboard-v87';
 const STUDY_DATA_CACHE = 'math-leaderboard-study-data-v1';
 const APP_SHELL = [
   './',
@@ -20,6 +20,9 @@ const APP_SHELL = [
   './js/overview.js',
   './js/replay.js',
   './js/game.js',
+  './js/pwa-ui.js',
+  './js/users.js',
+  './js/configs.js',
   './js/app.js',
   './manifest.json',
   './assets/icons/favicon.svg',

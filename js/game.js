@@ -982,6 +982,31 @@ function enterAndroidImmersiveFullscreen() {
   return Promise.resolve();
 }
 
+function getOneMinRemainingSeconds(
+  nowMs = Date.now(),
+  startMs = gameStartTime,
+  durationSec = GAME_DURATION_SECONDS
+) {
+  const elapsedMs = Math.max(0, nowMs - startMs);
+  const remainingMs = Math.max(0, durationSec * 1000 - elapsedMs);
+  return Math.ceil(remainingMs / 1000);
+}
+
+function syncOneMinTimer() {
+  if (!isPlaying || isReplaying || activePlayMode !== '1min') return;
+  const nextTimeLeft = getOneMinRemainingSeconds();
+  if (nextTimeLeft === timeLeft) return;
+  const prevTimeLeft = timeLeft;
+  timeLeft = nextTimeLeft;
+  updateHud();
+  if (timeLeft >= 1 && timeLeft <= 5 && timeLeft < prevTimeLeft) {
+    playCountdownTickSound(timeLeft);
+  }
+  if (timeLeft <= 0) {
+    finishGame(true);
+  }
+}
+
 async function startGame(practice = false, raceTargetSession = null) {
   enterAndroidImmersiveFullscreen();
   if (isPlaying || isLoadingStudyPack) return;
@@ -1144,16 +1169,7 @@ async function startGame(practice = false, raceTargetSession = null) {
     if (isRaceMode) {
       raceRafId = requestAnimationFrame(tickRaceHud);
     }
-    timerInterval = setInterval(() => {
-      timeLeft -= 1;
-      updateHud();
-      if (timeLeft >= 1 && timeLeft <= 5) {
-        playCountdownTickSound(timeLeft);
-      }
-      if (timeLeft <= 0) {
-        finishGame(true);
-      }
-    }, 1000);
+    timerInterval = setInterval(syncOneMinTimer, 150);
   }
 }
 
@@ -1213,8 +1229,16 @@ async function finishGame(saveScore) {
   if (raceHudBar) raceHudBar.classList.add('hidden');
   if (raceOppEq) raceOppEq.classList.add('hidden');
 
+  const rawDurationMs = Math.max(1, Date.now() - gameStartTime);
+  const gameDurationMs = finishedMode === '1min'
+    ? Math.min(GAME_DURATION_SECONDS * 1000, rawDurationMs)
+    : rawDurationMs;
+
   if (currentQuestionRecord && currentQuestionRecord.wrong > 0) {
-    currentQuestionRecord.durationMs = Date.now() - questionStartTime;
+    const endTimeMs = finishedMode === '1min'
+      ? Math.min(Date.now(), gameStartTime + GAME_DURATION_SECONDS * 1000)
+      : Date.now();
+    currentQuestionRecord.durationMs = Math.max(0, endTimeMs - questionStartTime);
     currentGameQuestions.push(currentQuestionRecord);
     updateQuestionLastPerformance(userId, activeConfigId, currentQuestionRecord);
     currentQuestionRecord = null;
@@ -1222,7 +1246,6 @@ async function finishGame(saveScore) {
   flushQuestionStatsToStorage();
 
   const finalScore = rightCount - wrongCount;
-  const gameDurationMs = Math.max(1, Date.now() - gameStartTime);
   const normalizedQuestions = currentGameQuestions.map(q => normalizeQuestionRecord(q, activeConfigId));
 
   deleteUserBtn.classList.remove('hidden');
@@ -1307,13 +1330,16 @@ async function finishGame(saveScore) {
       }
 
       const cachedEntry = timeLeaderboardsMap[activeConfigId] && timeLeaderboardsMap[activeConfigId][userId];
-      const isInitialNewBest =
-        !cachedEntry ||
-        typeof cachedEntry.durationMs !== 'number' ||
-        cachedEntry.durationMs <= 0 ||
-        gameDurationMs < cachedEntry.durationMs;
+      const hasCached = Boolean(cachedEntry && typeof cachedEntry.durationMs === 'number' && cachedEntry.durationMs > 0);
+      const isInitialNewBest = typeof isBetterTimeAttackResult === 'function'
+        ? isBetterTimeAttackResult(gameDurationMs, wrongCount, cachedEntry)
+        : (!hasCached || gameDurationMs < cachedEntry.durationMs);
+      const isFasterTime = !hasCached || gameDurationMs < cachedEntry.durationMs;
+      const isCleanerTie = hasCached && isInitialNewBest && gameDurationMs === cachedEntry.durationMs;
       lastResult.classList.toggle('new-high-score', isInitialNewBest);
-      lastScoreLabel.textContent = isInitialNewBest ? '★ New Best Time!' : 'Last Time';
+      lastScoreLabel.textContent = isFasterTime
+        ? '★ New Best Time!'
+        : (isCleanerTie ? '★ New Best (Fewer Mistakes)!' : 'Last Time');
       lastScoreValue.textContent = formatDurationMs(gameDurationMs);
       lastScoreDetail.textContent = `${rightCount}/${finishedTargetCount} right · ${wrongCount} wrong`;
       lastResult.classList.remove('hidden');

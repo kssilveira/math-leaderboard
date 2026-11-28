@@ -15,7 +15,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `privacy.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-article-helper.js`, `data/study-{de,pt,es,fr}-helpers.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `data/study-fr-a1-*.js`, `data/study-fr-a2-*.js`, `lib/study-meta.js`, `js/study-meta-bridge.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/quiz-engine.js`, `js/audio-speech.js`, `js/storage.js`, `js/leaderboard.js`, `js/firebase.js`, `js/review.js`, `js/overview.js`, `js/replay.js`, `js/game.js`, `js/app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `privacy.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-article-helper.js`, `data/study-{de,pt,es,fr}-helpers.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `data/study-fr-a1-*.js`, `data/study-fr-a2-*.js`, `lib/study-meta.js`, `js/study-meta-bridge.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/quiz-engine.js`, `js/audio-speech.js`, `js/storage.js`, `js/leaderboard.js`, `js/firebase.js`, `js/review.js`, `js/overview.js`, `js/replay.js`, `js/game.js`, `js/pwa-ui.js`, `js/users.js`, `js/configs.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -29,7 +29,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 3. **Android App (Google Play Trusted Web Activity)**:
    - Package ID: `io.github.kssilveira.twa`
    - Digital Asset Links (`/.well-known/assetlinks.json`) are hosted on the root GitHub Pages site (`https://kssilveira.github.io/.well-known/assetlinks.json`).
-   - Android closed-testing links in the footer and install banner are automatically hidden when running inside standalone/TWA mode (`isStandaloneApp()` in `js/app.js`).
+   - Android closed-testing links in the footer and install banner are automatically hidden when running inside standalone/TWA mode (`isStandaloneApp()` in `js/pwa-ui.js`).
 
 ---
 
@@ -134,7 +134,10 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `js/overview.js`: **My Ranks & Scores** overview card and **Player Profile** (`#user-view`) filtering, sorting, pagination (via `renderPaginationControls`), and rendering.
   - `js/replay.js`: Compact question/replay URL encoding (`encodeReplayParam`/`decodeReplayParam`), share helpers, replay timeline/race chart rendering, and playback controls.
   - `js/game.js`: 1-minute gameplay loop, question generation, input handling, Ghost Race live HUD, and celebrations.
-  - `js/app.js`: Core application state, DOM references, theme & landscape helpers, user identity, config registry & filter switchers, event wiring, and initialization.
+  - `js/pwa-ui.js`: Theme switching, per-game landscape mode, PWA install prompt handling, and app notices.
+  - `js/users.js`: Multi-user local identity management and per-user Firebase ownership secrets.
+  - `js/configs.js`: Config registry & indexing, cached popularity sorting, Language/Study filter switchers, overflow layout, and custom Math config builder.
+  - `js/app.js`: Core application constants, mutable state, DOM references, event wiring, and initialization.
 - `lib/study-meta.js`: Single source of truth for client + edge Study course metadata (`STUDY_COURSES_META` with `DEFAULT_STUDY_PART_DEFS_BY_CEFR` inheritance, `nounArticlePattern`, `helperScripts`, `STUDY_LANGUAGE_META` with `bcp47` locales, `QUIZ_LANG_META`, `STUDY_CEFR_ORDER`), labels, mini-part names, OG home badge formatting (`getStudyOgHomeBadge()`), and config ID aliases imported by `lib/study-og-samples.js`, `lib/config-labels.js`, `api/og.js`, `scripts/validate-study.mjs`, and `js/study-meta-bridge.js`.
 - `lib/study-og-samples.js`: Server/validator-only Study OG preview samples (`STUDY_OG_SAMPLES_BY_COURSE`, `STUDY_PREVIEW_SAMPLES`) split out of `lib/study-meta.js` so client bundles do not load OG preview data (not in `sw.js` `APP_SHELL`).
 - `lib/config-labels.js`: Shared config label formatter (`QUIZ_CONFIG_LABELS`, `getMiniPartLabel()`, `formatConfigId()`, `resolveConfigIdAlias()`) imported by `middleware.js` and `lib/og/*` (not in `sw.js` `APP_SHELL`).

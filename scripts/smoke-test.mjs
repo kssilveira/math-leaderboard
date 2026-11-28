@@ -69,6 +69,9 @@ const CLASSIC_CLIENT_SCRIPTS = [
   'js/overview.js',
   'js/replay.js',
   'js/game.js',
+  'js/pwa-ui.js',
+  'js/users.js',
+  'js/configs.js',
   'js/app.js',
 ];
 
@@ -100,6 +103,9 @@ runCheck('Script syntax & global lexical non-collision check', () => {
     'js/overview.js',
     'js/replay.js',
     'js/game.js',
+    'js/pwa-ui.js',
+    'js/users.js',
+    'js/configs.js',
   ];
   const moduleDecls = new Map();
   for (const rel of extractedModules) {
@@ -718,6 +724,92 @@ await runAsyncCheck('Time Attack deck builder, time formatting, ascending rankin
   const mwHtml = await mwRes.text();
   assert.ok(mwHtml.includes('Time Attack (≤100)'), 'Middleware should emit Time Attack OG title for &mode=all');
   assert.ok(mwHtml.includes('mode=all'), 'Middleware should forward mode=all to OG image URL');
+});
+
+// 13. Cached config popularity sorting, wall-clock 1-Min timer & Time Attack tie-breaker
+runCheck('Cached config popularity sorting, wall-clock 1-Min timer & Time Attack tie-breaker', () => {
+  const cfgCtx = {
+    ALL_OPS: ['+', '-', '×', '÷'],
+    CONFIG_MIN_BOUND: -999,
+    CONFIG_MAX_BOUND: 999,
+    BUILTIN_QUIZ_CONFIGS: [
+      { id: 'cfg_geo_flag_country', category: 'geo', type: 'quiz', label: 'Flag' },
+      { id: 'cfg_geo_flag_country_p1', parentId: 'cfg_geo_flag_country', partIndex: 1, isMini: true, category: 'geo', type: 'quiz' },
+      { id: 'cfg_geo_flag_country_p2', parentId: 'cfg_geo_flag_country', partIndex: 2, isMini: true, category: 'geo', type: 'quiz' },
+      { id: 'cfg_other_morse_char', category: 'other', type: 'quiz', label: 'Morse' },
+    ],
+    configs: [],
+    configsByIdMap: new Map(),
+    localConfigsCache: null,
+    activeGameMode: '1min',
+    activeConfigId: 'cfg_other_morse_char',
+    leaderboardsMap: {
+      cfg_geo_flag_country: { u1: { score: 10 } },
+      cfg_geo_flag_country_p1: { u1: { score: 5 }, u2: { score: 6 }, u3: { score: 7 } },
+      cfg_other_morse_char: { u1: { score: 8 }, u2: { score: 9 } },
+    },
+    timeLeaderboardsMap: {
+      cfg_other_morse_char: { u1: { durationMs: 30000 }, u2: { durationMs: 35000 }, u3: { durationMs: 40000 } },
+    },
+    localStorage: { getItem: () => null, setItem: () => {} },
+  };
+  cfgCtx.window = cfgCtx;
+  cfgCtx.globalThis = cfgCtx;
+  vm.createContext(cfgCtx);
+  vm.runInContext(readRoot('js/configs.js'), cfgCtx, { filename: 'js/configs.js' });
+
+  cfgCtx.configs = [...cfgCtx.BUILTIN_QUIZ_CONFIGS];
+  cfgCtx.rebuildConfigsIndex();
+
+  assert.equal(cfgCtx.getPartConfigsForBase('cfg_geo_flag_country').length, 2);
+  assert.equal(cfgCtx.getActiveConfig().id, 'cfg_other_morse_char');
+
+  // In 1min mode: geo family size = 1 + 3 = 4 > other = 2
+  cfgCtx.sortConfigsByLeaderboardSize();
+  assert.equal(cfgCtx.configs[0].id, 'cfg_geo_flag_country');
+  assert.equal(cfgCtx.getConfigFamilyLeaderboardSize(cfgCtx.configs[0]), 4);
+
+  // Switching to all mode automatically recomputes cache: other = 3 > geo family = 1 + 0 (fallback 1+3=4? Wait: fallback per cfg)
+  // For cfg_geo_flag_country (1) + p1 (3) = 4 via 1min fallback, vs cfg_other_morse_char = 3; update timeLeaderboardsMap to 5
+  cfgCtx.timeLeaderboardsMap.cfg_other_morse_char.u4 = { durationMs: 42000 };
+  cfgCtx.timeLeaderboardsMap.cfg_other_morse_char.u5 = { durationMs: 45000 };
+  cfgCtx.invalidateConfigPopularityCache();
+  cfgCtx.activeGameMode = 'all';
+  cfgCtx.sortConfigsByLeaderboardSize();
+  assert.equal(cfgCtx.configs[0].id, 'cfg_other_morse_char');
+  assert.equal(cfgCtx.getCategoryMaxLeaderboardSize('other'), 5);
+
+  // Wall-clock 1-Min remaining seconds helper from js/game.js
+  const gameCtx = {
+    GAME_DURATION_SECONDS: 60,
+    gameStartTime: 100000,
+    window: {},
+    globalThis: {},
+  };
+  gameCtx.window = gameCtx;
+  gameCtx.globalThis = gameCtx;
+  vm.createContext(gameCtx);
+  vm.runInContext(readRoot('js/game.js'), gameCtx, { filename: 'js/game.js' });
+
+  assert.equal(gameCtx.getOneMinRemainingSeconds(100000, 100000, 60), 60);
+  assert.equal(gameCtx.getOneMinRemainingSeconds(101000, 100000, 60), 59);
+  assert.equal(gameCtx.getOneMinRemainingSeconds(155001, 100000, 60), 5);
+  assert.equal(gameCtx.getOneMinRemainingSeconds(160000, 100000, 60), 0);
+  assert.equal(gameCtx.getOneMinRemainingSeconds(220000, 100000, 60), 0);
+
+  // Time Attack tie-breaker helper from js/firebase.js
+  const fbCtx = { window: {}, globalThis: {} };
+  fbCtx.window = fbCtx;
+  fbCtx.globalThis = fbCtx;
+  vm.createContext(fbCtx);
+  vm.runInContext(readRoot('js/firebase.js'), fbCtx, { filename: 'js/firebase.js' });
+
+  assert.equal(fbCtx.isBetterTimeAttackResult(40000, 2, null), true);
+  assert.equal(fbCtx.isBetterTimeAttackResult(39000, 5, { durationMs: 40000, wrong: 0 }), true);
+  assert.equal(fbCtx.isBetterTimeAttackResult(40000, 1, { durationMs: 40000, wrong: 2 }), true);
+  assert.equal(fbCtx.isBetterTimeAttackResult(40000, 2, { durationMs: 40000, wrong: 2 }), false);
+  assert.equal(fbCtx.isBetterTimeAttackResult(40000, 3, { durationMs: 40000, wrong: 2 }), false);
+  assert.equal(fbCtx.isBetterTimeAttackResult(41000, 0, { durationMs: 40000, wrong: 5 }), false);
 });
 
 console.log('');

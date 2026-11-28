@@ -34,6 +34,9 @@ function invalidateRankedLeaderboardCache(cfgId = null, mode = null) {
     if (cfgId) rankedTimeLeaderboardCache.delete(cfgId);
     else rankedTimeLeaderboardCache.clear();
   }
+  if (typeof invalidateConfigPopularityCache === 'function') {
+    invalidateConfigPopularityCache();
+  }
 }
 
 function getRankedLeaderboard(cfgId, mode = activeGameMode) {
