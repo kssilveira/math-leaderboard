@@ -189,4 +189,5 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 3. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 4. **Testing Locally**:
-   - Run `./serve.sh` (defaults to port `8000`, or `./serve.sh <port>`) and open `http://localhost:8000/`.
+   - Run `./serve.sh` (defaults to ports `8000` for the app and `8001` for OG previews, or `./serve.sh <appPort> [ogPort]`) to start the static server and, when `node_modules/@vercel/og` is installed, the auto-reloading OG preview gallery (`scripts/preview-og.mjs`).
+   - You can also run `node --watch scripts/preview-og.mjs` (or `npm run preview:og`) standalone.
