@@ -380,7 +380,7 @@ const BASE_QUIZ_CONFIGS = [
   // Language (50 configs: 20 Translations, 10 Emoji↔Lang, 5 Synonym, 5 Antonym, 10 Idiom↔Meaning)
   ...buildLanguageQuizConfigs(),
 
-  // Study (CEFR / Proficiency standards — German & English A1 & A2)
+  // Study (CEFR / Proficiency standards — German, English & Portuguese A1 & A2)
   ...buildStudyQuizConfigs(),
 
   // Other (4 configs: 118 IUPAC chemical elements & 36 International Morse Code characters)
