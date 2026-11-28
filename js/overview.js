@@ -1,6 +1,6 @@
 // Overview ("My Ranks & Scores") and Player Profile Page filters & rendering.
 
-const OVERVIEW_PAGE_SIZE = 10;
+const OVERVIEW_PAGE_SIZE = 7;
 const USER_PAGE_SIZE = 30;
 let overviewPage = 1;
 let overviewLastContextKey = '';
