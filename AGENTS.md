@@ -3,7 +3,7 @@
 This document provides complete technical context for AI coding agents working on this repository. Keep this repository strictly free of any proprietary, internal, or machine-specific paths/credentials.
 
 > **Context & Token Hygiene Rule (`data/` directory)**:
-> **NEVER** read, view, or grep large minified files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas (along with `data/study-de-a1-core.js` and `data/study-de-a1-en.js`) are documented in Section 2 below.
+> **NEVER** read, view, or grep large minified files inside `data/` (`data/quiz-datasets.js` and `data/geo-map-data.js`) unless the user explicitly asks to add or edit raw dataset entries. Those files contain single-line minified arrays (~250 KB total) that will waste context quota. Their global variable names and tuple schemas (along with the lazy-loaded `data/study-*.js` packs) are documented in Section 2 below.
 
 ---
 
@@ -15,13 +15,11 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `data/study-fr-a1-*.js`, `data/study-fr-a2-*.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/quiz-engine.js`, `js/audio-speech.js`, `js/storage.js`, `js/leaderboard.js`, `js/firebase.js`, `js/review.js`, `js/overview.js`, `js/replay.js`, `js/game.js`, `js/app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `privacy.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-article-helper.js`, `data/study-{de,pt,es,fr}-helpers.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `data/study-fr-a1-*.js`, `data/study-fr-a2-*.js`, `lib/study-meta.js`, `js/study-meta-bridge.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/quiz-engine.js`, `js/audio-speech.js`, `js/storage.js`, `js/leaderboard.js`, `js/firebase.js`, `js/review.js`, `js/overview.js`, `js/replay.js`, `js/game.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
-   - `middleware.js` intercepts requests to `/` and `/index.html`:
-     - **Social Crawlers** (`Twitterbot`, `facebookexternalhit`, `WhatsApp`, `Discordbot`, `Slackbot`, `LinkedInBot`, `TelegramBot`, etc.) or `?og_preview=1`: Serves HTML with dynamic Open Graph (`og:*`) and Twitter (`twitter:*`) meta tags pointing `og:image` to `https://math-leaderboard.vercel.app/api/og?...`.
-     - **Human Browsers**: Responds with an HTTP `307` redirect to `https://kssilveira.github.io/math-leaderboard/` (preserving `?replay=`, `?config=`, or `?user=` query parameters).
+   - `middleware.js` intercepts requests to `/` and `/index.html` and responds with `200 OK` HTML containing dynamic Open Graph (`og:*`) and Twitter (`twitter:*`) meta tags pointing `og:image` to `https://math-leaderboard.vercel.app/api/og?...`, plus a client-side `window.location.replace(...)` redirect to `https://kssilveira.github.io/math-leaderboard/` (preserving `?replay=`, `?config=`, or `?user=` query parameters). Social crawlers read the meta tags without executing JS, while human browsers are immediately redirected.
    - `api/og.js` (`@vercel/og` Edge Function) generates `1200 × 630` PNG preview images for:
      - **Home Overview** (`/api/og`): Shows a 2×2 gameplay showcase across Math, Geography, Language, and Study alongside live `#1` global leaders across popular games from all five categories.
      - **Config Leaderboard** (`/api/og?config=<configId>`): Shows a config-specific preview card (math equation or 2-choice quiz sample) alongside the live Top 10 leaderboard fetched from Firebase.
@@ -41,6 +39,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `#home-view`: User switcher, Topic switcher (`🔢 Math`, `🌍 Geo`, `💬 Lang`, `🎓 Study`, `🧩 Other`), shared Language filters (`#learn-lang-row`, `#with-lang-row` for both `Lang` and `Study`), Study CEFR filter (`#study-cefr-row`), Game config switcher (with `▾ All (N)` / `▴ Less` 2-column vertical expansion), Set switcher (`#part-switcher-row`), custom Math config builder (`#new-config-panel`), Last Score banner (`#last-result`), Play / Practice buttons, collapsible **My Ranks & Scores** card (`#overview-card`), collapsible **Progress & Review** card (`#review-card`), and paginated **Leaderboard** card.
   - `#user-view`: Full-screen **Player Profile Page** showing a player's summary stats and performances across all games sorted by `🏆 By Rank`, `📈 By Score`, or `🎯 Play Next`.
   - `#game-view`: 1-minute gameplay HUD, Ghost Race live split HUD (`#race-hud-bar`), equation card (`#math-eq-group`) or 2-choice quiz prompt (`#quiz-prompt-group`), numeric keypad (`#keypad`) or 2-choice buttons (`#quiz-choices`), and interactive replay panel (`#replay-panel`).
+- `privacy.html`: Static Privacy Policy page linked from the app footer (included in `sw.js` `APP_SHELL`).
 - `style.css`: Mobile-first styles (`max-width: 440px`), Light/Dark theme CSS variables (`:root` and `:root[data-theme="dark"]`), animations, and responsive layouts.
 - `assets/`:
   - `assets/icons/`: App and PWA icons (`favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`).
@@ -129,10 +128,10 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `js/quiz-engine.js`: Question normalization, cloze rendering (`fillClozePromptHtml`, `fillClozePlainText`), constraint-based math samplers (`getValidSamplers`), and 2-choice `pos_pool`/`explicit` distractor sampling.
   - `js/audio-speech.js`: Web Audio API sound effects, haptics, and Web Speech API (`speechSynthesis`) pronunciation with voice selection & `Auto` toggle.
   - `js/storage.js`: Local history compaction, per-question stats tracking, and legacy config migration.
-  - `js/leaderboard.js`: Per-config ranked leaderboard cache, leaderboard rendering/pagination, and user profile navigation.
+  - `js/leaderboard.js`: Per-config ranked leaderboard cache, leaderboard rendering, shared pagination (`renderPaginationControls`), and user profile navigation.
   - `js/firebase.js`: Firebase Realtime Database sync, optimistic score submission, protected writes, and remote replay fetching.
   - `js/review.js`: Progress SVG chart and **Progress & Review** question breakdown rendering.
-  - `js/overview.js`: **My Ranks & Scores** overview card and **Player Profile** (`#user-view`) filtering, sorting, and rendering.
+  - `js/overview.js`: **My Ranks & Scores** overview card and **Player Profile** (`#user-view`) filtering, sorting, pagination (via `renderPaginationControls`), and rendering.
   - `js/replay.js`: Compact question/replay URL encoding (`encodeReplayParam`/`decodeReplayParam`), share helpers, replay timeline/race chart rendering, and playback controls.
   - `js/game.js`: 1-minute gameplay loop, question generation, input handling, Ghost Race live HUD, and celebrations.
   - `js/app.js`: Core application state, DOM references, theme & landscape helpers, user identity, config registry & filter switchers, event wiring, and initialization.
@@ -140,19 +139,21 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 - `lib/study-og-samples.js`: Server/validator-only Study OG preview samples (`STUDY_OG_SAMPLES_BY_COURSE`, `STUDY_PREVIEW_SAMPLES`) split out of `lib/study-meta.js` so client bundles do not load OG preview data (not in `sw.js` `APP_SHELL`).
 - `lib/config-labels.js`: Shared config label formatter (`QUIZ_CONFIG_LABELS`, `getMiniPartLabel()`, `formatConfigId()`, `resolveConfigIdAlias()`) imported by `middleware.js` and `lib/og/*` (not in `sw.js` `APP_SHELL`).
 - `lib/og/`: Server/edge-only Open Graph card modules (`common.js`, `replay-card.js`, `user-profile-card.js`, `leaderboard-card.js`, `home-card.js`) imported by `api/og.js` (not in `sw.js` `APP_SHELL`).
+- `scripts/preview-og.mjs`: Local auto-reloading Open Graph card preview gallery server launched by `./serve.sh` or `npm run preview:og` (not in `sw.js` `APP_SHELL`).
 - `scripts/validate-study.mjs`: Automated Study dataset & metadata validator (`npm run validate:study` / `node scripts/validate-study.mjs`) checking static-load hygiene, OG samples, `bcp47` locales, `partDefs` key overlap & `articles` noun `setKey` coverage, `nounArticlePattern` coverage, whitespace, per-mini-part `pos_pool` viability, duplicate translations, and length/capitalization/punctuation giveaways.
 - `scripts/smoke-test.mjs`: Automated runtime smoke test suite (`npm run test:smoke`, or `npm test` to run both validator and smoke tests) verifying script syntax & global non-collision, `sw.js` `APP_SHELL` integrity, OG labels, full Study hydration across all 10 courses & 40 packs, distractor sampling, cloze rendering, replay/ghost-race round-trips, math constraint samplers, and Study TTS payloads.
-- `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
+- `firebase-migration/`: One-off Firebase maintenance scripts (`migrate-legacy-and-replays.mjs`, `migrate-study-de-ids.mjs`); backup/patch JSON snapshots in this directory are gitignored (`firebase-migration/*.json`).
+- `middleware.js`: Vercel Edge Middleware serving `200 OK` HTML with dynamic Open Graph / Twitter meta tags and a client-side `window.location.replace(...)` redirect to GitHub Pages.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) router delegating `1200 × 630` PNG Open Graph card generation to `lib/og/*.js`.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
-- `sw.js`: Offline-first Service Worker for `APP_SHELL` (`CACHE_NAME`) plus a separate `STUDY_DATA_CACHE` for lazy `data/study-*` packs so app shell bumps preserve downloaded offline courses.
+- `sw.js`: Service Worker using a stale-while-revalidate fetch strategy with offline fallback for `APP_SHELL` (`CACHE_NAME`) plus a separate `STUDY_DATA_CACHE` for lazy `data/study-*` packs so app shell bumps preserve downloaded offline courses.
 
 ---
 
 ## 3. Key Data Formats & Mechanisms
 
 ### Compact Question & Replay Encoding
-Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) and base64url `?replay=` URLs use a compact array tuple per question (`COMPACT_OPS = ['+', '-', '×', '÷', '?']`):
+Both Firebase replay records (`/replays/$configId/$userId/q`, with legacy `/leaderboards/$configId/$userId/questions` fallback) and base64url `?replay=` URLs use a compact array tuple per question (`COMPACT_OPS = ['+', '-', '×', '÷', '?']`):
 
 - **Math Questions (`opIdx` in `0..3`)**:
   - Format: `[a, opIdx, b, missingIndex, durationMs, wrongAnswers?]`
@@ -168,10 +169,13 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 
 ### Firebase Realtime Database & Per-User Write Protection
 - **Database URL**: `https://math-leaderboard-122f4-default-rtdb.europe-west1.firebasedatabase.app`
+- **Split Leaderboard & Replay Storage**:
+  - `/leaderboards/$configId/$userId` stores slim score metadata (`userId`, `username`, `score`, `right`, `wrong`, `durationMs`, `updatedAt`, and `hasReplay: true` when a replay exists).
+  - `/replays/$configId/$userId` stores `{ updatedAt, q }` (the compact question tuple array), fetched lazily when a user opens a replay (`fetchRemoteReplayQuestions()`). Inline `questions` on `/leaderboards/...` is kept only as a fallback if `/replays` writes are rejected.
 - **Ownership Verification without Auth Popups**:
   - Every local user on a device gets a random secret token (`sec_<uuid>`) stored in `localStorage` (`math_user_secrets_v1`).
   - `/userSecrets/$userId` has `.read: false` and only permits writes if `!data.exists()` (claiming a new user ID) or `newData.child('token').val() === data.child('token').val()`.
-  - Updating or deleting `/leaderboards/$configId/$userId` is performed via an atomic root `PATCH /.json` that simultaneously updates `/userSecrets/$userId` (`{ token, proof: "${token}_${updatedAt}" }`) and `/leaderboards/$configId/$userId`. `database.rules.json` verifies that `newData.parent().parent().parent().child('userSecrets').child($userId).child('token').val()` matches the existing secret token.
+  - Updating or deleting `/leaderboards/$configId/$userId` and `/replays/$configId/$userId` is performed via an atomic root `PATCH /.json` that simultaneously updates `/userSecrets/$userId` (`{ token, proof: "${token}_${updatedAt}" }`, or `"${token}_delete_${timestamp}"` on deletion), `/leaderboards/$configId/$userId`, and `/replays/$configId/$userId`. `database.rules.json` verifies that the secret token matches, the `proof` changed from the previous value, and leaderboard scores only increase or stay equal.
 
 ### URL Deep Links & Address Bar Hygiene
 - Share helpers (`copyReplayLink`, `copyConfigLink`, `copyUserPageLink`) build links using `getShareBaseUrl()` (`https://math-leaderboard.vercel.app/` when on `github.io`).
@@ -185,13 +189,13 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 
 1. **Adding New Quiz or Study Configs**:
    - Add raw dataset arrays to `data/quiz-datasets.js` (general quizzes) or a dedicated pack file such as `data/study-<learn>-<cefr>-core.js` and `data/study-<learn>-<cefr>-<with>.js` (lazy-loaded on demand via `ensureStudyConfigLoaded()` in `js/quiz-data.js`, **not** statically loaded in `index.html` or `sw.js` `APP_SHELL`).
-   - Add general quiz labels/samples to `QUIZ_CONFIG_LABELS` / `getMiniPartLabel()` in `middleware.js` and `api/og.js`.
+   - Add general quiz labels to `QUIZ_CONFIG_LABELS` / `getMiniPartLabel()` in `lib/config-labels.js` and preview samples to `QUIZ_PREVIEW_SAMPLES` in `lib/og/common.js`.
    - For Study courses, add the course entry (including `helperScripts`, optional `nounArticlePattern` and `partDefs` overrides) to `STUDY_COURSES_META` in `lib/study-meta.js` and its OG preview samples to `STUDY_OG_SAMPLES_BY_COURSE` in `lib/study-og-samples.js`, and have the core file self-register into `globalThis.STUDY_COURSE_REGISTRY["<learn>_<cefr>"]` (no edits needed in `js/quiz-data.js`). Keep monolingual `ruleNote`s in ultra-short symbolic format.
 2. **Study Language Authoring Conventions**:
    - **Self-registration**: Each `data/study-<learn>-<cefr>-core.js` registers `{ vocabCore, verbs, grammar, phrasesCore, packs, articles | buildArticles }` onto `globalThis.STUDY_COURSE_REGISTRY["<learn>_<cefr>"]`, and each `data/study-<learn>-<cefr>-<with>.js` attaches its `{ code, vocab, phrases }` object onto the core's `PACKS` object.
    - **Gendered nouns & Articles track**: For gendered languages (e.g. `de`, `fr`, `es`, `pt`), include the definite article directly in `VOCAB_CORE` nouns (`der/die/das`, `le/la/l'/les`, `el/la/los/las`, `o/a/os/as`) with a plural/gender `hint` so `Articles & Gender` can either derive from `VOCAB_CORE` + targeted contrasts via a lazy-loaded `helperScripts` module or supply an explicit `articles` array (like `en`).
    - **Discontinuous cloze blanks**: Use multiple `___` slots in the prompt paired with `...`-separated answers (e.g., `"Je ___ mange ___ de viande."` with `"ne ... pas"`), which `fillClozePromptHtml()` renders into separate highlighted slots in Review/Replay.
-   - **Validation**: Always run `node scripts/validate-study.mjs` (or `npm run validate:study`) after adding or editing any Study course or translation pack.
+   - **Validation & Tests**: Always run `npm test` (which runs both `npm run validate:study` and `npm run test:smoke`) after adding or editing any Study course, translation pack, or core runtime/OG script.
 3. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 4. **Testing Locally**:
