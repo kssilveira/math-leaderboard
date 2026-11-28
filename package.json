@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate:study": "node scripts/validate-study.mjs"
+    "validate:study": "node scripts/validate-study.mjs",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "test": "npm run validate:study && npm run test:smoke"
   },
   "dependencies": {
     "@vercel/og": "^0.6.2"

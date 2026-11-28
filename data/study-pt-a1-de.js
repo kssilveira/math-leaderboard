@@ -836,7 +836,7 @@ STUDY_PT_A1_PACKS.de = {
     ['Es regnet. Nimm den Regenschirm mit!', 'está + Gerundio (chovendo) = gerade jetzt'],
     ['Draußen ist es sehr kalt.', 'lá fora = draußen; estar für aktuelles Wetter'],
     ['Entschuldigung für die Verspätung!', 'desculpe por + o = pelo'],
-    ['Kein Problem!', 'umgangssprachlich in Brasilien: não tem (= não há)'],
+    ['Kein Problem! / Alles gut!', 'umgangssprachlich in Brasilien: não tem (= não há)'],
     ['Es tut mir sehr leid!', 'sinto = 1. Ps. Sg. von sentir'],
     ['Ich habe Kopfschmerzen.', 'estar com dor de + Körperteil'],
     ['Gute Besserung!', 'immer im Plural (melhoras)'],

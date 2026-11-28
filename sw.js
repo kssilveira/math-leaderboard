@@ -1,4 +1,4 @@
-const CACHE_NAME = 'math-leaderboard-v77';
+const CACHE_NAME = 'math-leaderboard-v78';
 const STUDY_DATA_CACHE = 'math-leaderboard-study-data-v1';
 const APP_SHELL = [
   './',
@@ -11,6 +11,10 @@ const APP_SHELL = [
   './js/study-meta-bridge.js',
   './js/geo-maps.js',
   './js/quiz-data.js',
+  './js/quiz-engine.js',
+  './js/audio-speech.js',
+  './js/overview.js',
+  './js/replay.js',
   './js/app.js',
   './manifest.json',
   './assets/icons/favicon.svg',

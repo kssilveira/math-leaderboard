@@ -1,0 +1,436 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import {
+  STUDY_COURSES_META,
+  STUDY_LANGUAGE_META,
+  STUDY_CEFR_ORDER,
+  resolveStudyConfigIdAlias,
+  getStudyOgHomeBadge,
+} from '../lib/study-meta.js';
+import {
+  formatConfigId,
+  getMiniPartLabel,
+  resolveConfigIdAlias,
+} from '../lib/config-labels.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = path.resolve(__dirname, '..');
+
+let passedCount = 0;
+
+function runCheck(name, fn) {
+  fn();
+  passedCount += 1;
+  console.log(`  [PASS] ${name}`);
+}
+
+async function runAsyncCheck(name, fn) {
+  await fn();
+  passedCount += 1;
+  console.log(`  [PASS] ${name}`);
+}
+
+function readRoot(relPath) {
+  return fs.readFileSync(path.join(ROOT_DIR, relPath), 'utf8');
+}
+
+function extractTopLevelDecls(source) {
+  const decls = [];
+  const lines = source.split('\n');
+  let depth = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (depth === 0) {
+      const m = line.match(/^\s*(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/);
+      if (m) decls.push(m[1]);
+    }
+    for (let j = 0; j < line.length; j++) {
+      const ch = line[j];
+      if (ch === '{') depth += 1;
+      else if (ch === '}') depth = Math.max(0, depth - 1);
+    }
+  }
+  return decls;
+}
+
+// 1. Script syntax & global collision check
+const CLASSIC_CLIENT_SCRIPTS = [
+  'js/geo-maps.js',
+  'js/quiz-data.js',
+  'js/quiz-engine.js',
+  'js/audio-speech.js',
+  'js/overview.js',
+  'js/replay.js',
+  'js/app.js',
+];
+
+runCheck('Script syntax & global lexical non-collision check', () => {
+  for (const rel of ['sw.js', ...CLASSIC_CLIENT_SCRIPTS]) {
+    const code = readRoot(rel);
+    new vm.Script(code, { filename: rel });
+  }
+
+  // Load extracted modules sequentially in one VM context to ensure no duplicate const/let/function errors
+  const ctx = {
+    window: {},
+    globalThis: {},
+    document: {},
+    navigator: {},
+    localStorage: { getItem: () => null, setItem: () => {} },
+  };
+  ctx.window = ctx;
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+
+  const extractedModules = ['js/quiz-engine.js', 'js/audio-speech.js', 'js/overview.js', 'js/replay.js'];
+  const moduleDecls = new Map();
+  for (const rel of extractedModules) {
+    const code = readRoot(rel);
+    vm.runInContext(code, ctx, { filename: rel });
+    for (const sym of extractTopLevelDecls(code)) {
+      assert.equal(moduleDecls.has(sym), false, `Duplicate top-level symbol "${sym}" between ${moduleDecls.get(sym)} and ${rel}`);
+      moduleDecls.set(sym, rel);
+    }
+  }
+
+  const appDecls = new Set(extractTopLevelDecls(readRoot('js/app.js')));
+  for (const [sym, modRel] of moduleDecls.entries()) {
+    assert.equal(appDecls.has(sym), false, `Symbol "${sym}" from ${modRel} is still declared in js/app.js`);
+  }
+});
+
+// 2. PWA / APP_SHELL integrity check
+runCheck('PWA APP_SHELL & index.html script alignment', () => {
+  const swSource = readRoot('sw.js');
+  const appShellMatch = swSource.match(/const\s+APP_SHELL\s*=\s*\[([\s\S]*?)\];/);
+  assert.ok(appShellMatch, 'Could not locate APP_SHELL in sw.js');
+
+  const appShellEntries = Array.from(appShellMatch[1].matchAll(/['"]([^'"]+)['"]/g)).map((m) => m[1]);
+  assert.ok(appShellEntries.length > 0, 'APP_SHELL is empty');
+
+  for (const entry of appShellEntries) {
+    const cleanRel = entry === './' ? 'index.html' : entry.replace(/^\.\//, '');
+    assert.ok(fs.existsSync(path.join(ROOT_DIR, cleanRel)), `APP_SHELL entry missing on disk: ${entry}`);
+  }
+
+  const appShellSet = new Set(appShellEntries.map((e) => (e === './' ? 'index.html' : e.replace(/^\.\//, ''))));
+  const indexHtml = readRoot('index.html');
+  const scriptSrcs = Array.from(indexHtml.matchAll(/<script[^>]*\bsrc=['"]([^'"]+)['"]/g)).map((m) => m[1]);
+  assert.ok(scriptSrcs.length > 0, 'No <script src="..."> tags found in index.html');
+
+  for (const src of scriptSrcs) {
+    assert.ok(!src.startsWith('data/study-'), `index.html must not statically load ${src}`);
+    assert.ok(appShellSet.has(src), `index.html script "${src}" missing from sw.js APP_SHELL`);
+  }
+});
+
+// 3. OG metadata & config labels check
+runCheck('OG home badge & Study config label aliases', () => {
+  const badge = getStudyOgHomeBadge();
+  for (const flag of ['🇩🇪', '🇬🇧', '🇧🇷', '🇪🇸', '🇫🇷']) {
+    assert.ok(badge.includes(flag), `OG Home Study badge missing flag ${flag}: "${badge}"`);
+  }
+  assert.equal(badge.includes('+1'), false, `OG Home Study badge should not truncate to +1: "${badge}"`);
+
+  const aliased = resolveConfigIdAlias('cfg_study_de_en_a1_grammar');
+  assert.equal(aliased, 'cfg_study_de_de_a1_grammar');
+  const label = formatConfigId('cfg_study_de_en_a1_grammar');
+  assert.ok(label.includes('Grammar'), `Unexpected formatted label for alias: "${label}"`);
+  assert.equal(getMiniPartLabel('cfg_study_fr_en_a1_vocab_fr_en', 1), '⏰ Basics & Time');
+});
+
+// 4–9. Runtime VM harness across quiz-data, quiz-engine, audio-speech, and replay
+const rt = {
+  STUDY_COURSES_META,
+  STUDY_LANGUAGE_META,
+  STUDY_CEFR_ORDER,
+  resolveStudyConfigIdAlias,
+  resolveConfigIdAlias: resolveStudyConfigIdAlias,
+  COMPACT_OPS: ['+', '-', '×', '÷', '?'],
+  GAME_DURATION_SECONDS: 60,
+  activeConfigId: 'cfg_add-sub_0_10_0_10_0_20',
+  console,
+  TextEncoder,
+  TextDecoder,
+  atob: (s) => Buffer.from(s, 'base64').toString('binary'),
+  btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
+  document: {},
+  navigator: {},
+  localStorage: { getItem: () => null, setItem: () => {} },
+};
+rt.window = rt;
+rt.globalThis = rt;
+vm.createContext(rt);
+
+for (const rel of ['data/quiz-datasets.js', 'js/quiz-data.js', 'js/quiz-engine.js', 'js/audio-speech.js', 'js/replay.js']) {
+  vm.runInContext(readRoot(rel), rt, { filename: rel });
+}
+
+vm.runInContext(`
+  globalThis.__builtinQuizConfigs = BUILTIN_QUIZ_CONFIGS;
+  globalThis.__studyConfigsById = STUDY_CONFIGS_BY_ID;
+  const ALL_CONFIGS_BY_ID = new Map();
+  BUILTIN_QUIZ_CONFIGS.forEach((cfg) => ALL_CONFIGS_BY_ID.set(cfg.id, cfg));
+  ALL_CONFIGS_BY_ID.set('cfg_add-sub_0_10_0_10_0_20', {
+    id: 'cfg_add-sub_0_10_0_10_0_20',
+    category: 'math',
+    type: 'math',
+    ops: ['+', '-'],
+    min1: 0, max1: 10, min2: 0, max2: 10, min3: 0, max3: 20,
+  });
+  function getConfigById(id) {
+    return ALL_CONFIGS_BY_ID.get(resolveStudyConfigIdAlias(id)) || null;
+  }
+  function isQuizConfig(cfg) {
+    return Boolean(cfg && cfg.type === 'quiz');
+  }
+  function getConfigCategory(cfg) {
+    return (cfg && cfg.category) || 'math';
+  }
+`, rt);
+
+// 4. Full runtime Study hydration across all 10 courses & 40 packs
+runCheck('Full runtime Study hydration across all 10 courses & 40 packs', () => {
+  assert.ok(rt.__builtinQuizConfigs.length > 1000, `Expected >1000 builtin configs, got ${rt.__builtinQuizConfigs.length}`);
+
+  for (const cfg of rt.__studyConfigsById.values()) {
+    assert.equal(cfg.isLazyStudy, true);
+    assert.equal(cfg.studyDataLoaded, false);
+  }
+
+  const loadedHelpers = new Set();
+  for (const course of STUDY_COURSES_META) {
+    for (const helperRel of course.helperScripts || []) {
+      if (!loadedHelpers.has(helperRel)) {
+        vm.runInContext(readRoot(helperRel), rt, { filename: helperRel });
+        loadedHelpers.add(helperRel);
+      }
+    }
+    const coreRel = `data/study-${course.learn}-${course.cefr}-core.js`;
+    vm.runInContext(readRoot(coreRel), rt, { filename: coreRel });
+    for (const lang of course.withLangs) {
+      const packRel = `data/study-${course.learn}-${course.cefr}-${lang.code}.js`;
+      vm.runInContext(readRoot(packRel), rt, { filename: packRel });
+      const ok = rt.hydrateStudyCourseData(course.learn, course.cefr, lang.code);
+      assert.equal(ok, true, `hydrateStudyCourseData failed for ${course.learn}_${course.cefr} (${lang.code})`);
+    }
+  }
+
+  for (const [id, cfg] of rt.__studyConfigsById.entries()) {
+    assert.equal(cfg.studyDataLoaded, true, `Study config not hydrated: ${id}`);
+    assert.ok(Array.isArray(cfg.items) && cfg.items.length >= 2, `Study config ${id} has < 2 items`);
+  }
+});
+
+// 5. Distractor sampling & question building
+runCheck('Distractor sampling, pos_pool gloss overlap & question building', () => {
+  assert.equal(rt.answersOverlapGloss('to go / to walk', 'to walk'), true);
+  assert.equal(rt.answersOverlapGloss('big', 'small'), false);
+
+  const sampleConfigs = [
+    ...rt.__studyConfigsById.values(),
+    rt.getConfigById('cfg_geo_flag_country'),
+    rt.getConfigById('cfg_geo_map_country'),
+    rt.getConfigById('cfg_lang_en_pt'),
+    rt.getConfigById('cfg_chem_symbol_name'),
+    rt.getConfigById('cfg_other_morse_char'),
+  ];
+
+  for (const cfg of sampleConfigs) {
+    assert.ok(cfg && cfg.items.length >= 2);
+    const sampleIndices = [0, Math.floor(cfg.items.length / 2), cfg.items.length - 1];
+    for (const qIdx of sampleIndices) {
+      const dIdx = rt.sampleQuizDistractorIndex(cfg, qIdx);
+      const choiceOrder = qIdx % 2;
+      const q = rt.buildQuizQuestionFromIndices(cfg, qIdx, dIdx, choiceOrder);
+      assert.equal(q.choices.length, 2, `${cfg.id}[${qIdx}] should have 2 choices`);
+      assert.notEqual(q.choices[0], q.choices[1], `${cfg.id}[${qIdx}] generated identical choices: "${q.choices[0]}"`);
+      assert.equal(q.choices[choiceOrder], q.answer, `${cfg.id}[${qIdx}] choiceOrder mismatch`);
+    }
+  }
+});
+
+// 6. Cloze rendering across all 10 Study courses
+runCheck('Cloze rendering & elision across all 10 Study courses', () => {
+  const multiBlankHtml = rt.fillClozePromptHtml('Je ___ mange ___ de viande.', 'ne ... pas');
+  assert.ok(multiBlankHtml.includes('<span class="review-q-slot">ne</span>'));
+  assert.ok(multiBlankHtml.includes('<span class="review-q-slot">pas</span>'));
+  assert.equal(rt.fillClozePlainText('Je ___ mange ___ de viande.', 'ne ... pas'), 'Je ne mange pas de viande.');
+
+  const elisionHtml = rt.fillClozePromptHtml('___ ami', 'l’');
+  assert.equal(elisionHtml, '<span class="review-q-slot">l’</span>ami');
+  assert.equal(rt.fillClozePlainText('___ ami', 'l’'), 'l’ami');
+
+  assert.equal(rt.fillClozePlainText('I like ___ music.', '—'), 'I like music.');
+
+  let clozeItemsChecked = 0;
+  for (const [id, cfg] of rt.__studyConfigsById.entries()) {
+    if (cfg.isMini || cfg.distractorMode !== 'explicit') continue;
+    for (let i = 0; i < cfg.items.length; i++) {
+      const [prompt, expected] = cfg.items[i];
+      if (!String(prompt).includes('___')) continue;
+      const html = rt.fillClozePromptHtml(prompt, expected);
+      const plain = rt.fillClozePlainText(prompt, expected);
+      assert.equal(html.includes('___'), false, `Leftover ___ in fillClozePromptHtml for ${id}[${i}]`);
+      assert.equal(plain.includes('___'), false, `Leftover ___ in fillClozePlainText for ${id}[${i}]`);
+      clozeItemsChecked += 1;
+    }
+  }
+  assert.ok(clozeItemsChecked > 1000, `Expected >1000 cloze items checked, got ${clozeItemsChecked}`);
+});
+
+// 7. Compact question & Replay / Ghost Race round-trip
+await runAsyncCheck('Compact question & Replay / Ghost Race round-trip', async () => {
+  // Override ensureStudyConfigLoaded in VM to verify already-hydrated configs resolve cleanly
+  rt.ensureStudyConfigLoaded = async (cfgId) => Boolean(rt.getConfigById(cfgId));
+
+  // Math round-trip (+, -, ×, ÷, including wrongAnswers & right: 0)
+  const mathQuestions = [
+    { nums: [3, 4, 7], op: '+', missingIndex: 2, expected: 7, answers: ['7'], wrongAnswers: [], right: 1, wrong: 0, durationMs: 900 },
+    { nums: [9, 5, 4], op: '-', missingIndex: 1, expected: 5, answers: ['4', '5'], wrongAnswers: ['4'], right: 1, wrong: 1, durationMs: 1400 },
+    { nums: [6, 7, 42], op: '×', missingIndex: 0, expected: 6, answers: ['8'], wrongAnswers: ['8'], right: 0, wrong: 1, durationMs: 2100 },
+    { nums: [24, 6, 4], op: '÷', missingIndex: 2, expected: 4, answers: ['4'], wrongAnswers: [], right: 1, wrong: 0, durationMs: 750 },
+  ];
+  const mathEncoded = rt.encodeCompactQuestionsList(mathQuestions, 'cfg_add-sub_0_10_0_10_0_20');
+  const mathDecoded = rt.decodeCompactQuestionsList(mathEncoded, 'cfg_add-sub_0_10_0_10_0_20');
+  assert.equal(mathDecoded.length, 4);
+  assert.equal(mathDecoded[1].wrong, 1);
+  assert.equal(mathDecoded[2].right, 0);
+  assert.equal(mathDecoded[3].expected, 4);
+
+  // Explicit Study round-trip: explicitly verify dIdx === 0 when qIdx === 0 is NOT shifted!
+  const explicitCfgId = 'cfg_study_fr_fr_a1_grammar';
+  const explicitCfg = rt.getConfigById(explicitCfgId);
+  const explicitBuilt = rt.buildQuizQuestionFromIndices(explicitCfg, 0, 0, 1);
+  const explicitSession = {
+    username: 'Tester',
+    configId: explicitCfgId,
+    score: 1,
+    right: 1,
+    wrong: 0,
+    durationMs: 12000,
+    questions: [
+      {
+        nums: [0, 0, 0],
+        op: '?',
+        missingIndex: 1,
+        prompt: explicitBuilt.prompt,
+        expected: explicitBuilt.answer,
+        distractor: explicitBuilt.distractor,
+        answers: [explicitBuilt.answer],
+        wrongAnswers: [],
+        right: 1,
+        wrong: 0,
+        durationMs: 1100,
+      },
+    ],
+  };
+  const explicitParam = rt.encodeReplayParam(explicitSession);
+  const explicitDecoded = await rt.decodeReplayParam(explicitParam);
+  assert.equal(explicitDecoded.questions[0].nums[0], 0);
+  assert.equal(explicitDecoded.questions[0].nums[1], 0, 'explicit dIdx === 0 must not be shifted when qIdx === 0');
+  assert.equal(explicitDecoded.questions[0].distractor, explicitBuilt.distractor);
+
+  // pos_pool Study + Ghost Race round-trip
+  const posCfgId = 'cfg_study_de_en_a1_vocab_de_en';
+  const posCfg = rt.getConfigById(posCfgId);
+  const posQ0 = rt.buildQuizQuestionFromIndices(posCfg, 0, 1, 0);
+  const posQ1 = rt.buildQuizQuestionFromIndices(posCfg, 2, 3, 1);
+  const raceSession = {
+    username: 'Alice',
+    configId: posCfgId,
+    score: 1,
+    right: 1,
+    wrong: 0,
+    durationMs: 10000,
+    questions: [{ ...posQ0, expected: posQ0.answer, answers: [posQ0.answer], wrongAnswers: [], right: 1, wrong: 0, durationMs: 850 }],
+    opponent: {
+      username: 'Bob',
+      score: 0,
+      right: 1,
+      wrong: 1,
+      durationMs: 10000,
+      questions: [{ ...posQ1, expected: posQ1.answer, answers: [posQ1.distractor, posQ1.answer], wrongAnswers: [posQ1.distractor], right: 1, wrong: 1, durationMs: 1200 }],
+    },
+  };
+  const raceParam = rt.encodeReplayParam(raceSession);
+  const raceDecoded = await rt.decodeReplayParam(raceParam);
+  assert.equal(raceDecoded.isRace, true);
+  assert.equal(raceDecoded.opponent.username, 'Bob');
+  assert.equal(raceDecoded.opponent.questions.length, 1);
+
+  const timeline = rt.buildReplayTimeline(raceDecoded, posCfgId);
+  assert.equal(timeline.segments.length, 1);
+  assert.ok(timeline.totalDurationMs >= 500);
+});
+
+// 8. Math constraint sampler & missing index check
+runCheck('Math constraint sampler & missing index edge cases', () => {
+  const cfg = { ops: ['+', '-', '×', '÷'], min1: -12, max1: 12, min2: -6, max2: 6, min3: -20, max3: 20 };
+  const samplers = rt.getValidSamplers(cfg);
+  assert.equal(samplers.length, 4, 'Expected 4 valid samplers for +, -, ×, ÷');
+
+  for (const sampleFn of samplers) {
+    for (let i = 0; i < 20; i++) {
+      const { a, b, c, op } = sampleFn();
+      assert.ok(a >= cfg.min1 && a <= cfg.max1, `a=${a} out of range`);
+      assert.ok(b >= cfg.min2 && b <= cfg.max2, `b=${b} out of range`);
+      assert.ok(c >= cfg.min3 && c <= cfg.max3, `c=${c} out of range`);
+      if (op === '+') assert.equal(a + b, c);
+      else if (op === '-') assert.equal(a - b, c);
+      else if (op === '×') assert.equal(a * b, c);
+      else if (op === '÷') {
+        assert.notEqual(b, 0);
+        assert.equal(b * c, a);
+      }
+    }
+  }
+
+  assert.deepEqual(Array.from(rt.getValidMissingIndices(0, '×', 5, 0)), [2, 0]);
+  assert.deepEqual(Array.from(rt.getValidMissingIndices(5, '×', 0, 0)), [2, 1]);
+  assert.deepEqual(Array.from(rt.getValidMissingIndices(0, '÷', 4, 0)), [0, 2]);
+});
+
+// 9. Study TTS payload helper check
+runCheck('Study TTS payload helper across all 7 track types', () => {
+  const trackIds = [
+    'cfg_study_es_en_a1_vocab_es_en',
+    'cfg_study_es_en_a1_vocab_en_es',
+    'cfg_study_es_en_a1_phrases_es_en',
+    'cfg_study_es_en_a1_phrases',
+    'cfg_study_es_es_a1_grammar',
+    'cfg_study_es_es_a1_verbs',
+    'cfg_study_es_es_a1_articles',
+  ];
+  for (const id of trackIds) {
+    const cfg = rt.getConfigById(id);
+    const q = rt.buildQuizQuestionFromIndices(cfg, 0, rt.sampleQuizDistractorIndex(cfg, 0), 0);
+    const normQ = rt.normalizeQuestionRecord({ nums: q.nums, op: '?', missingIndex: 0, right: 1, wrong: 0, durationMs: 500 }, id);
+
+    const livePayload = rt.getStudyReviewSpeakPayload(cfg, q);
+    const normPayload = rt.getStudyReviewSpeakPayload(cfg, normQ);
+    assert.ok(livePayload && livePayload.text.length > 0, `Empty live TTS review payload for ${id}`);
+    assert.ok(normPayload && normPayload.text.length > 0, `Empty normalized TTS review payload for ${id}`);
+    assert.equal(livePayload.lang, 'es');
+    assert.equal(livePayload.text, normPayload.text);
+    assert.equal(livePayload.lang, normPayload.lang);
+    assert.equal(livePayload.text.includes('___'), false, `Leftover ___ in TTS payload for ${id}`);
+
+    const promptPayload = rt.getStudyPromptSpeakPayload(cfg, q, false);
+    if (cfg.studyTrackKey === 'vocab_fwd' || cfg.studyTrackKey === 'phrases_fwd') {
+      assert.ok(promptPayload && promptPayload.text.length > 0, `Expected prompt TTS payload for ${id}`);
+    } else {
+      assert.equal(promptPayload, null, `Expected null unrevealed prompt TTS payload for ${id}`);
+    }
+    const revealedPayload = rt.getStudyPromptSpeakPayload(cfg, q, true);
+    assert.ok(revealedPayload);
+    assert.equal(revealedPayload.text, livePayload.text);
+    assert.equal(revealedPayload.lang, livePayload.lang);
+  }
+});
+
+console.log('');
+console.log(`All ${passedCount} runtime smoke checks passed.`);
