@@ -52,6 +52,42 @@ let questionStatsDirty = false;
 let hasCompactedLegacyHistory = false;
 
 let leaderboardsMap = {}; // { [configId]: { [userId]: { userId, username, score, updatedAt } } }
+const rankedLeaderboardCache = new Map();
+const EMPTY_RANKED_BOARD = { rankedEntries: [], byUserId: new Map() };
+
+function invalidateRankedLeaderboardCache(cfgId = null) {
+  if (cfgId) {
+    rankedLeaderboardCache.delete(cfgId);
+  } else {
+    rankedLeaderboardCache.clear();
+  }
+}
+
+function getRankedLeaderboard(cfgId) {
+  if (!cfgId) return EMPTY_RANKED_BOARD;
+  const boardObj = leaderboardsMap[cfgId];
+  if (!boardObj) return EMPTY_RANKED_BOARD;
+  const cached = rankedLeaderboardCache.get(cfgId);
+  if (cached) return cached;
+
+  const entries = sortLeaderboard(Object.values(boardObj));
+  let currentRank = 1;
+  const byUserId = new Map();
+  const rankedEntries = entries.map((entry, idx) => {
+    if (idx > 0 && entry.score < entries[idx - 1].score) {
+      currentRank = idx + 1;
+    }
+    const ranked = { ...entry, rank: currentRank };
+    if (ranked.userId) {
+      byUserId.set(ranked.userId, { entry: ranked, index: idx });
+    }
+    return ranked;
+  });
+
+  const result = { rankedEntries, byUserId };
+  rankedLeaderboardCache.set(cfgId, result);
+  return result;
+}
 const knownCloudConfigIds = new Set();
 const claimedUserIds = new Set();
 try {
@@ -894,18 +930,10 @@ function getCategoryIcon(cat) {
 }
 
 function getUserConfigPerformance(targetUserId, cfgId) {
-  const boardObj = leaderboardsMap[cfgId] || {};
-  const entries = sortLeaderboard(Object.values(boardObj));
-  let currentRank = 1;
-  const rankedEntries = entries.map((entry, idx) => {
-    if (idx > 0 && entry.score < entries[idx - 1].score) {
-      currentRank = idx + 1;
-    }
-    return { ...entry, rank: currentRank };
-  });
-
+  const { rankedEntries, byUserId } = getRankedLeaderboard(cfgId);
   const totalPlayers = rankedEntries.length;
-  const myEntry = rankedEntries.find(e => e.userId === targetUserId) || null;
+  const myHit = byUserId.get(targetUserId) || null;
+  const myEntry = myHit ? myHit.entry : null;
   const bestLocal = myEntry ? null : getBestLocalSession(targetUserId, cfgId);
   const bestScore = myEntry
     ? myEntry.score
@@ -917,13 +945,21 @@ function getUserConfigPerformance(targetUserId, cfgId) {
   let isSoleLeader = false;
 
   if (myEntry) {
-    const nextUp = [...rankedEntries].reverse().find(e => e.score > myEntry.score);
+    let nextUp = null;
+    for (let i = myHit.index - 1; i >= 0; i--) {
+      if (rankedEntries[i].score > myEntry.score) {
+        nextUp = rankedEntries[i];
+        break;
+      }
+    }
     if (nextUp) {
       nextRank = nextUp.rank;
       pointsToTieNext = nextUp.score - myEntry.score;
     } else {
-      const coLeaders = rankedEntries.filter(e => e.score === myEntry.score && e.userId !== targetUserId);
-      if (coLeaders.length > 0) {
+      const hasCoLeader =
+        myHit.index > 0 ||
+        (myHit.index + 1 < totalPlayers && rankedEntries[myHit.index + 1].score === myEntry.score);
+      if (hasCoLeader) {
         nextRank = 1;
         pointsToTieNext = 1;
       } else {
@@ -1719,6 +1755,7 @@ async function refreshSingleConfigLeaderboard(configId, force = false) {
     } else {
       delete leaderboardsMap[configId];
     }
+    invalidateRankedLeaderboardCache(configId);
     if (activeConfigId === configId) {
       renderConfigsUI();
       renderLeaderboard();
@@ -1818,6 +1855,7 @@ async function syncFromFirebase() {
       });
     }
     leaderboardsMap = mergedLeaderboards;
+    invalidateRankedLeaderboardCache();
     lastFullSyncAt = Date.now();
     configSyncTimestamps.clear();
 
@@ -2125,6 +2163,7 @@ async function backfillLocalBestToLeaderboard() {
       leaderboardsMap[cfgId] = {};
     }
     leaderboardsMap[cfgId][uId] = slimRecord;
+    invalidateRankedLeaderboardCache(cfgId);
 
     if (!uploadsByUser.has(uId)) {
       uploadsByUser.set(uId, []);
@@ -2134,6 +2173,7 @@ async function backfillLocalBestToLeaderboard() {
       const res = await writeProtectedLeaderboardEntry(cfgId, uId, slimRecord, normalizedQuestions);
       if (res && res.record) {
         leaderboardsMap[cfgId][uId] = res.record;
+        invalidateRankedLeaderboardCache(cfgId);
       }
     });
   });
@@ -2191,6 +2231,7 @@ async function submitScoreToLeaderboard(score, sessionData) {
     }
     if (!leaderboardsMap[configId]) leaderboardsMap[configId] = {};
     leaderboardsMap[configId][userId] = optimisticRecord;
+    invalidateRankedLeaderboardCache(configId);
     renderConfigsUI();
     renderLeaderboard();
   }
@@ -2242,6 +2283,7 @@ async function submitScoreToLeaderboard(score, sessionData) {
     const writeRes = await writeProtectedLeaderboardEntry(configId, userId, slimRecord, normalizedQuestions);
     if (!leaderboardsMap[configId]) leaderboardsMap[configId] = {};
     leaderboardsMap[configId][userId] = (writeRes && writeRes.record) ? writeRes.record : slimRecord;
+    invalidateRankedLeaderboardCache(configId);
   }
 
   await refreshSingleConfigLeaderboard(configId, true);
@@ -2279,6 +2321,7 @@ async function updateUsernameInFirebase(targetUserId, newUsername) {
       updatedAt: nextUpdatedAt
     };
     leaderboardsMap[cfgId][targetUserId] = updatedRecord;
+    invalidateRankedLeaderboardCache(cfgId);
     patchBody[`leaderboards/${cfgId}/${targetUserId}`] = updatedRecord;
   });
 
@@ -2310,6 +2353,7 @@ async function deleteUserFromFirebase(targetUserId, knownSecret) {
   configIds.forEach((cfgId) => {
     if (leaderboardsMap[cfgId] && leaderboardsMap[cfgId][targetUserId]) {
       delete leaderboardsMap[cfgId][targetUserId];
+      invalidateRankedLeaderboardCache(cfgId);
       replayCacheMap.delete(`${cfgId}__${targetUserId}`);
       patchBody[`leaderboards/${cfgId}/${targetUserId}`] = null;
       if (firebaseReplaysPathSupported) {
@@ -2554,22 +2598,15 @@ function getPageButtonNumbers(currentPage, totalPages) {
 
 function renderLeaderboard(options = {}) {
   const { skipOverview = false } = options;
-  const boardObj = leaderboardsMap[activeConfigId] || {};
-  const entries = sortLeaderboard(Object.values(boardObj));
-  let currentRank = 1;
-  const rankedEntries = entries.map((entry, index) => {
-    if (index > 0 && entry.score < entries[index - 1].score) {
-      currentRank = index + 1;
-    }
-    return { ...entry, rank: currentRank };
-  });
+  const { rankedEntries, byUserId } = getRankedLeaderboard(activeConfigId);
 
   const totalEntries = rankedEntries.length;
   const totalPages = Math.max(1, Math.ceil(totalEntries / LEADERBOARD_PAGE_SIZE));
   leaderboardPage = Math.max(1, Math.min(totalPages, leaderboardPage));
 
-  const myIndex = rankedEntries.findIndex(e => e.userId === userId);
-  const myEntry = myIndex >= 0 ? rankedEntries[myIndex] : null;
+  const myHit = byUserId.get(userId) || null;
+  const myIndex = myHit ? myHit.index : -1;
+  const myEntry = myHit ? myHit.entry : null;
   const myPage = myIndex >= 0 ? Math.floor(myIndex / LEADERBOARD_PAGE_SIZE) + 1 : 1;
   const hasMyBestReplay = hasMyBestReplaySession();
   const localBestScore = myEntry ? null : getMyBestLocalScore();
@@ -2607,7 +2644,13 @@ function renderLeaderboard(options = {}) {
     nextRankActions.innerHTML = '';
     nextRankActions.classList.add('hidden');
     if (myEntry) {
-      const nextUpEntry = [...rankedEntries].reverse().find(e => e.score > myEntry.score);
+      let nextUpEntry = null;
+      for (let i = myIndex - 1; i >= 0; i--) {
+        if (rankedEntries[i].score > myEntry.score) {
+          nextUpEntry = rankedEntries[i];
+          break;
+        }
+      }
       if (nextUpEntry) {
         const diffTie = nextUpEntry.score - myEntry.score;
         const diffPass = diffTie + 1;
