@@ -62,8 +62,13 @@ const CLASSIC_CLIENT_SCRIPTS = [
   'js/quiz-data.js',
   'js/quiz-engine.js',
   'js/audio-speech.js',
+  'js/storage.js',
+  'js/leaderboard.js',
+  'js/firebase.js',
+  'js/review.js',
   'js/overview.js',
   'js/replay.js',
+  'js/game.js',
   'js/app.js',
 ];
 
@@ -85,7 +90,17 @@ runCheck('Script syntax & global lexical non-collision check', () => {
   ctx.globalThis = ctx;
   vm.createContext(ctx);
 
-  const extractedModules = ['js/quiz-engine.js', 'js/audio-speech.js', 'js/overview.js', 'js/replay.js'];
+  const extractedModules = [
+    'js/quiz-engine.js',
+    'js/audio-speech.js',
+    'js/storage.js',
+    'js/leaderboard.js',
+    'js/firebase.js',
+    'js/review.js',
+    'js/overview.js',
+    'js/replay.js',
+    'js/game.js',
+  ];
   const moduleDecls = new Map();
   for (const rel of extractedModules) {
     const code = readRoot(rel);
@@ -486,6 +501,58 @@ runCheck('Unified Learn + With filtering in overview.js', () => {
   assert.equal(isVisible('cfg_add-sub_0_10_0_10_0_20'), true);
   assert.equal(isVisible('cfg_geo_flag_country'), true);
   assert.equal(isVisible('cfg_chem_symbol_name'), true);
+});
+
+// 11. Split OG card modules VDOM smoke check
+await runAsyncCheck('Split OG card modules VDOM & replay decode check', async () => {
+  const [common, replayCard, userCard, boardCard, homeCard] = await Promise.all([
+    import('../lib/og/common.js'),
+    import('../lib/og/replay-card.js'),
+    import('../lib/og/user-profile-card.js'),
+    import('../lib/og/leaderboard-card.js'),
+    import('../lib/og/home-card.js'),
+  ]);
+  assert.ok(common.APPROX_GAMES_COUNT >= 200);
+
+  const samplePayload = {
+    u: 'Alex',
+    c: 'cfg_add-sub_0_10_0_10_0_20',
+    s: 9,
+    r: 10,
+    w: 1,
+    q: [[8, 0, 7, 2, 1100], [14, 1, 5, 1, 1300, ['8']]],
+    o: { u: 'Sam', s: 7, r: 9, w: 2, q: [[8, 0, 7, 2, 1200]] },
+  };
+  const encoded = Buffer.from(JSON.stringify(samplePayload), 'utf8').toString('base64url');
+  const decoded = replayCard.decodeReplay(encoded);
+  assert.ok(decoded && decoded.opponent);
+  assert.equal(replayCard.renderReplayCard(decoded).type, 'div');
+
+  const profileVdom = userCard.renderUserProfileCard({
+    userId: 'u_1',
+    username: 'Alex',
+    gamesRanked: 2,
+    firstPlaceCount: 1,
+    bestRank: 1,
+    topScore: 42,
+    performances: [{ cfgId: 'cfg_geo_flag_country', label: '🚩 Flag → 🌐 Country', rank: 1, totalPlayers: 5, score: 42, right: 42, wrong: 0 }],
+  });
+  assert.equal(profileVdom.type, 'div');
+
+  const boardVdom = boardCard.renderLeaderboardCard(
+    [{ rank: 1, username: 'Alex', score: 28 }],
+    'cfg_geo_map_country'
+  );
+  assert.equal(boardVdom.type, 'div');
+
+  const homeVdom = homeCard.renderHomeOverviewCard({
+    activeGames: 10,
+    uniquePlayers: 25,
+    featuredGames: [
+      { cfgId: 'cfg_add-sub_0_10_0_10_0_20', category: 'math', label: '+ − (0..10)', leaderName: 'Alex', topScore: 30 },
+    ],
+  });
+  assert.equal(homeVdom.type, 'div');
 });
 
 console.log('');

@@ -15,7 +15,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `data/study-fr-a1-*.js`, `data/study-fr-a2-*.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/quiz-engine.js`, `js/audio-speech.js`, `js/overview.js`, `js/replay.js`, `js/app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `data/study-fr-a1-*.js`, `data/study-fr-a2-*.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/quiz-engine.js`, `js/audio-speech.js`, `js/storage.js`, `js/leaderboard.js`, `js/firebase.js`, `js/review.js`, `js/overview.js`, `js/replay.js`, `js/game.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -128,16 +128,22 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_other_char_morse` (`Character → Morse`)
   - `js/quiz-engine.js`: Question normalization, cloze rendering (`fillClozePromptHtml`, `fillClozePlainText`), constraint-based math samplers (`getValidSamplers`), and 2-choice `pos_pool`/`explicit` distractor sampling.
   - `js/audio-speech.js`: Web Audio API sound effects, haptics, and Web Speech API (`speechSynthesis`) pronunciation with voice selection & `Auto` toggle.
+  - `js/storage.js`: Local history compaction, per-question stats tracking, and legacy config migration.
+  - `js/leaderboard.js`: Per-config ranked leaderboard cache, leaderboard rendering/pagination, and user profile navigation.
+  - `js/firebase.js`: Firebase Realtime Database sync, optimistic score submission, protected writes, and remote replay fetching.
+  - `js/review.js`: Progress SVG chart and **Progress & Review** question breakdown rendering.
   - `js/overview.js`: **My Ranks & Scores** overview card and **Player Profile** (`#user-view`) filtering, sorting, and rendering.
   - `js/replay.js`: Compact question/replay URL encoding (`encodeReplayParam`/`decodeReplayParam`), share helpers, replay timeline/race chart rendering, and playback controls.
-  - `js/app.js`: Core application state, multi-user storage, Firebase sync, Study/Lang/Config switchers, gameplay loop, Progress & Review, and event wiring.
+  - `js/game.js`: 1-minute gameplay loop, question generation, input handling, Ghost Race live HUD, and celebrations.
+  - `js/app.js`: Core application state, DOM references, theme & landscape helpers, user identity, config registry & filter switchers, event wiring, and initialization.
 - `lib/study-meta.js`: Single source of truth for client + edge Study course metadata (`STUDY_COURSES_META` with `DEFAULT_STUDY_PART_DEFS_BY_CEFR` inheritance, `nounArticlePattern`, `helperScripts`, `STUDY_LANGUAGE_META` with `bcp47` locales, `QUIZ_LANG_META`, `STUDY_CEFR_ORDER`), labels, mini-part names, OG home badge formatting (`getStudyOgHomeBadge()`), and config ID aliases imported by `lib/study-og-samples.js`, `lib/config-labels.js`, `api/og.js`, `scripts/validate-study.mjs`, and `js/study-meta-bridge.js`.
 - `lib/study-og-samples.js`: Server/validator-only Study OG preview samples (`STUDY_OG_SAMPLES_BY_COURSE`, `STUDY_PREVIEW_SAMPLES`) split out of `lib/study-meta.js` so client bundles do not load OG preview data (not in `sw.js` `APP_SHELL`).
-- `lib/config-labels.js`: Shared config label formatter (`QUIZ_CONFIG_LABELS`, `getMiniPartLabel()`, `formatConfigId()`, `resolveConfigIdAlias()`) imported by `middleware.js` and `api/og.js` (not in `sw.js` `APP_SHELL`).
+- `lib/config-labels.js`: Shared config label formatter (`QUIZ_CONFIG_LABELS`, `getMiniPartLabel()`, `formatConfigId()`, `resolveConfigIdAlias()`) imported by `middleware.js` and `lib/og/*` (not in `sw.js` `APP_SHELL`).
+- `lib/og/`: Server/edge-only Open Graph card modules (`common.js`, `replay-card.js`, `user-profile-card.js`, `leaderboard-card.js`, `home-card.js`) imported by `api/og.js` (not in `sw.js` `APP_SHELL`).
 - `scripts/validate-study.mjs`: Automated Study dataset & metadata validator (`npm run validate:study` / `node scripts/validate-study.mjs`) checking static-load hygiene, OG samples, `bcp47` locales, `partDefs` key overlap & `articles` noun `setKey` coverage, `nounArticlePattern` coverage, whitespace, per-mini-part `pos_pool` viability, duplicate translations, and length/capitalization/punctuation giveaways.
 - `scripts/smoke-test.mjs`: Automated runtime smoke test suite (`npm run test:smoke`, or `npm test` to run both validator and smoke tests) verifying script syntax & global non-collision, `sw.js` `APP_SHELL` integrity, OG labels, full Study hydration across all 10 courses & 40 packs, distractor sampling, cloze rendering, replay/ghost-race round-trips, math constraint samplers, and Study TTS payloads.
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
-- `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
+- `api/og.js`: Vercel Edge Function (`@vercel/og`) router delegating `1200 × 630` PNG Open Graph card generation to `lib/og/*.js`.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
 - `sw.js`: Offline-first Service Worker for `APP_SHELL` (`CACHE_NAME`) plus a separate `STUDY_DATA_CACHE` for lazy `data/study-*` packs so app shell bumps preserve downloaded offline courses.
 
