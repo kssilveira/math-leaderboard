@@ -15,7 +15,7 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
 
 1. **Canonical Web App & PWA (GitHub Pages)**:
    - URL: `https://kssilveira.github.io/math-leaderboard/`
-   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
+   - Hosts the static PWA (`index.html`, `style.css`, `assets/icons/*`, `data/geo-map-data.js`, `data/quiz-datasets.js`, `data/study-de-a1-*.js`, `data/study-de-a2-*.js`, `data/study-en-a1-*.js`, `data/study-en-a2-*.js`, `data/study-pt-a1-*.js`, `data/study-pt-a2-*.js`, `data/study-es-a1-*.js`, `data/study-es-a2-*.js`, `js/geo-maps.js`, `js/quiz-data.js`, `js/app.js`, `sw.js`, `manifest.json`).
    - All gameplay, user profiles, and `localStorage` state live on this origin.
 2. **Dynamic Open Graph & Share Proxy (Vercel Edge)**:
    - URL: `https://math-leaderboard.vercel.app/`
@@ -79,10 +79,15 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `data/study-pt-a1-{en,es,fr,de}.js`: Register `STUDY_PT_A1_PACKS.{en,es,fr,de}`, aligned 1:1 with `STUDY_PT_A1_VOCAB_CORE` and `STUDY_PT_A1_PHRASES_CORE`.
   - `data/study-pt-a2-core.js`: Defines shared, language-independent CEFR A2 Brazilian Portuguese datasets (`STUDY_PT_A2_VOCAB_CORE`: 717 items with `o`/`a`/`os`/`as` articles and optional `hint`, `STUDY_PT_A2_ARTICLES_EXTRA`: 80 items, `STUDY_PT_A2_VERBS`: 192 items across 4 `setKey`s, `STUDY_PT_A2_GRAMMAR`: 215 items across 5 `setKey`s, `STUDY_PT_A2_PHRASES_CORE`: 108 items across 4 `setKey`s) and initializes `STUDY_PT_A2_PACKS`.
   - `data/study-pt-a2-{en,es,fr,de}.js`: Register `STUDY_PT_A2_PACKS.{en,es,fr,de}`, aligned 1:1 with `STUDY_PT_A2_VOCAB_CORE` and `STUDY_PT_A2_PHRASES_CORE`.
+  - `data/study-es-helpers.js`: Lazy-loaded Spanish noun gender suffix hints, common-of-two-genders exclusions, stressed `a-/ha-` handling, and `buildSpanishArticleTrackData()` wrapper delegating to `buildGenderedArticleTrackData()` (loaded via `helperScripts` on demand, not statically in `index.html` or `sw.js`).
+  - `data/study-es-a1-core.js`: Defines shared, language-independent CEFR A1 Spanish datasets (`STUDY_ES_A1_VOCAB_CORE`: 720 items with `el`/`la`/`los`/`las` articles and optional `hint`, `STUDY_ES_A1_ARTICLES_EXTRA`: 75 items, `STUDY_ES_A1_VERBS`: 192 items across 4 `setKey`s, `STUDY_ES_A1_GRAMMAR`: 215 items across 5 `setKey`s, `STUDY_ES_A1_PHRASES_CORE`: 108 items across 4 `setKey`s) and initializes `STUDY_ES_A1_PACKS`.
+  - `data/study-es-a1-{en,pt,fr,de}.js`: Register `STUDY_ES_A1_PACKS.{en,pt,fr,de}`, aligned 1:1 with `STUDY_ES_A1_VOCAB_CORE` and `STUDY_ES_A1_PHRASES_CORE`.
+  - `data/study-es-a2-core.js`: Defines shared, language-independent CEFR A2 Spanish datasets (`STUDY_ES_A2_VOCAB_CORE`: 717 items with `el`/`la`/`los`/`las` articles and optional `hint`, `STUDY_ES_A2_ARTICLES_EXTRA`: 80 items, `STUDY_ES_A2_VERBS`: 192 items across 4 `setKey`s, `STUDY_ES_A2_GRAMMAR`: 215 items across 5 `setKey`s, `STUDY_ES_A2_PHRASES_CORE`: 108 items across 4 `setKey`s) and initializes `STUDY_ES_A2_PACKS`.
+  - `data/study-es-a2-{en,pt,fr,de}.js`: Register `STUDY_ES_A2_PACKS.{en,pt,fr,de}`, aligned 1:1 with `STUDY_ES_A2_VOCAB_CORE` and `STUDY_ES_A2_PHRASES_CORE`.
 - `js/`:
   - `js/study-meta-bridge.js`: ESM bridge exposing `STUDY_COURSES_META`, `STUDY_LANGUAGE_META`, `STUDY_CEFR_ORDER`, and `resolveStudyConfigIdAlias` from `lib/study-meta.js` onto `window` before `js/quiz-data.js` executes.
   - `js/geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
-  - `js/quiz-data.js`: Config registry defining `BUILTIN_QUIZ_CONFIGS` with **180** built-in 2-choice quiz base configurations (**1,050** total including mini-parts/sets), plus lazy-loading & hydration (`ensureStudyConfigLoaded()`) for Study courses:
+  - `js/quiz-data.js`: Config registry defining `BUILTIN_QUIZ_CONFIGS` with **218** built-in 2-choice quiz base configurations (**1,290** total including mini-parts/sets), plus lazy-loading & hydration (`ensureStudyConfigLoaded()`) for Study courses:
     - **🌍 Geography (`12` configs — 193 UN Member States)**:
       - `cfg_geo_flag_country` (`Flag → Country`)
       - `cfg_geo_country_flag` (`Country → Flag`)
@@ -102,12 +107,12 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_lang_synonym`, `cfg_lang_synonym_{pt,es,fr,de}` (`Word → Synonym`, 5 configs, 300 pairs each)
       - `cfg_lang_antonym`, `cfg_lang_antonym_{pt,es,fr,de}` (`Word → Antonym`, 5 configs, 300 pairs each)
       - `cfg_lang_idiom_meaning`, `cfg_lang_idiom_meaning_{pt,es,fr,de}`, `cfg_lang_meaning_idiom`, `cfg_lang_meaning_idiom_{pt,es,fr,de}` (`Idiom ↔ Meaning`, 10 monolingual configs, 200 idioms each)
-    - **🎓 Study (`114` base configs / `720` including sets — German, English & Portuguese A1 & A2 across `🇩🇪 DE`, `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, `🇫🇷 FR`)**:
+    - **🎓 Study (`152` base configs / `960` including sets — German, English, Portuguese & Spanish A1 & A2 across `🇩🇪 DE`, `🇬🇧 EN`, `🇧🇷 PT`, `🇪🇸 ES`, `🇫🇷 FR`)**:
       - `cfg_study_{learn}_{with}_{a1,a2}_vocab_{learn}_{with}` (`Words (Learn → With)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
       - `cfg_study_{learn}_{with}_{a1,a2}_vocab_{with}_{learn}` (`Words (With → Learn)`, `distractorMode: 'pos_pool'`, 7 thematic sets)
       - `cfg_study_{learn}_{learn}_{a1,a2}_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets, `studyWith === learn`)
       - `cfg_study_{learn}_{learn}_{a1,a2}_verbs` (`Verbs & Conjugation` / `Verbs & Tenses`, `distractorMode: 'explicit'`, 4 sets, `studyWith === learn`)
-      - `cfg_study_{learn}_{learn}_{a1,a2}_articles` (`Articles & Gender` for DE: 4 sets derived from `STUDY_DE_{A1,A2}_VOCAB_CORE` + *Nom vs Akk* / *Dativ & Adj.-Endungen*, 454 A1 / 501 A2 items; `Articles & Prepositions` for EN: 4 sets from `STUDY_EN_{A1,A2}_ARTICLES`, 200 A1 / 200 A2 items; `Articles & Gender` for PT: 4 sets derived from `STUDY_PT_{A1,A2}_VOCAB_CORE` + contractions/crase, 467 A1 / 425 A2 items; `distractorMode: 'explicit'`, `studyWith === learn`)
+      - `cfg_study_{learn}_{learn}_{a1,a2}_articles` (`Articles & Gender` for DE: 4 sets derived from `STUDY_DE_{A1,A2}_VOCAB_CORE` + *Nom vs Akk* / *Dativ & Adj.-Endungen*, 454 A1 / 501 A2 items; `Articles & Prepositions` for EN: 4 sets from `STUDY_EN_{A1,A2}_ARTICLES`, 200 A1 / 200 A2 items; `Articles & Gender` for PT: 4 sets derived from `STUDY_PT_{A1,A2}_VOCAB_CORE` + contractions/crase, 467 A1 / 425 A2 items; `Articles & Gender` for ES: 4 sets derived from `STUDY_ES_{A1,A2}_VOCAB_CORE` + contractions, stressed `a-` & neuter `lo`, 428 A1 / 367 A2 items; `distractorMode: 'explicit'`, `studyWith === learn`)
       - `cfg_study_{learn}_{with}_{a1,a2}_phrases_{learn}_{with}` (`Phrases (Learn → With)`, `distractorMode: 'pos_pool'` keyed by ending punctuation `'?'` / `'!'` / `'.'` + `setKey`, 4 sets)
       - `cfg_study_{learn}_{with}_{a1,a2}_phrases` (`Phrases (With → Learn)`, `distractorMode: 'explicit'`, 4 sets)
       - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, `isLazyStudy`, `studyDataLoaded`, and `customParts` (derived from `STUDY_COURSES_META.partDefs` in `lib/study-meta.js`, bypassing the default 4-part split in `getPartsForBaseQuizConfig()`). Monolingual `ruleNote`s use ultra-short symbolic patterns.
