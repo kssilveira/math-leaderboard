@@ -1253,8 +1253,8 @@ function renderUserProfileCard(profile) {
               ),
               h(
                 'span',
-                { fontSize: '17px', fontWeight: 700, color: '#475569' },
-                'Math · Geography · Language · Other'
+                { fontSize: '16px', fontWeight: 700, color: '#475569' },
+                'Math · Geography · Language · Study · Other'
               ),
             ]
           ),
@@ -1847,17 +1847,19 @@ async function fetchHomeOverviewStats() {
       return (b.topScore || 0) - (a.topScore || 0);
     };
 
+    const sortFeaturedGames = (a, b) => {
+      if (a.isFullGame !== b.isFullGame) {
+        return a.isFullGame ? -1 : 1;
+      }
+      if (a.isStandardMath !== b.isStandardMath) {
+        return a.isStandardMath ? -1 : 1;
+      }
+      return sortGames(a, b);
+    };
+
     const categories = ['math', 'geo', 'lang', 'study', 'other'];
     categories.forEach((cat) => {
-      byCategory[cat].sort((a, b) => {
-        if (a.isFullGame !== b.isFullGame) {
-          return a.isFullGame ? -1 : 1;
-        }
-        if (a.isStandardMath !== b.isStandardMath) {
-          return a.isStandardMath ? -1 : 1;
-        }
-        return sortGames(a, b);
-      });
+      byCategory[cat].sort(sortFeaturedGames);
     });
 
     const selected = [];
@@ -1874,7 +1876,7 @@ async function fetchHomeOverviewStats() {
       const remaining = categories
         .flatMap((cat) => byCategory[cat])
         .filter((g) => !seen.has(g.cfgId))
-        .sort(sortGames);
+        .sort(sortFeaturedGames);
       for (const g of remaining) {
         if (selected.length >= 8) break;
         selected.push(g);
@@ -2079,13 +2081,13 @@ function renderHomeOverviewCard(overview) {
         border: '1px solid #e2e8f0',
         borderRadius: '12px',
         height: '86px',
-        padding: '6px 10px',
+        padding: '6px 6px',
       },
       [
         h(
           'span',
-          { fontSize: '11px', fontWeight: 800, color: '#627084' },
-          '🇧🇷 PT · 🇪🇸 ES · 🇫🇷 FR · 🇩🇪 DE · 😀'
+          { fontSize: '10px', fontWeight: 800, color: '#627084' },
+          '🇬🇧 EN · 🇧🇷 PT · 🇪🇸 ES · 🇫🇷 FR · 🇩🇪 DE · 😀'
         ),
         h(
           'span',
@@ -2113,13 +2115,13 @@ function renderHomeOverviewCard(overview) {
         border: '1px solid #e2e8f0',
         borderRadius: '12px',
         height: '86px',
-        padding: '6px 10px',
+        padding: '6px 6px',
       },
       [
         h(
           'span',
-          { fontSize: '11px', fontWeight: 800, color: '#627084' },
-          'WORDS · PHRASES · GRAMMAR · VERBS'
+          { fontSize: '9.5px', fontWeight: 800, color: '#627084' },
+          'WORDS · PHRASES · GRAMMAR · VERBS · ARTICLES'
         ),
         h(
           'span',

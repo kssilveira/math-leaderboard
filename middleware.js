@@ -69,7 +69,7 @@ export default async function middleware(request) {
   let ogTitle = '1-Minute Quiz — Global Leaderboards';
   let ogDesc =
     '1-minute mobile quiz game (Math, Geography, Language, Study & Other) with replays, ghost races, and global leaderboards.';
-  let ogImage = `${origin}/api/og?v=2`;
+  let ogImage = `${origin}/api/og?v=3`;
   let targetUrl = CANONICAL_APP_URL + url.search;
 
   if (replayParam) {
