@@ -83,6 +83,8 @@ let activeConfigId = '';
 let draftConfig = null;
 let leaderboardPage = 1;
 let quizChoiceLockTimeout = null;
+let isPracticeWrongPaused = false;
+let practiceWrongShownAt = 0;
 
 let timerInterval = null;
 let timeLeft = GAME_DURATION_SECONDS;
@@ -3084,6 +3086,17 @@ function getOverviewFilterGroups() {
       options: cefrOptions
     },
     {
+      label: 'Track',
+      dimmed: overviewExcludedTags.has('topic:study'),
+      options: [
+        { tag: 'study_track:vocab', label: '🔤 Words' },
+        { tag: 'study_track:phrases', label: '🗣️ Phrases' },
+        { tag: 'study_track:grammar', label: '📐 Grammar' },
+        { tag: 'study_track:verbs', label: '⚡ Verbs' },
+        { tag: 'study_track:articles', label: '🏷️ Articles' }
+      ]
+    },
+    {
       label: 'Other',
       dimmed: overviewExcludedTags.has('topic:other'),
       options: [
@@ -3138,6 +3151,22 @@ function getOverviewConfigTags(cfg) {
     if (cfg && cfg.studyCefr) {
       tags.push(`cefr:${String(cfg.studyCefr).toLowerCase()}`);
     }
+    let trackTag = '';
+    const trackKey = cfg && cfg.studyTrackKey ? cfg.studyTrackKey : '';
+    if (trackKey === 'vocab_fwd' || trackKey === 'vocab_rev') trackTag = 'vocab';
+    else if (trackKey === 'phrases_fwd' || trackKey === 'phrases_rev') trackTag = 'phrases';
+    else if (trackKey) trackTag = trackKey;
+    else {
+      const m = baseId.match(/^cfg_study_[a-z]+_[a-z]+_[a-z0-9]+_(.+)$/);
+      if (m) {
+        if (m[1].startsWith('vocab_')) trackTag = 'vocab';
+        else if (m[1].startsWith('phrases')) trackTag = 'phrases';
+        else trackTag = m[1];
+      }
+    }
+    if (trackTag) {
+      tags.push(`study_track:${trackTag}`);
+    }
   } else if (cat === 'other') {
     if (baseId.startsWith('cfg_chem_')) {
       tags.push('other:element');
@@ -3180,6 +3209,44 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
   hint.textContent = offCount > 0 ? `${offCount} unselected` : 'Showing all games';
   header.appendChild(hint);
 
+  const headerActions = document.createElement('div');
+  headerActions.className = 'overview-filters-actions';
+
+  const withGroup = groups.find((g) => g.label === 'With');
+  const activeWithTag = activeStudyWith ? `study_with:${activeStudyWith}` : '';
+  if (
+    withGroup &&
+    withGroup.options.length >= 2 &&
+    activeStudyWith &&
+    withGroup.options.some((opt) => opt.tag === activeWithTag)
+  ) {
+    const isOnlyActiveWith =
+      !overviewExcludedTags.has(activeWithTag) &&
+      withGroup.options.every((opt) => opt.tag === activeWithTag || overviewExcludedTags.has(opt.tag));
+    const onlyWithBtn = document.createElement('button');
+    onlyWithBtn.type = 'button';
+    onlyWithBtn.className = 'inline-btn' + (isOnlyActiveWith ? ' active' : '');
+    onlyWithBtn.textContent = `Only ${getStudyLangDisplay(activeStudyWith)}`;
+    onlyWithBtn.title = 'Hide other Study paired languages';
+    onlyWithBtn.setAttribute('aria-pressed', isOnlyActiveWith ? 'true' : 'false');
+    onlyWithBtn.addEventListener('click', () => {
+      if (isOnlyActiveWith) {
+        withGroup.options.forEach((opt) => overviewExcludedTags.delete(opt.tag));
+      } else {
+        withGroup.options.forEach((opt) => {
+          if (opt.tag === activeWithTag) {
+            overviewExcludedTags.delete(opt.tag);
+          } else {
+            overviewExcludedTags.add(opt.tag);
+          }
+        });
+      }
+      saveOverviewExcludedFilters();
+      onChanged();
+    });
+    headerActions.appendChild(onlyWithBtn);
+  }
+
   if (offCount > 0) {
     const resetBtn = document.createElement('button');
     resetBtn.type = 'button';
@@ -3190,7 +3257,11 @@ function renderOverviewFilterControls(panelEl, toggleBtnEl, isOpen, onChanged) {
       saveOverviewExcludedFilters();
       onChanged();
     });
-    header.appendChild(resetBtn);
+    headerActions.appendChild(resetBtn);
+  }
+
+  if (headerActions.children.length > 0) {
+    header.appendChild(headerActions);
   }
 
   panelEl.appendChild(header);
@@ -3767,7 +3838,14 @@ function fillClozePlainText(promptStr, expectedStr) {
   const parts = splitClozeAnswerParts(expectedStr, matches.length);
   if (!parts) return `${prompt} ${String(expectedStr ?? '')}`;
   let partIdx = 0;
-  return prompt.replace(blankRe, () => parts[partIdx++]);
+  return prompt
+    .replace(blankRe, () => {
+      const part = parts[partIdx++];
+      return part === '—' ? '' : part;
+    })
+    .replace(/\s+([.,!?;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function isSpeechSynthesisSupported() {
@@ -3776,6 +3854,30 @@ function isSpeechSynthesisSupported() {
     'speechSynthesis' in window &&
     typeof SpeechSynthesisUtterance === 'function'
   );
+}
+
+let cachedSpeechVoices = [];
+
+function refreshSpeechVoices() {
+  if (!isSpeechSynthesisSupported() || typeof window.speechSynthesis.getVoices !== 'function') return;
+  try {
+    const voices = window.speechSynthesis.getVoices();
+    if (Array.isArray(voices) && voices.length > 0) {
+      cachedSpeechVoices = voices;
+    }
+  } catch (_) {}
+}
+
+function initSpeechVoices() {
+  if (!isSpeechSynthesisSupported()) return;
+  refreshSpeechVoices();
+  try {
+    if (typeof window.speechSynthesis.addEventListener === 'function') {
+      window.speechSynthesis.addEventListener('voiceschanged', refreshSpeechVoices);
+    } else if ('onvoiceschanged' in window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = refreshSpeechVoices;
+    }
+  } catch (_) {}
 }
 
 function stopStudySpeech() {
@@ -3789,6 +3891,8 @@ function speakStudyText(text, langCode) {
   if (!isSpeechSynthesisSupported()) return;
   const cleanText = String(text || '')
     .replace(/\s*\([^)]*\)/g, '')
+    .replace(/\s*—\s*/g, ' ')
+    .replace(/\s+([.,!?;:])/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleanText) return;
@@ -3799,7 +3903,10 @@ function speakStudyText(text, langCode) {
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = bcp47;
     utterance.rate = 0.95;
-    const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+    refreshSpeechVoices();
+    const voices = cachedSpeechVoices.length > 0
+      ? cachedSpeechVoices
+      : (window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : []);
     if (Array.isArray(voices) && voices.length > 0) {
       const exact = voices.find(v => v.lang && v.lang.toLowerCase() === bcp47.toLowerCase());
       const prefix = bcp47.split('-')[0].toLowerCase();
@@ -3810,8 +3917,11 @@ function speakStudyText(text, langCode) {
   } catch (_) {}
 }
 
-function getStudyPromptSpeakPayload(cfg, q) {
+function getStudyPromptSpeakPayload(cfg, q, revealAnswer = false) {
   if (!cfg || !q || getConfigCategory(cfg) !== 'study' || !cfg.studyLearn) return null;
+  if (revealAnswer) {
+    return getStudyReviewSpeakPayload(cfg, q);
+  }
   if (cfg.studyTrackKey === 'vocab_fwd' || cfg.studyTrackKey === 'phrases_fwd') {
     const text = String(q.prompt || '').trim();
     return text ? { text, lang: cfg.studyLearn } : null;
@@ -4882,9 +4992,11 @@ function renderQuestion() {
   if (isQuiz) {
     const promptVal = String(currentQuestion.prompt || '');
     const promptIsMap = isMapVal(promptVal);
+    const showPracticeReveal = Boolean(isPracticeMode && isWrong && !isReplaying);
     if (equationCard) {
       equationCard.classList.toggle('has-map-prompt', promptIsMap);
       equationCard.classList.toggle('is-replay-card', Boolean(isReplaying));
+      equationCard.classList.toggle('is-practice-paused', Boolean(showPracticeReveal && isPracticeWrongPaused));
     }
     if (mathEqGroup) mathEqGroup.classList.add('hidden');
     if (quizPromptGroup) quizPromptGroup.classList.remove('hidden');
@@ -4893,12 +5005,12 @@ function renderQuestion() {
     }
     if (quizSpeakBtn) {
       const speakPayload = isSpeechSynthesisSupported() && isPracticeMode && !isReplaying
-        ? getStudyPromptSpeakPayload(activeCfg, currentQuestion)
+        ? getStudyPromptSpeakPayload(activeCfg, currentQuestion, showPracticeReveal)
         : null;
       quizSpeakBtn.classList.toggle('hidden', !speakPayload);
     }
     if (quizPracticeNote) {
-      const showPracticeNote = Boolean(isPracticeMode && isWrong && !isReplaying && currentQuestion.note);
+      const showPracticeNote = Boolean(showPracticeReveal && currentQuestion.note);
       quizPracticeNote.textContent = showPracticeNote ? `💡 ${currentQuestion.note}` : '';
       quizPracticeNote.classList.toggle('hidden', !showPracticeNote);
     }
@@ -4949,7 +5061,7 @@ function renderQuestion() {
   }
 
   if (equationCard) {
-    equationCard.classList.remove('has-map-prompt', 'is-replay-card');
+    equationCard.classList.remove('has-map-prompt', 'is-replay-card', 'is-practice-paused');
   }
 
   if (mathEqGroup) mathEqGroup.classList.remove('hidden');
@@ -5131,10 +5243,40 @@ function updateHud() {
   }
 }
 
+function schedulePracticeWrongAdvance(delayMs) {
+  if (quizChoiceLockTimeout) {
+    clearTimeout(quizChoiceLockTimeout);
+    quizChoiceLockTimeout = null;
+  }
+  quizChoiceLockTimeout = setTimeout(() => {
+    quizChoiceLockTimeout = null;
+    isPracticeWrongPaused = false;
+    if (isPlaying && !isReplaying) {
+      nextQuestion();
+    }
+  }, delayMs);
+}
+
+function advanceFromPracticeWrong() {
+  if (!isPlaying || isReplaying || !isPracticeWrongPaused) return false;
+  if (Date.now() - practiceWrongShownAt < 220) return true;
+  if (quizChoiceLockTimeout) {
+    clearTimeout(quizChoiceLockTimeout);
+    quizChoiceLockTimeout = null;
+  }
+  isPracticeWrongPaused = false;
+  nextQuestion();
+  return true;
+}
+
 function nextQuestion() {
   if (quizChoiceLockTimeout) {
     clearTimeout(quizChoiceLockTimeout);
     quizChoiceLockTimeout = null;
+  }
+  isPracticeWrongPaused = false;
+  if (equationCard) {
+    equationCard.classList.remove('is-practice-paused');
   }
   stopStudySpeech();
   if (quizPracticeNote) {
@@ -5166,6 +5308,10 @@ function nextQuestion() {
 
 function handleChoiceInput(choiceIdx) {
   if (!isPlaying || isReplaying || !currentQuestion || currentQuestion.op !== '?') return;
+  if (isPracticeWrongPaused) {
+    advanceFromPracticeWrong();
+    return;
+  }
   if (quizChoiceLockTimeout) return;
   const choices = currentQuestion.choices || [];
   if (choiceIdx < 0 || choiceIdx >= choices.length) return;
@@ -5208,14 +5354,20 @@ function handleChoiceInput(choiceIdx) {
     currentQuestionRecord = null;
   }
   updateHud();
-  renderQuestion();
-  const wrongDelayMs = isPracticeMode ? (currentQuestion.note ? 950 : 450) : 190;
-  quizChoiceLockTimeout = setTimeout(() => {
-    quizChoiceLockTimeout = null;
-    if (isPlaying && !isReplaying) {
-      nextQuestion();
-    }
-  }, wrongDelayMs);
+  if (isPracticeMode) {
+    isPracticeWrongPaused = true;
+    practiceWrongShownAt = Date.now();
+    renderQuestion();
+    schedulePracticeWrongAdvance(currentQuestion.note ? 2800 : 1200);
+  } else {
+    renderQuestion();
+    quizChoiceLockTimeout = setTimeout(() => {
+      quizChoiceLockTimeout = null;
+      if (isPlaying && !isReplaying) {
+        nextQuestion();
+      }
+    }, 190);
+  }
 }
 
 function handleDigitInput(digitStr) {
@@ -5548,6 +5700,10 @@ async function finishGame(saveScore) {
   if (quizChoiceLockTimeout) {
     clearTimeout(quizChoiceLockTimeout);
     quizChoiceLockTimeout = null;
+  }
+  isPracticeWrongPaused = false;
+  if (equationCard) {
+    equationCard.classList.remove('is-practice-paused');
   }
   stopStudySpeech();
   if (quizPracticeNote) {
@@ -6738,11 +6894,24 @@ if (replayBannerShareBtn) {
   });
 }
 if (quizSpeakBtn) {
-  quizSpeakBtn.addEventListener('click', () => {
-    const payload = getStudyPromptSpeakPayload(getActiveConfig(), currentQuestion);
+  quizSpeakBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const revealAnswer = Boolean(isPracticeMode && isWrong && !isReplaying);
+    const payload = getStudyPromptSpeakPayload(getActiveConfig(), currentQuestion, revealAnswer);
     if (payload) {
       speakStudyText(payload.text, payload.lang);
+      if (isPracticeWrongPaused) {
+        schedulePracticeWrongAdvance(2800);
+      }
     }
+  });
+}
+if (equationCard) {
+  equationCard.addEventListener('pointerdown', (e) => {
+    if (!isPracticeWrongPaused) return;
+    if (e.target && e.target.closest('#quiz-speak-btn')) return;
+    e.preventDefault();
+    advanceFromPracticeWrong();
   });
 }
 
@@ -6980,6 +7149,13 @@ if (quizChoicesEl) {
 window.addEventListener('keydown', (e) => {
   if (!isPlaying) return;
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  if (isPracticeWrongPaused) {
+    if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === '1' || e.key === '2') {
+      e.preventDefault();
+      advanceFromPracticeWrong();
+    }
+    return;
+  }
   if (currentQuestion && currentQuestion.op === '?') {
     if (e.key === '1' || e.key === 'ArrowLeft') {
       e.preventDefault();
@@ -7257,6 +7433,7 @@ function initConfigs() {
 
 // Initialize
 initTheme();
+initSpeechVoices();
 updateSoundToggleUI();
 initUsers();
 migrateRenamedConfigsInLocalStorage();

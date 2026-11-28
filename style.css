@@ -430,6 +430,12 @@ html, body {
   gap: 8px;
 }
 
+.overview-filters-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .overview-filters-hint {
   font-size: 0.72rem;
   color: var(--text-muted);
@@ -1067,6 +1073,12 @@ html, body {
   background: var(--surface-subtle);
 }
 
+.inline-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
 .leaderboard-list {
   list-style: none;
   display: flex;
@@ -1674,6 +1686,10 @@ html, body {
   border: 1px solid var(--border);
   max-width: 100%;
   line-height: 1.25;
+}
+
+.equation-card.is-practice-paused {
+  cursor: pointer;
 }
 
 .quiz-prompt-text {

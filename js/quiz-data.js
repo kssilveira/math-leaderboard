@@ -136,17 +136,10 @@ function buildLanguageQuizConfigs() {
   return configs;
 }
 
-const FALLBACK_STUDY_LANGUAGE_META = {
-  de: { name: 'German', flag: '🇩🇪', bcp47: 'de-DE' },
-  en: { name: 'English', flag: '🇬🇧', bcp47: 'en-GB' },
-  pt: { name: 'Portuguese', flag: '🇧🇷', bcp47: 'pt-BR' },
-  es: { name: 'Spanish', flag: '🇪🇸', bcp47: 'es-ES' },
-  fr: { name: 'French', flag: '🇫🇷', bcp47: 'fr-FR' }
-};
 const STUDY_LANGUAGE_META =
   typeof window !== 'undefined' && window.STUDY_LANGUAGE_META
     ? window.STUDY_LANGUAGE_META
-    : FALLBACK_STUDY_LANGUAGE_META;
+    : {};
 const STUDY_CEFR_ORDER =
   typeof window !== 'undefined' && Array.isArray(window.STUDY_CEFR_ORDER)
     ? window.STUDY_CEFR_ORDER

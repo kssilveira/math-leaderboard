@@ -92,47 +92,19 @@ function getPortugueseNounSuffixHint(noun, article) {
   return 'masc. (o)';
 }
 
+const PORTUGUESE_DISTRACTOR_MAP = { o: ['a'], a: ['o'], os: ['as'], as: ['os'] };
+
 function buildPortugueseArticleTrackData(vocabCore, artExtra, articlePartDefs) {
-  const items = [];
-  const groups = articlePartDefs.map(() => []);
-  const keyToGroupIdx = new Map();
-  let extraGroupIdx = articlePartDefs.length - 1;
-  articlePartDefs.forEach((def, idx) => {
-    (def.keys || []).forEach((k) => {
-      if (k === 'extra') extraGroupIdx = idx;
-      else keyToGroupIdx.set(k, idx);
-    });
+  return globalThis.buildGenderedArticleTrackData({
+    vocabCore,
+    artExtra,
+    articlePartDefs,
+    articleRegex: /^(o|a|os|as)\s+(.+)$/,
+    excludeNoun: (noun) => PORTUGUESE_COMMON_TWO_GENDER_NOUNS.has(noun),
+    getDistractors: (article) => PORTUGUESE_DISTRACTOR_MAP[article] || ['a'],
+    getPrompt: (noun) => PORTUGUESE_ARTICLE_PROMPT_DISAMBIG[noun] || `___ ${noun}`,
+    getHint: (noun, article) => getPortugueseNounSuffixHint(noun, article)
   });
-
-  const pushNounArticleItem = ([pt, pos, setKey]) => {
-    if (pos !== 'n') return;
-    const match = pt.match(/^(o|a|os|as)\s+(.+)$/);
-    if (!match) return;
-    const article = match[1];
-    const noun = match[2];
-    if (PORTUGUESE_COMMON_TWO_GENDER_NOUNS.has(noun)) return;
-    const distractorMap = { o: ['a'], a: ['o'], os: ['as'], as: ['os'] };
-    const distractors = distractorMap[article] || ['a'];
-    const hint = getPortugueseNounSuffixHint(noun, article);
-    const prompt = PORTUGUESE_ARTICLE_PROMPT_DISAMBIG[noun] || `___ ${noun}`;
-    const idx = items.length;
-    items.push([prompt, article, distractors, hint]);
-    const gIdx = keyToGroupIdx.has(setKey) ? keyToGroupIdx.get(setKey) : Math.max(0, extraGroupIdx - 1);
-    if (groups[gIdx]) groups[gIdx].push(idx);
-  };
-
-  vocabCore.forEach(pushNounArticleItem);
-  artExtra.forEach(([prompt, correct, distractors, ruleNote]) => {
-    const idx = items.length;
-    items.push([prompt, correct, distractors, ruleNote]);
-    if (groups[extraGroupIdx]) groups[extraGroupIdx].push(idx);
-  });
-
-  const parts = articlePartDefs.map((def, idx) => ({
-    label: def.label,
-    indices: groups[idx]
-  }));
-  return { items, parts };
 }
 
 globalThis.buildPortugueseArticleTrackData = buildPortugueseArticleTrackData;
