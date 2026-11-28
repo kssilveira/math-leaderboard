@@ -291,6 +291,8 @@ const mathEqGroup = document.getElementById('math-eq-group');
 const quizPromptGroup = document.getElementById('quiz-prompt-group');
 const quizPromptLabel = document.getElementById('quiz-prompt-label');
 const quizPromptText = document.getElementById('quiz-prompt-text');
+const quizSpeakBtn = document.getElementById('quiz-speak-btn');
+const quizPracticeNote = document.getElementById('quiz-practice-note');
 const slot0 = document.getElementById('slot-0');
 const slot1 = document.getElementById('slot-1');
 const slot2 = document.getElementById('slot-2');
@@ -1218,8 +1220,8 @@ function configMatchesStudyFilters(
 ) {
   if (!cfg) return false;
   if (learn && cfg.studyLearn !== learn) return false;
-  if (withLang && cfg.studyWith !== withLang) return false;
   if (cefr && cfg.studyCefr !== cefr) return false;
+  if (withLang && cfg.studyWith !== cfg.studyLearn && cfg.studyWith !== withLang) return false;
   return true;
 }
 
@@ -1231,29 +1233,32 @@ function getStudyLangDisplay(code, fallbackFlag = '') {
 
 function getAvailableStudyOptions() {
   const studyConfigs = getBaseConfigsForCategory('study');
+  const metaOrder = typeof STUDY_LANGUAGE_META !== 'undefined' ? Object.keys(STUDY_LANGUAGE_META) : VALID_LANG_FILTERS;
+  const preferredWithOrder = ['en', ...metaOrder.filter(code => code !== 'en')];
+  const sortByOrder = (set, order) =>
+    Array.from(set).sort((a, b) => {
+      const ai = order.indexOf(a);
+      const bi = order.indexOf(b);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.localeCompare(b);
+    });
+
   const learnSet = new Set();
   studyConfigs.forEach((c) => {
     if (c.studyLearn) learnSet.add(c.studyLearn);
   });
-  const learnOptions = Array.from(learnSet);
+  const learnOptions = sortByOrder(learnSet, metaOrder);
   const resolvedLearn = learnOptions.includes(activeStudyLearn) ? activeStudyLearn : (learnOptions[0] || '');
 
   const withSet = new Set();
   studyConfigs.forEach((c) => {
-    if (c.studyLearn === resolvedLearn && c.studyWith) {
+    if (c.studyLearn === resolvedLearn && c.studyWith && c.studyWith !== resolvedLearn) {
       withSet.add(c.studyWith);
     }
   });
-  const withOptions = Array.from(withSet).sort((a, b) => {
-    if (a === resolvedLearn && b !== resolvedLearn) return -1;
-    if (b === resolvedLearn && a !== resolvedLearn) return 1;
-    const ai = VALID_LANG_FILTERS.indexOf(a);
-    const bi = VALID_LANG_FILTERS.indexOf(b);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    return a.localeCompare(b);
-  });
+  const withOptions = sortByOrder(withSet, preferredWithOrder);
   const resolvedWith = withOptions.includes(activeStudyWith) ? activeStudyWith : (withOptions[0] || '');
 
   const cefrOrder = typeof STUDY_CEFR_ORDER !== 'undefined' ? STUDY_CEFR_ORDER : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
@@ -1261,7 +1266,7 @@ function getAvailableStudyOptions() {
   studyConfigs.forEach((c) => {
     if (
       c.studyLearn === resolvedLearn &&
-      c.studyWith === resolvedWith &&
+      (c.studyWith === resolvedLearn || !resolvedWith || c.studyWith === resolvedWith) &&
       c.studyCefr
     ) {
       cefrSet.add(c.studyCefr);
@@ -1458,7 +1463,9 @@ function renderConfigsUI() {
   if (isStudy) {
     if (!configMatchesStudyFilters(activeBaseCfg)) {
       if (activeBaseCfg.studyLearn) activeStudyLearn = activeBaseCfg.studyLearn;
-      if (activeBaseCfg.studyWith) activeStudyWith = activeBaseCfg.studyWith;
+      if (activeBaseCfg.studyWith && activeBaseCfg.studyWith !== activeBaseCfg.studyLearn) {
+        activeStudyWith = activeBaseCfg.studyWith;
+      }
       if (activeBaseCfg.studyCefr) activeStudyCefr = activeBaseCfg.studyCefr;
       localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
       localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
@@ -1469,13 +1476,16 @@ function renderConfigsUI() {
       activeStudyLearn = studyOpts.resolvedLearn;
       localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
     }
-    if (studyOpts.resolvedWith && studyOpts.resolvedWith !== activeStudyWith) {
+    if (studyOpts.resolvedWith !== activeStudyWith) {
       activeStudyWith = studyOpts.resolvedWith;
       localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
     }
     if (studyOpts.resolvedCefr && studyOpts.resolvedCefr !== activeStudyCefr) {
       activeStudyCefr = studyOpts.resolvedCefr;
       localStorage.setItem(STORAGE_KEYS.activeStudyCefr, activeStudyCefr);
+    }
+    if (studyWithRow) {
+      studyWithRow.classList.toggle('hidden', studyOpts.withOptions.length === 0);
     }
     renderStudyFilterPills(
       studyLearnListEl,
@@ -1606,7 +1616,12 @@ async function switchCategory(targetCat) {
 function switchStudyFilter(filterType, targetValue) {
   if (isPlaying) return;
   if (filterType === 'learn') {
+    const prevLearn = activeStudyLearn;
     activeStudyLearn = targetValue;
+    if (activeStudyWith === targetValue && prevLearn && prevLearn !== targetValue) {
+      activeStudyWith = prevLearn;
+      localStorage.setItem(STORAGE_KEYS.activeStudyWith, activeStudyWith);
+    }
     localStorage.setItem(STORAGE_KEYS.activeStudyLearn, activeStudyLearn);
   } else if (filterType === 'with') {
     activeStudyWith = targetValue;
@@ -2985,11 +3000,25 @@ function getOverviewFilterGroups() {
     typeof window !== 'undefined' && Array.isArray(window.STUDY_CEFR_ORDER)
       ? window.STUDY_CEFR_ORDER
       : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+  const langOrder = typeof STUDY_LANGUAGE_META !== 'undefined' ? Object.keys(STUDY_LANGUAGE_META) : VALID_LANG_FILTERS;
+  const sortLangCodes = (codes) =>
+    Array.from(codes).sort((a, b) => {
+      const ia = langOrder.indexOf(a);
+      const ib = langOrder.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+  const studyLearnSet = new Set();
+  const studyWithSet = new Set();
   const cefrSet = new Set();
   configs.forEach((cfg) => {
-    if (cfg && cfg.studyCefr) {
-      cefrSet.add(String(cfg.studyCefr).toLowerCase());
-    }
+    if (!cfg) return;
+    if (cfg.studyLearn) studyLearnSet.add(cfg.studyLearn);
+    if (cfg.studyWith && cfg.studyWith !== cfg.studyLearn) studyWithSet.add(cfg.studyWith);
+    if (cfg.studyCefr) cefrSet.add(String(cfg.studyCefr).toLowerCase());
   });
   if (cefrSet.size === 0) {
     cefrSet.add('a1');
@@ -3020,14 +3049,8 @@ function getOverviewFilterGroups() {
     },
     {
       label: 'Lang',
-      dimmed: overviewExcludedTags.has('topic:lang') && overviewExcludedTags.has('topic:study'),
-      options: [
-        { tag: 'lang:en', label: '🇬🇧 EN' },
-        { tag: 'lang:pt', label: '🇧🇷 PT' },
-        { tag: 'lang:es', label: '🇪🇸 ES' },
-        { tag: 'lang:fr', label: '🇫🇷 FR' },
-        { tag: 'lang:de', label: '🇩🇪 DE' }
-      ]
+      dimmed: overviewExcludedTags.has('topic:lang'),
+      options: VALID_LANG_FILTERS.map((code) => ({ tag: `lang:${code}`, label: getStudyLangDisplay(code) }))
     },
     {
       label: 'Geo',
@@ -3040,7 +3063,23 @@ function getOverviewFilterGroups() {
       ]
     },
     {
-      label: 'Study',
+      label: 'Learn',
+      dimmed: overviewExcludedTags.has('topic:study'),
+      options: sortLangCodes(studyLearnSet).map((code) => ({
+        tag: `study_learn:${code}`,
+        label: getStudyLangDisplay(code)
+      }))
+    },
+    {
+      label: 'With',
+      dimmed: overviewExcludedTags.has('topic:study'),
+      options: sortLangCodes(studyWithSet).map((code) => ({
+        tag: `study_with:${code}`,
+        label: getStudyLangDisplay(code)
+      }))
+    },
+    {
+      label: 'CEFR',
       dimmed: overviewExcludedTags.has('topic:study'),
       options: cefrOptions
     },
@@ -3091,10 +3130,10 @@ function getOverviewConfigTags(cfg) {
     }
   } else if (cat === 'study') {
     if (cfg && cfg.studyLearn) {
-      tags.push(`lang:${cfg.studyLearn}`);
+      tags.push(`study_learn:${cfg.studyLearn}`);
     }
     if (cfg && cfg.studyWith && cfg.studyWith !== cfg.studyLearn) {
-      tags.push(`lang:${cfg.studyWith}`);
+      tags.push(`study_with:${cfg.studyWith}`);
     }
     if (cfg && cfg.studyCefr) {
       tags.push(`cefr:${String(cfg.studyCefr).toLowerCase()}`);
@@ -3686,12 +3725,124 @@ function renderQuizPromptTextHtml(promptVal) {
   return escaped.replace(/___/g, '<span class="cloze-blank">___</span>');
 }
 
+function splitClozeAnswerParts(expectedStr, blankCount) {
+  const expected = String(expectedStr ?? '').trim();
+  if (blankCount <= 1) return [expected];
+  const sepParts = expected.split(/\s*(?:\.\.\.|…|\/)\s*/).filter(Boolean);
+  if (sepParts.length === blankCount) return sepParts;
+  const wsParts = expected.split(/\s+/).filter(Boolean);
+  if (wsParts.length === blankCount) return wsParts;
+  return null;
+}
+
+function fillClozePromptHtml(promptStr, expectedStr) {
+  const prompt = String(promptStr ?? '');
+  const blankRe = /___(?:\s+___)*/g;
+  const matches = prompt.match(blankRe);
+  if (!matches || matches.length === 0) {
+    return `${renderInlineQuizValHtml(prompt, false)} → ${renderInlineQuizValHtml(expectedStr, true)}`;
+  }
+  const parts = splitClozeAnswerParts(expectedStr, matches.length);
+  if (!parts) {
+    return `${renderInlineQuizValHtml(prompt, false)} → ${renderInlineQuizValHtml(expectedStr, true)}`;
+  }
+  let out = '';
+  let lastIdx = 0;
+  let partIdx = 0;
+  prompt.replace(blankRe, (match, offset) => {
+    out += escapeHtml(prompt.slice(lastIdx, offset));
+    out += renderInlineQuizValHtml(parts[partIdx++], true);
+    lastIdx = offset + match.length;
+    return match;
+  });
+  out += escapeHtml(prompt.slice(lastIdx));
+  return out;
+}
+
+function fillClozePlainText(promptStr, expectedStr) {
+  const prompt = String(promptStr ?? '');
+  const blankRe = /___(?:\s+___)*/g;
+  const matches = prompt.match(blankRe);
+  if (!matches || matches.length === 0) return String(expectedStr ?? '');
+  const parts = splitClozeAnswerParts(expectedStr, matches.length);
+  if (!parts) return `${prompt} ${String(expectedStr ?? '')}`;
+  let partIdx = 0;
+  return prompt.replace(blankRe, () => parts[partIdx++]);
+}
+
+function isSpeechSynthesisSupported() {
+  return (
+    typeof window !== 'undefined' &&
+    'speechSynthesis' in window &&
+    typeof SpeechSynthesisUtterance === 'function'
+  );
+}
+
+function stopStudySpeech() {
+  if (!isSpeechSynthesisSupported()) return;
+  try {
+    window.speechSynthesis.cancel();
+  } catch (_) {}
+}
+
+function speakStudyText(text, langCode) {
+  if (!isSpeechSynthesisSupported()) return;
+  const cleanText = String(text || '')
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleanText) return;
+  const meta = typeof STUDY_LANGUAGE_META !== 'undefined' ? STUDY_LANGUAGE_META[langCode] : null;
+  const bcp47 = (meta && meta.bcp47) || langCode || 'en-US';
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = bcp47;
+    utterance.rate = 0.95;
+    const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+    if (Array.isArray(voices) && voices.length > 0) {
+      const exact = voices.find(v => v.lang && v.lang.toLowerCase() === bcp47.toLowerCase());
+      const prefix = bcp47.split('-')[0].toLowerCase();
+      const partial = exact || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
+      if (partial) utterance.voice = partial;
+    }
+    window.speechSynthesis.speak(utterance);
+  } catch (_) {}
+}
+
+function getStudyPromptSpeakPayload(cfg, q) {
+  if (!cfg || !q || getConfigCategory(cfg) !== 'study' || !cfg.studyLearn) return null;
+  if (cfg.studyTrackKey === 'vocab_fwd' || cfg.studyTrackKey === 'phrases_fwd') {
+    const text = String(q.prompt || '').trim();
+    return text ? { text, lang: cfg.studyLearn } : null;
+  }
+  return null;
+}
+
+function getStudyReviewSpeakPayload(cfg, q) {
+  if (!cfg || !q || getConfigCategory(cfg) !== 'study' || !cfg.studyLearn) return null;
+  const track = cfg.studyTrackKey || '';
+  let text = '';
+  if (track === 'vocab_fwd' || track === 'phrases_fwd') {
+    text = String(q.prompt || '');
+  } else if (track === 'vocab_rev' || track === 'phrases_rev') {
+    text = String(q.expected || '');
+  } else {
+    const promptStr = String(q.prompt || '');
+    text = promptStr.includes('___')
+      ? fillClozePlainText(promptStr, q.expected)
+      : String(q.expected || promptStr);
+  }
+  text = text.trim();
+  return text ? { text, lang: cfg.studyLearn } : null;
+}
+
 function formatQuestionForReviewHtml(rawQ, targetConfigId = activeConfigId) {
   const q = normalizeQuestionRecord(rawQ, targetConfigId);
   if (q.op === '?') {
     const promptStr = String(q.prompt || '');
     const mainHtml = (!isMapVal(promptStr) && promptStr.includes('___'))
-      ? escapeHtml(promptStr).replace(/___(?:\s+___)*/, renderInlineQuizValHtml(q.expected, true))
+      ? fillClozePromptHtml(promptStr, q.expected)
       : `${renderInlineQuizValHtml(q.prompt, false)} → ${renderInlineQuizValHtml(q.expected, true)}`;
     const cfg = getConfigById(targetConfigId);
     const note = q.note || getQuizItemNote(cfg, Array.isArray(q.nums) ? (Number(q.nums[0]) || 0) : 0);
@@ -4182,6 +4333,27 @@ function renderReview() {
     const eqSpan = document.createElement('span');
     eqSpan.className = 'review-eq';
     eqSpan.innerHTML = formatQuestionForReviewHtml(q, activeConfigId);
+    const speakPayload = isSpeechSynthesisSupported()
+      ? getStudyReviewSpeakPayload(activeCfgForReview, q)
+      : null;
+    if (speakPayload) {
+      const speakBtn = document.createElement('button');
+      speakBtn.type = 'button';
+      speakBtn.className = 'inline-btn review-speak-btn';
+      speakBtn.textContent = '🔊';
+      speakBtn.title = 'Listen to pronunciation';
+      speakBtn.setAttribute('aria-label', 'Listen to pronunciation');
+      speakBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        speakStudyText(speakPayload.text, speakPayload.lang);
+      });
+      const noteEl = eqSpan.querySelector('.review-note');
+      if (noteEl) {
+        eqSpan.insertBefore(speakBtn, noteEl);
+      } else {
+        eqSpan.appendChild(speakBtn);
+      }
+    }
 
     // 2. Typed/chosen answers (wrong attempts & right answer)
     const ansSpan = document.createElement('span');
@@ -4719,6 +4891,17 @@ function renderQuestion() {
     if (quizPromptLabel) {
       quizPromptLabel.textContent = formatConfigLabel(activeCfg);
     }
+    if (quizSpeakBtn) {
+      const speakPayload = isSpeechSynthesisSupported() && isPracticeMode && !isReplaying
+        ? getStudyPromptSpeakPayload(activeCfg, currentQuestion)
+        : null;
+      quizSpeakBtn.classList.toggle('hidden', !speakPayload);
+    }
+    if (quizPracticeNote) {
+      const showPracticeNote = Boolean(isPracticeMode && isWrong && !isReplaying && currentQuestion.note);
+      quizPracticeNote.textContent = showPracticeNote ? `💡 ${currentQuestion.note}` : '';
+      quizPracticeNote.classList.toggle('hidden', !showPracticeNote);
+    }
     if (quizPromptText) {
       const isFlagPrompt = !promptIsMap && Boolean(activeCfg && activeCfg.isFlagPrompt);
       quizPromptText.classList.toggle('is-flag', isFlagPrompt);
@@ -4771,6 +4954,11 @@ function renderQuestion() {
 
   if (mathEqGroup) mathEqGroup.classList.remove('hidden');
   if (quizPromptGroup) quizPromptGroup.classList.add('hidden');
+  if (quizSpeakBtn) quizSpeakBtn.classList.add('hidden');
+  if (quizPracticeNote) {
+    quizPracticeNote.textContent = '';
+    quizPracticeNote.classList.add('hidden');
+  }
 
   const slots = [slot0, slot1, slot2];
   slotOp.textContent = currentQuestion.op === '-' ? '−' : currentQuestion.op;
@@ -4948,6 +5136,11 @@ function nextQuestion() {
     clearTimeout(quizChoiceLockTimeout);
     quizChoiceLockTimeout = null;
   }
+  stopStudySpeech();
+  if (quizPracticeNote) {
+    quizPracticeNote.textContent = '';
+    quizPracticeNote.classList.add('hidden');
+  }
   currentQuestion = generateQuestion();
   typedAnswer = '';
   isWrong = false;
@@ -5016,12 +5209,13 @@ function handleChoiceInput(choiceIdx) {
   }
   updateHud();
   renderQuestion();
+  const wrongDelayMs = isPracticeMode ? (currentQuestion.note ? 950 : 450) : 190;
   quizChoiceLockTimeout = setTimeout(() => {
     quizChoiceLockTimeout = null;
     if (isPlaying && !isReplaying) {
       nextQuestion();
     }
-  }, 190);
+  }, wrongDelayMs);
 }
 
 function handleDigitInput(digitStr) {
@@ -5354,6 +5548,14 @@ async function finishGame(saveScore) {
   if (quizChoiceLockTimeout) {
     clearTimeout(quizChoiceLockTimeout);
     quizChoiceLockTimeout = null;
+  }
+  stopStudySpeech();
+  if (quizPracticeNote) {
+    quizPracticeNote.textContent = '';
+    quizPracticeNote.classList.add('hidden');
+  }
+  if (quizSpeakBtn) {
+    quizSpeakBtn.classList.add('hidden');
   }
   if (raceRafId) {
     cancelAnimationFrame(raceRafId);
@@ -6281,6 +6483,7 @@ function stopReplay(returnHome = true) {
     cancelAnimationFrame(replayRafId);
     replayRafId = null;
   }
+  stopStudySpeech();
   isReplaying = false;
   isReplayPaused = false;
   replaySessionData = null;
@@ -6531,6 +6734,14 @@ if (replayBannerShareBtn) {
   replayBannerShareBtn.addEventListener('click', () => {
     if (replaySessionData && replaySessionData.session) {
       copyReplayLink(replaySessionData.session, replayBannerShareBtn);
+    }
+  });
+}
+if (quizSpeakBtn) {
+  quizSpeakBtn.addEventListener('click', () => {
+    const payload = getStudyPromptSpeakPayload(getActiveConfig(), currentQuestion);
+    if (payload) {
+      speakStudyText(payload.text, payload.lang);
     }
   });
 }

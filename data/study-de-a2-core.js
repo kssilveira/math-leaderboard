@@ -1328,3 +1328,17 @@ const STUDY_DE_A2_PHRASES_CORE = [
 ];
 
 const STUDY_DE_A2_PACKS = {};
+(globalThis.STUDY_COURSE_REGISTRY = globalThis.STUDY_COURSE_REGISTRY || {}).de_a2 = {
+  vocabCore: STUDY_DE_A2_VOCAB_CORE,
+  artExtra: STUDY_DE_A2_ARTICLES_CASES,
+  verbs: STUDY_DE_A2_VERBS,
+  grammar: STUDY_DE_A2_GRAMMAR,
+  phrasesCore: STUDY_DE_A2_PHRASES_CORE,
+  packs: STUDY_DE_A2_PACKS,
+  buildArticles: (partDefs) => globalThis.buildGermanArticleTrackData(
+    STUDY_DE_A2_VOCAB_CORE,
+    STUDY_DE_A2_ARTICLES_CASES,
+    partDefs,
+    null
+  )
+};

@@ -438,7 +438,7 @@ html, body {
 
 .overview-filter-row {
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: 48px 1fr;
   align-items: start;
   gap: 6px;
 }
@@ -1636,12 +1636,44 @@ html, body {
   width: 100%;
 }
 
+.quiz-prompt-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .quiz-prompt-label {
   font-size: 0.76rem;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.quiz-speak-btn,
+.review-speak-btn {
+  padding: 1px 6px;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.review-speak-btn {
+  margin-left: 6px;
+}
+
+.quiz-practice-note {
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  max-width: 100%;
+  line-height: 1.25;
 }
 
 .quiz-prompt-text {
@@ -2361,6 +2393,12 @@ body.game-landscape #game-view.is-quiz-mode .quiz-prompt-group {
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-label {
   font-size: 0.66rem;
   flex-shrink: 0;
+}
+
+body.game-landscape #game-view.is-quiz-mode .quiz-practice-note {
+  margin-top: 2px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
 }
 
 body.game-landscape #game-view.is-quiz-mode .quiz-prompt-text {

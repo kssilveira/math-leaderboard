@@ -1500,3 +1500,11 @@ const STUDY_EN_A1_PHRASES_CORE = [
 ];
 
 const STUDY_EN_A1_PACKS = {};
+(globalThis.STUDY_COURSE_REGISTRY = globalThis.STUDY_COURSE_REGISTRY || {}).en_a1 = {
+  vocabCore: STUDY_EN_A1_VOCAB_CORE,
+  articles: STUDY_EN_A1_ARTICLES,
+  verbs: STUDY_EN_A1_VERBS,
+  grammar: STUDY_EN_A1_GRAMMAR,
+  phrasesCore: STUDY_EN_A1_PHRASES_CORE,
+  packs: STUDY_EN_A1_PACKS
+};

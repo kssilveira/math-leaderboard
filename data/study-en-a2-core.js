@@ -1497,3 +1497,11 @@ const STUDY_EN_A2_PHRASES_CORE = [
 ];
 
 const STUDY_EN_A2_PACKS = {};
+(globalThis.STUDY_COURSE_REGISTRY = globalThis.STUDY_COURSE_REGISTRY || {}).en_a2 = {
+  vocabCore: STUDY_EN_A2_VOCAB_CORE,
+  articles: STUDY_EN_A2_ARTICLES,
+  verbs: STUDY_EN_A2_VERBS,
+  grammar: STUDY_EN_A2_GRAMMAR,
+  phrasesCore: STUDY_EN_A2_PHRASES_CORE,
+  packs: STUDY_EN_A2_PACKS
+};

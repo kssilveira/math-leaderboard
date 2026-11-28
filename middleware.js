@@ -1,4 +1,5 @@
 import {
+  QUIZ_LANG_META,
   STUDY_CONFIG_LABELS,
   getStudyMiniPartLabel,
   resolveStudyConfigIdAlias,
@@ -55,14 +56,6 @@ function decodeReplaySummary(encoded) {
     return null;
   }
 }
-
-const QUIZ_LANG_META = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-];
 
 const QUIZ_CONFIG_LABELS = {
   cfg_geo_flag_country: '🚩 Flag → 🌐 Country',

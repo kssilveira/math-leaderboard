@@ -56,7 +56,8 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `ENGLISH_IDIOMS` / `PORTUGUESE_IDIOMS` / `SPANISH_IDIOMS` / `FRENCH_IDIOMS` / `GERMAN_IDIOMS`: `[[idiom, meaning], ...]` (200 items each, monolingual)
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
-  - `data/study-de-a1-core.js`: Defines shared, language-independent Goethe-Zertifikat A1 German datasets and initializes `STUDY_DE_A1_PACKS` (lazy-loaded on demand via `ensureStudyConfigLoaded()`):
+  - `data/study-de-helpers.js`: Lazy-loaded German noun gender suffix hints and `buildGermanArticleTrackData()` helper (loaded via `helperScripts` on demand, not statically in `index.html` or `sw.js`).
+  - `data/study-de-a1-core.js`: Defines shared, language-independent Goethe-Zertifikat A1 German datasets, initializes `STUDY_DE_A1_PACKS`, and self-registers into `STUDY_COURSE_REGISTRY.de_a1` (lazy-loaded on demand via `ensureStudyConfigLoaded()`):
     - `STUDY_DE_A1_VOCAB_CORE`: `[[de, pos, setKey, hint?], ...]` (738 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das` and a plural/number `hint`; non-trivial verbs include principal-part/syntax `hint`s; 7 thematic `setKey`s)
     - `STUDY_DE_A1_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
     - `STUDY_DE_A1_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
@@ -109,8 +110,9 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_chem_name_symbol` (`Element → Symbol`)
       - `cfg_other_morse_char` (`Morse → Character`)
       - `cfg_other_char_morse` (`Character → Morse`)
-  - `js/app.js`: All client-side application logic.
-- `lib/study-meta.js`: Single source of truth for Study course metadata (`STUDY_COURSES_META` with `partDefs`, `STUDY_LANGUAGE_META`, `STUDY_CEFR_ORDER`), labels, mini-part names, preview samples, and config ID aliases imported by `middleware.js`, `api/og.js`, and `js/study-meta-bridge.js`.
+  - `js/app.js`: All client-side application logic (including unified 7-game Study view where monolingual tracks stay visible alongside paired `With` tracks, Practice mode `ruleNote` reveal, split multi-blank cloze review, and Web Speech API `speechSynthesis` pronunciation in Practice/Review).
+- `lib/study-meta.js`: Single source of truth for Study course metadata (`STUDY_COURSES_META` with `partDefs`, `helperScripts`, and `pairedPreviewSamples`, `STUDY_LANGUAGE_META` with `bcp47` locales, `QUIZ_LANG_META`, `STUDY_CEFR_ORDER`), labels, mini-part names, preview samples, OG home badge formatting (`getStudyOgHomeBadge()`), and config ID aliases imported by `middleware.js`, `api/og.js`, and `js/study-meta-bridge.js`.
+- `scripts/validate-study.mjs`: Automated Study dataset & metadata validator (`npm run validate:study` / `node scripts/validate-study.mjs`).
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
@@ -154,8 +156,14 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 
 1. **Adding New Quiz or Study Configs**:
    - Add raw dataset arrays to `data/quiz-datasets.js` (general quizzes) or a dedicated pack file such as `data/study-<learn>-<cefr>-core.js` and `data/study-<learn>-<cefr>-<with>.js` (lazy-loaded on demand via `ensureStudyConfigLoaded()` in `js/quiz-data.js`, **not** statically loaded in `index.html` or `sw.js` `APP_SHELL`).
-   - Add general quiz labels/samples to `QUIZ_CONFIG_LABELS` / `getMiniPartLabel()` in `middleware.js` and `api/og.js`. For Study courses, add the course entry (including `partDefs` and `pairedPreviewSamples`) to `STUDY_COURSES_META` in `lib/study-meta.js` (single source of truth for `middleware.js`, `api/og.js`, and `js/quiz-data.js`), and add the new course's raw dataset lookup in `getLoadedStudyCourseRawData()` in `js/quiz-data.js`. Keep monolingual `ruleNote`s in ultra-short symbolic format.
-2. **Bumping Service Worker Cache**:
+   - Add general quiz labels/samples to `QUIZ_CONFIG_LABELS` / `getMiniPartLabel()` in `middleware.js` and `api/og.js`.
+   - For Study courses, add the course entry (including `partDefs`, optional `helperScripts`, and `pairedPreviewSamples`) to `STUDY_COURSES_META` in `lib/study-meta.js` (single source of truth for `middleware.js`, `api/og.js`, `js/quiz-data.js`, and `scripts/validate-study.mjs`), and have the core file self-register into `globalThis.STUDY_COURSE_REGISTRY["<learn>_<cefr>"]` (no edits needed in `js/quiz-data.js`). Keep monolingual `ruleNote`s in ultra-short symbolic format.
+2. **Study Language Authoring Conventions**:
+   - **Self-registration**: Each `data/study-<learn>-<cefr>-core.js` registers `{ vocabCore, verbs, grammar, phrasesCore, packs, articles | buildArticles }` onto `globalThis.STUDY_COURSE_REGISTRY["<learn>_<cefr>"]`, and each `data/study-<learn>-<cefr>-<with>.js` attaches its `{ code, vocab, phrases }` object onto the core's `PACKS` object.
+   - **Gendered nouns & Articles track**: For gendered languages (e.g. `de`, `fr`, `es`, `pt`), include the definite article directly in `VOCAB_CORE` nouns (`der/die/das`, `le/la/l'/les`, `el/la/los/las`, `o/a/os/as`) with a plural/gender `hint` so `Articles & Gender` can either derive from `VOCAB_CORE` + targeted contrasts via a lazy-loaded `helperScripts` module or supply an explicit `articles` array (like `en`).
+   - **Discontinuous cloze blanks**: Use multiple `___` slots in the prompt paired with `...`-separated answers (e.g., `"Je ___ mange ___ de viande."` with `"ne ... pas"`), which `fillClozePromptHtml()` renders into separate highlighted slots in Review/Replay.
+   - **Validation**: Always run `node scripts/validate-study.mjs` (or `npm run validate:study`) after adding or editing any Study course or translation pack.
+3. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
-3. **Testing Locally**:
+4. **Testing Locally**:
    - Run `./serve.sh` (defaults to port `8000`, or `./serve.sh <port>`) and open `http://localhost:8000/`.

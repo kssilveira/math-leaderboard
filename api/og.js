@@ -1,5 +1,6 @@
 import { ImageResponse } from '@vercel/og';
 import {
+  QUIZ_LANG_META,
   STUDY_CONFIG_LABELS,
   STUDY_PREVIEW_SAMPLES,
   getStudyMiniPartLabel,
@@ -36,14 +37,6 @@ function svgEl(type, attrs, children) {
     },
   };
 }
-
-const QUIZ_LANG_META = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-];
 
 const QUIZ_CONFIG_LABELS = {
   cfg_geo_flag_country: '🚩 Flag → 🌐 Country',
@@ -86,6 +79,8 @@ for (const lang of QUIZ_LANG_META) {
   QUIZ_CONFIG_LABELS[idmKey] = `${lang.flag} Idiom → Meaning`;
   QUIZ_CONFIG_LABELS[mngKey] = `${lang.flag} Meaning → Idiom`;
 }
+
+const APPROX_GAMES_COUNT = Math.floor(Object.keys(QUIZ_CONFIG_LABELS).length / 10) * 10;
 
 function getMiniPartLabel(baseId, partNum) {
   if (baseId.startsWith('cfg_study_')) {
@@ -2323,7 +2318,7 @@ function renderHomeOverviewCard(overview) {
   const rightHeaderBadge =
     overview.activeGames > 0 && overview.uniquePlayers > 0
       ? `${overview.activeGames} Games · ${overview.uniquePlayers} Players`
-      : '75+ Leaderboards';
+      : `${APPROX_GAMES_COUNT}+ Leaderboards`;
 
   return h(
     'div',
@@ -2371,7 +2366,7 @@ function renderHomeOverviewCard(overview) {
                   padding: '6px 14px',
                   borderRadius: '999px',
                 },
-                '75+ Games · 60s Sprints'
+                `${APPROX_GAMES_COUNT}+ Games · 60s Sprints`
               ),
             ]
           ),

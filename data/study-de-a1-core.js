@@ -1339,3 +1339,17 @@ const STUDY_DE_A1_PHRASES_CORE = [
 ];
 
 const STUDY_DE_A1_PACKS = {};
+(globalThis.STUDY_COURSE_REGISTRY = globalThis.STUDY_COURSE_REGISTRY || {}).de_a1 = {
+  vocabCore: STUDY_DE_A1_VOCAB_CORE,
+  artExtra: STUDY_DE_A1_ARTICLES_AKK,
+  verbs: STUDY_DE_A1_VERBS,
+  grammar: STUDY_DE_A1_GRAMMAR,
+  phrasesCore: STUDY_DE_A1_PHRASES_CORE,
+  packs: STUDY_DE_A1_PACKS,
+  buildArticles: (partDefs) => globalThis.buildGermanArticleTrackData(
+    STUDY_DE_A1_VOCAB_CORE,
+    STUDY_DE_A1_ARTICLES_AKK,
+    partDefs,
+    717
+  )
+};
