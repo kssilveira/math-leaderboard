@@ -56,8 +56,8 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
     - `ENGLISH_IDIOMS` / `PORTUGUESE_IDIOMS` / `SPANISH_IDIOMS` / `FRENCH_IDIOMS` / `GERMAN_IDIOMS`: `[[idiom, meaning], ...]` (200 items each, monolingual)
     - `CHEMICAL_ELEMENTS_118`: `[[symbol, elementName], ...]` (118 items)
     - `MORSE_CODE_36`: `[[char, morseDotsAndDashes], ...]` (36 items, `A–Z` & `0–9`)
-  - `data/study-de-a1-core.js`: Defines shared, language-independent Goethe-Zertifikat A1 German datasets and initializes `STUDY_DE_A1_PACKS`:
-    - `STUDY_DE_A1_VOCAB_CORE`: `[[de, pos, setKey], ...]` (738 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das`; 7 thematic `setKey`s)
+  - `data/study-de-a1-core.js`: Defines shared, language-independent Goethe-Zertifikat A1 German datasets and initializes `STUDY_DE_A1_PACKS` (lazy-loaded on demand via `ensureStudyConfigLoaded()`):
+    - `STUDY_DE_A1_VOCAB_CORE`: `[[de, pos, setKey, hint?], ...]` (738 items; `pos` in `'n' | 'v' | 'adj' | 'fn'`; all nouns include `der`/`die`/`das` and a plural/number `hint`; non-trivial verbs include principal-part/syntax `hint`s; 7 thematic `setKey`s)
     - `STUDY_DE_A1_ARTICLES_AKK`: `[[prompt, correct, distractors, ruleNote], ...]` (70 Nominative vs. Accusative cloze items)
     - `STUDY_DE_A1_VERBS`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (188 items; 4 `setKey`s)
     - `STUDY_DE_A1_GRAMMAR`: `[[prompt, correct, distractors, ruleNote, setKey], ...]` (214 items; 5 `setKey`s)
@@ -66,11 +66,12 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
   - `data/study-de-a1-pt.js`: Registers `STUDY_DE_A1_PACKS.pt` (Brazilian Portuguese / PT-BR), aligned 1:1 with `STUDY_DE_A1_VOCAB_CORE` and `STUDY_DE_A1_PHRASES_CORE`.
   - `data/study-de-a1-es.js`: Registers `STUDY_DE_A1_PACKS.es` (Spanish), aligned 1:1 with `STUDY_DE_A1_VOCAB_CORE` and `STUDY_DE_A1_PHRASES_CORE`.
   - `data/study-de-a1-fr.js`: Registers `STUDY_DE_A1_PACKS.fr` (French), aligned 1:1 with `STUDY_DE_A1_VOCAB_CORE` and `STUDY_DE_A1_PHRASES_CORE`.
-  - `data/study-de-a2-core.js`: Defines shared, language-independent Goethe-Zertifikat A2 German datasets (`STUDY_DE_A2_VOCAB_CORE`: 717 items, `STUDY_DE_A2_ARTICLES_CASES`: 75 items, `STUDY_DE_A2_VERBS`: 190 items, `STUDY_DE_A2_GRAMMAR`: 215 items, `STUDY_DE_A2_PHRASES_CORE`: 108 items) and initializes `STUDY_DE_A2_PACKS`.
+  - `data/study-de-a2-core.js`: Defines shared, language-independent Goethe-Zertifikat A2 German datasets (`STUDY_DE_A2_VOCAB_CORE`: 717 items with optional `hint`, `STUDY_DE_A2_ARTICLES_CASES`: 75 items, `STUDY_DE_A2_VERBS`: 190 items, `STUDY_DE_A2_GRAMMAR`: 215 items, `STUDY_DE_A2_PHRASES_CORE`: 108 items) and initializes `STUDY_DE_A2_PACKS`.
   - `data/study-de-a2-{en,pt,es,fr}.js`: Register `STUDY_DE_A2_PACKS.{en,pt,es,fr}`, aligned 1:1 with `STUDY_DE_A2_VOCAB_CORE` and `STUDY_DE_A2_PHRASES_CORE`.
 - `js/`:
+  - `js/study-meta-bridge.js`: ESM bridge exposing `STUDY_COURSES_META`, `STUDY_LANGUAGE_META`, `STUDY_CEFR_ORDER`, and `resolveStudyConfigIdAlias` from `lib/study-meta.js` onto `window` before `js/quiz-data.js` executes.
   - `js/geo-maps.js`: Lightweight (~8 KB) `renderGeoMapSvg()` projection, viewport clipping, and microstate target-ring renderer using `GEO_MAP_DATA`.
-  - `js/quiz-data.js`: Config registry defining `BUILTIN_QUIZ_CONFIGS` with **104** built-in 2-choice quiz base configurations (**570** total including mini-parts/sets):
+  - `js/quiz-data.js`: Config registry defining `BUILTIN_QUIZ_CONFIGS` with **104** built-in 2-choice quiz base configurations (**570** total including mini-parts/sets), plus lazy-loading & hydration (`ensureStudyConfigLoaded()`) for Study courses:
     - **🌍 Geography (`12` configs — 193 UN Member States)**:
       - `cfg_geo_flag_country` (`Flag → Country`)
       - `cfg_geo_country_flag` (`Country → Flag`)
@@ -96,16 +97,16 @@ The project uses a split-hosting architecture so `localStorage` stays on a singl
       - `cfg_study_de_de_{a1,a2}_grammar` (`Grammar`, `distractorMode: 'explicit'`, 5 topic sets, `studyWith: 'de'`)
       - `cfg_study_de_de_{a1,a2}_verbs` (`Verbs & Conjugation`, `distractorMode: 'explicit'`, 4 sets, `studyWith: 'de'`)
       - `cfg_study_de_de_{a1,a2}_articles` (`Articles & Gender`, `distractorMode: 'explicit'`, 4 sets: 3 noun-gender sets derived from `STUDY_DE_{A1,A2}_VOCAB_CORE` + *Nom vs Akk* / *Dativ & Adj.-Endungen*, `studyWith: 'de'`, 454 A1 / 501 A2 items)
-      - `cfg_study_de_{en,pt,es,fr}_{a1,a2}_phrases_de_{en,pt,es,fr}` (`Phrases (DE → EN / PT / ES / FR)`, `distractorMode: 'pos_pool'`, 4 sets)
+      - `cfg_study_de_{en,pt,es,fr}_{a1,a2}_phrases_de_{en,pt,es,fr}` (`Phrases (DE → EN / PT / ES / FR)`, `distractorMode: 'pos_pool'` keyed by ending punctuation `'?'` / `'!'` / `'.'` + `setKey`, 4 sets)
       - `cfg_study_de_{en,pt,es,fr}_{a1,a2}_phrases` (`Phrases (EN / PT / ES / FR → DE)`, `distractorMode: 'explicit'`, 4 sets)
-      - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, and `customParts` (bypassing the default 4-part split in `getPartsForBaseQuizConfig()`).
+      - Study configs carry `studyLearn`, `studyWith`, `studyCefr`, `shortLabel`, `distractorMode`, `isLazyStudy`, `studyDataLoaded`, and `customParts` (derived from `STUDY_COURSES_META.partDefs` in `lib/study-meta.js`, bypassing the default 4-part split in `getPartsForBaseQuizConfig()`). Monolingual `ruleNote`s use ultra-short symbolic patterns.
     - **🧩 Other (`4` configs — 118 IUPAC Elements & 36 Morse Code Characters)**:
       - `cfg_chem_symbol_name` (`Symbol → Element`)
       - `cfg_chem_name_symbol` (`Element → Symbol`)
       - `cfg_other_morse_char` (`Morse → Character`)
       - `cfg_other_char_morse` (`Character → Morse`)
   - `js/app.js`: All client-side application logic.
-- `lib/study-meta.js`: Shared Study metadata, labels, mini-part names, preview samples, and config ID aliases imported by `middleware.js` and `api/og.js`.
+- `lib/study-meta.js`: Single source of truth for Study course metadata (`STUDY_COURSES_META` with `partDefs`, `STUDY_LANGUAGE_META`, `STUDY_CEFR_ORDER`), labels, mini-part names, preview samples, and config ID aliases imported by `middleware.js`, `api/og.js`, and `js/study-meta-bridge.js`.
 - `middleware.js`: Vercel Edge Middleware for crawler detection, Open Graph tag injection, and browser redirection.
 - `api/og.js`: Vercel Edge Function (`@vercel/og`) rendering dynamic `1200 × 630` PNG Open Graph cards.
 - `database.rules.json`: Firebase Realtime Database security and validation rules.
@@ -148,8 +149,8 @@ Both Firebase leaderboard entries (`/leaderboards/$configId/$userId/questions`) 
 ## 4. Maintenance Checklist for Future Changes
 
 1. **Adding New Quiz or Study Configs**:
-   - Add raw dataset arrays to `data/quiz-datasets.js` (general quizzes) or a dedicated pack file such as `data/study-<learn>-<cefr>-<from>.js` (loaded in `index.html` and precached in `sw.js`), and register the config entries in `js/quiz-data.js` (`BUILTIN_QUIZ_CONFIGS`).
-   - Add human-readable labels to `QUIZ_CONFIG_LABELS` and set labels to `getMiniPartLabel()` in both `middleware.js` and `api/og.js` (or to `STUDY_COURSES_META` in `lib/study-meta.js` for Study courses), and add preview samples to `QUIZ_PREVIEW_SAMPLES` in `api/og.js` (or `lib/study-meta.js`).
+   - Add raw dataset arrays to `data/quiz-datasets.js` (general quizzes) or a dedicated pack file such as `data/study-<learn>-<cefr>-core.js` and `data/study-<learn>-<cefr>-<with>.js` (lazy-loaded on demand via `ensureStudyConfigLoaded()` in `js/quiz-data.js`, **not** statically loaded in `index.html` or `sw.js` `APP_SHELL`).
+   - Add general quiz labels/samples to `QUIZ_CONFIG_LABELS` / `getMiniPartLabel()` in `middleware.js` and `api/og.js`. For Study courses, add the course entry (including `partDefs` and `pairedPreviewSamples`) to `STUDY_COURSES_META` in `lib/study-meta.js` (single source of truth for `middleware.js`, `api/og.js`, and `js/quiz-data.js`), and add the new course's raw dataset lookup in `getLoadedStudyCourseRawData()` in `js/quiz-data.js`. Keep monolingual `ruleNote`s in ultra-short symbolic format.
 2. **Bumping Service Worker Cache**:
    - Whenever modifying `index.html`, `style.css`, `assets/icons/*`, `data/*`, or `js/*`, increment `CACHE_NAME` in `sw.js` so returning PWA users receive the updated assets immediately.
 3. **Testing Locally**:

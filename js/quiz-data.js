@@ -136,14 +136,21 @@ function buildLanguageQuizConfigs() {
   return configs;
 }
 
-const STUDY_LANGUAGE_META = {
+const FALLBACK_STUDY_LANGUAGE_META = {
   de: { name: 'German', flag: '🇩🇪' },
   en: { name: 'English', flag: '🇬🇧' },
   pt: { name: 'Portuguese', flag: '🇧🇷' },
   es: { name: 'Spanish', flag: '🇪🇸' },
   fr: { name: 'French', flag: '🇫🇷' }
 };
-const STUDY_CEFR_ORDER = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+const STUDY_LANGUAGE_META =
+  typeof window !== 'undefined' && window.STUDY_LANGUAGE_META
+    ? window.STUDY_LANGUAGE_META
+    : FALLBACK_STUDY_LANGUAGE_META;
+const STUDY_CEFR_ORDER =
+  typeof window !== 'undefined' && Array.isArray(window.STUDY_CEFR_ORDER)
+    ? window.STUDY_CEFR_ORDER
+    : ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
 const GERMAN_PLURAL_ONLY_NOUNS = new Set([
   'Leute', 'Eltern', 'Geschwister', 'Großeltern',
@@ -182,48 +189,62 @@ const GERMAN_ARTICLE_PROMPT_DISAMBIG = {
   Kunde: '___ Kunde (Käufer)',
   Schild: '___ Schild (Verkehr)',
   Band: '___ Band (Musik)',
-  Tor: '___ Tor (Fußball / Tür)'
+  Tor: '___ Tor (Fußball / Tür)',
+  Stift: '___ Stift (Schreiben)'
+};
+const GERMAN_DUAL_GENDER_HINTS = {
+  Liter: 'der/das (Duden)',
+  Laptop: 'der/das (Duden)',
+  'E-Mail': 'die (AT/CH: das)',
+  Radio: 'das (südd.: der)'
 };
 
 function getGermanNounSuffixHint(noun, article) {
+  if (GERMAN_DUAL_GENDER_HINTS[noun]) return GERMAN_DUAL_GENDER_HINTS[noun];
   if (article === 'die') {
-    if (GERMAN_PLURAL_ONLY_NOUNS.has(noun)) return 'Plural (die)';
-    if (noun.endsWith('ung')) return '-ung → feminin (die)';
-    if (noun.endsWith('heit')) return '-heit → feminin (die)';
-    if (noun.endsWith('keit')) return '-keit → feminin (die)';
-    if (noun.endsWith('schaft')) return '-schaft → feminin (die)';
-    if (noun.endsWith('tion')) return '-tion → feminin (die)';
-    if (noun.endsWith('tät')) return '-tät → feminin (die)';
-    if (noun.endsWith('ei')) return '-ei → feminin (die)';
-    if (noun.endsWith('ik')) return '-ik → feminin (die)';
-    if (noun.endsWith('ie') && noun.length > 4) return '-ie → feminin (die)';
-    if (noun.endsWith('age') && !/(?:frage|sage|lage|waage|klage|plage)$/i.test(noun)) return '-age → feminin (die)';
-    if (noun.endsWith('ur') && noun.length > 4) return '-ur → feminin (die)';
-    if (noun.endsWith('anz') || noun.endsWith('enz')) return '-anz/-enz → feminin (die)';
-    if (noun.endsWith('in') && noun.length > 4 && noun !== 'Medizin') return '-in (weiblich) → die';
-    return 'feminin (die)';
+    if (GERMAN_PLURAL_ONLY_NOUNS.has(noun)) return 'Pl. → die';
+    if (noun.endsWith('ung')) return '-ung → die';
+    if (noun.endsWith('heit')) return '-heit → die';
+    if (noun.endsWith('keit')) return '-keit → die';
+    if (noun.endsWith('schaft')) return '-schaft → die';
+    if (noun.endsWith('tion')) return '-tion → die';
+    if (noun.endsWith('tät')) return '-tät → die';
+    if (noun.endsWith('ei')) return '-ei → die';
+    if (noun.endsWith('ik')) return '-ik → die';
+    if (noun.endsWith('ie') && noun.length > 4) return '-ie → die';
+    if (noun.endsWith('age') && !/(?:frage|sage|lage|waage|klage|plage)$/i.test(noun)) return '-age → die';
+    if (noun.endsWith('ur') && noun.length > 4) return '-ur → die';
+    if (noun.endsWith('anz') || noun.endsWith('enz')) return '-anz/-enz → die';
+    if (noun.endsWith('in') && noun.length > 4 && noun !== 'Medizin') return '-in (♀) → die';
+    return 'fem. (die)';
   }
   if (article === 'das') {
-    if (GERMAN_NEUT_LANG_NOUNS.has(noun)) return 'Sprachen → das';
-    if (noun.endsWith('chen')) return '-chen → immer neutrum (das)';
-    if (noun.endsWith('lein')) return '-lein → immer neutrum (das)';
-    if (noun.endsWith('um')) return '-um → neutrum (das)';
-    if (noun.endsWith('ment')) return '-ment → neutrum (das)';
-    if (noun.endsWith('tum')) return '-tum → neutrum (das)';
-    if (noun.endsWith('nis')) return '-nis → meist neutrum (das)';
-    return 'neutrum (das)';
+    if (GERMAN_NEUT_LANG_NOUNS.has(noun)) return 'Sprache → das';
+    if (noun.endsWith('chen')) return '-chen → das';
+    if (noun.endsWith('lein')) return '-lein → das';
+    if (noun.endsWith('um')) return '-um → das';
+    if (noun.endsWith('ment')) return '-ment → das';
+    if (noun.endsWith('tum')) return '-tum → das';
+    if (noun.endsWith('nis')) return '-nis → das';
+    return 'neutr. (das)';
   }
-  if (GERMAN_MASC_TIME_NOUNS.has(noun)) return 'Tage/Monate/Jahreszeiten → der';
-  if (GERMAN_MASC_COMPASS_NOUNS.has(noun)) return 'Himmelsrichtungen → der';
-  if (GERMAN_MASC_ER_AGENT_NOUNS.has(noun)) return '-er (männlich) → der';
+  if (GERMAN_MASC_TIME_NOUNS.has(noun)) return 'Tag/Monat/Zeit → der';
+  if (GERMAN_MASC_COMPASS_NOUNS.has(noun)) return 'Himmelsr. → der';
+  if (GERMAN_MASC_ER_AGENT_NOUNS.has(noun)) return '-er (♂) → der';
   if (GERMAN_MASC_ER_DEVICE_NOUNS.has(noun)) return '-er (Gerät) → der';
-  if (noun.endsWith('ling')) return '-ling → maskulin (der)';
-  if (noun.endsWith('ist')) return '-ist → maskulin (der)';
-  if (noun.endsWith('or') && noun.length > 4) return '-or → maskulin (der)';
-  if (noun.endsWith('ismus')) return '-ismus → maskulin (der)';
-  if (noun.endsWith('ant') && noun.length > 4) return '-ant → maskulin (der)';
-  if (noun.endsWith('ent') && noun.length > 4 && noun !== 'Moment') return '-ent → maskulin (der)';
-  return 'maskulin (der)';
+  if (noun.endsWith('ling')) return '-ling → der';
+  if (noun.endsWith('ist')) return '-ist → der';
+  if (noun.endsWith('or') && noun.length > 4) return '-or → der';
+  if (noun.endsWith('ismus')) return '-ismus → der';
+  if (noun.endsWith('ant') && noun.length > 4) return '-ant → der';
+  if (noun.endsWith('ent') && noun.length > 4 && noun !== 'Moment') return '-ent → der';
+  return 'mask. (der)';
+}
+
+function getPhraseEndingPunct(text) {
+  const last = String(text || '').trim().slice(-1);
+  if (last === '?' || last === '!') return last;
+  return '.';
 }
 
 function buildPartsFromSetKeys(items, setDefs, setKeyIndex) {
@@ -239,23 +260,15 @@ function buildPartsFromSetKeys(items, setDefs, setKeyIndex) {
   });
 }
 
-function buildConfigsForStudyCourse(course) {
-  const {
-    learn,
-    cefr,
-    preferredPackOrder = ['en', 'pt', 'es', 'fr'],
-    packs,
-    vocabCore,
-    vocabParts,
-    phrasesCore,
-    phraseParts,
-    monolingualTracks = []
-  } = course;
-  if (!packs || !Array.isArray(vocabCore) || !Array.isArray(phrasesCore)) {
-    return [];
-  }
+function getStudyCoursesMetaList() {
+  return typeof window !== 'undefined' && Array.isArray(window.STUDY_COURSES_META)
+    ? window.STUDY_COURSES_META
+    : (typeof STUDY_COURSES_META !== 'undefined' && Array.isArray(STUDY_COURSES_META) ? STUDY_COURSES_META : []);
+}
 
-  const learnMeta = STUDY_LANGUAGE_META[learn] || { name: learn.toUpperCase(), flag: '🏳️' };
+function buildStudyStubConfigsFromCourseMeta(courseMeta) {
+  const { learn, learnFlag, cefr, withLangs = [], monolingualTracks = [], partDefs = {} } = courseMeta;
+  const learnMeta = STUDY_LANGUAGE_META[learn] || { name: learn.toUpperCase(), flag: learnFlag || '🏳️' };
   const learnTag = `${learnMeta.flag} ${learn.toUpperCase()}`;
   const cefrUpper = String(cefr || '').toUpperCase();
   const baseMeta = {
@@ -263,346 +276,83 @@ function buildConfigsForStudyCourse(course) {
     type: 'quiz',
     studyLearn: learn,
     studyCefr: cefr,
+    isLazyStudy: true,
+    studyDataLoaded: false,
     isFlagPrompt: false,
     isFlagChoice: false
   };
+  const emptyParts = (defs) => (defs || []).map(def => ({ label: def.label, indices: [] }));
 
-  const packCodes = [
-    ...preferredPackOrder.filter(code => Boolean(packs[code])),
-    ...Object.keys(packs).filter(code => !preferredPackOrder.includes(code))
-  ];
+  const monolingualConfigs = monolingualTracks.map((track) => ({
+    ...baseMeta,
+    studyWith: learn,
+    studyTrackKey: track.key,
+    id: `cfg_study_${learn}_${learn}_${cefr}_${track.key}`,
+    shortLabel: track.label,
+    label: `${learnMeta.flag} ${cefrUpper} · ${track.label}`,
+    distractorMode: track.distractorMode || 'explicit',
+    items: [],
+    customParts: emptyParts(partDefs[track.key])
+  }));
 
   const pairedConfigs = [];
-  packCodes.forEach((code) => {
-    const pack = packs[code];
-    if (
-      !pack ||
-      !Array.isArray(pack.vocab) ||
-      !Array.isArray(pack.phrases) ||
-      pack.vocab.length !== vocabCore.length ||
-      pack.phrases.length !== phrasesCore.length
-    ) {
-      return;
-    }
-    const langMeta = STUDY_LANGUAGE_META[code] || { name: code.toUpperCase(), flag: '🏳️' };
+  withLangs.forEach((lang) => {
+    const code = lang.code;
+    const langMeta = STUDY_LANGUAGE_META[code] || { name: code.toUpperCase(), flag: lang.flag || '🏳️' };
     const withTag = `${langMeta.flag} ${code.toUpperCase()}`;
     pairedConfigs.push(
       {
         ...baseMeta,
         studyWith: code,
+        studyTrackKey: 'vocab_fwd',
         id: `cfg_study_${learn}_${code}_${cefr}_vocab_${learn}_${code}`,
         shortLabel: `🔤 Words ${learnTag} → ${withTag}`,
         label: `${learnMeta.flag} ${cefrUpper} · 🔤 Words ${learnTag} → ${withTag}`,
         distractorMode: 'pos_pool',
-        items: vocabCore.map(([word, pos, setKey], i) => [word, pack.vocab[i], pos, setKey]),
-        customParts: vocabParts
+        items: [],
+        customParts: emptyParts(partDefs.vocab)
       },
       {
         ...baseMeta,
         studyWith: code,
+        studyTrackKey: 'vocab_rev',
         id: `cfg_study_${learn}_${code}_${cefr}_vocab_${code}_${learn}`,
         shortLabel: `🔤 Words ${withTag} → ${learnTag}`,
         label: `${learnMeta.flag} ${cefrUpper} · 🔤 Words ${withTag} → ${learnTag}`,
         distractorMode: 'pos_pool',
-        items: vocabCore.map(([word, pos, setKey], i) => [pack.vocab[i], word, pos, setKey]),
-        customParts: vocabParts
+        items: [],
+        customParts: emptyParts(partDefs.vocab)
       },
       {
         ...baseMeta,
         studyWith: code,
+        studyTrackKey: 'phrases_fwd',
         id: `cfg_study_${learn}_${code}_${cefr}_phrases_${learn}_${code}`,
         shortLabel: `🗣️ Phrases ${learnTag} → ${withTag}`,
         label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Phrases ${learnTag} → ${withTag}`,
         distractorMode: 'pos_pool',
-        items: phrasesCore.map(([correct, , setKey], i) => {
-          const [phrase, ruleNote] = pack.phrases[i];
-          return [correct, phrase, setKey, null, ruleNote];
-        }),
-        customParts: phraseParts
+        items: [],
+        customParts: emptyParts(partDefs.phrases)
       },
       {
         ...baseMeta,
         studyWith: code,
+        studyTrackKey: 'phrases_rev',
         id: `cfg_study_${learn}_${code}_${cefr}_phrases`,
         shortLabel: `🗣️ Phrases ${withTag} → ${learnTag}`,
         label: `${learnMeta.flag} ${cefrUpper} · 🗣️ Phrases ${withTag} → ${learnTag}`,
         distractorMode: 'explicit',
-        items: phrasesCore.map(([correct, distractors], i) => {
-          const [prompt, ruleNote] = pack.phrases[i];
-          return [prompt, correct, distractors, ruleNote];
-        }),
-        customParts: phraseParts
+        items: [],
+        customParts: emptyParts(partDefs.phrases)
       }
     );
   });
 
-  const monolingualConfigs = monolingualTracks.map((track) => ({
-    ...baseMeta,
-    studyWith: learn,
-    id: track.id || `cfg_study_${learn}_${learn}_${cefr}_${track.key}`,
-    shortLabel: track.shortLabel,
-    label: `${learnMeta.flag} ${cefrUpper} · ${track.shortLabel}`,
-    distractorMode: track.distractorMode || 'explicit',
-    items: track.items,
-    customParts: track.parts
-  }));
-
   return [...monolingualConfigs, ...pairedConfigs];
 }
 
-function buildGermanA1StudyCourse() {
-  if (
-    typeof STUDY_DE_A1_VOCAB_CORE === 'undefined' ||
-    typeof STUDY_DE_A1_ARTICLES_AKK === 'undefined' ||
-    typeof STUDY_DE_A1_VERBS === 'undefined' ||
-    typeof STUDY_DE_A1_GRAMMAR === 'undefined' ||
-    typeof STUDY_DE_A1_PHRASES_CORE === 'undefined' ||
-    typeof STUDY_DE_A1_PACKS === 'undefined'
-  ) {
-    return null;
-  }
-
-  const vocabSetDefs = [
-    { keys: ['basics'], label: '⏰ Basics & Time' },
-    { keys: ['people'], label: '👪 People & Family' },
-    { keys: ['home'], label: '🏠 Home & Routine' },
-    { keys: ['food'], label: '🍎 Food & Shopping' },
-    { keys: ['city'], label: '🚆 City & Travel' },
-    { keys: ['work'], label: '💼 Work & Free Time' },
-    { keys: ['verbs_adj'], label: '✨ Verbs & Qualities' }
-  ];
-  const vocabParts = buildPartsFromSetKeys(STUDY_DE_A1_VOCAB_CORE, vocabSetDefs, 2);
-
-  const verbSetDefs = [
-    { keys: ['core'], label: '⭐ sein, haben & Modals' },
-    { keys: ['regular'], label: '✅ Regular Present' },
-    { keys: ['stem'], label: '🔀 Stem-Changing' },
-    { keys: ['perfekt'], label: '⏪ Separable & Perfekt' }
-  ];
-  const verbParts = buildPartsFromSetKeys(STUDY_DE_A1_VERBS, verbSetDefs, 4);
-
-  const grammarSetDefs = [
-    { keys: ['word_order'], label: '❓ Word Order & Questions' },
-    { keys: ['neg_pron'], label: '🚫 Pronouns & Negation' },
-    { keys: ['cases'], label: '📚 Cases & Plurals' },
-    { keys: ['preps'], label: '📍 Prepositions' },
-    { keys: ['modals'], label: '🔗 Modals & Connectors' }
-  ];
-  const grammarParts = buildPartsFromSetKeys(STUDY_DE_A1_GRAMMAR, grammarSetDefs, 4);
-
-  const phraseSetDefs = [
-    { keys: ['intro'], label: '👋 Greetings & Intro' },
-    { keys: ['shop'], label: '☕ Café & Shopping' },
-    { keys: ['travel'], label: '🧭 Directions & Travel' },
-    { keys: ['daily'], label: '🏥 Time & Health' }
-  ];
-  const phraseParts = buildPartsFromSetKeys(STUDY_DE_A1_PHRASES_CORE, phraseSetDefs, 2);
-
-  const articleItems = [];
-  const artGroup1 = [];
-  const artGroup2 = [];
-  const artGroup3 = [];
-  const artGroup4 = [];
-  const allArticles = ['der', 'die', 'das'];
-
-  const pushNounArticleItem = ([de, pos, setKey]) => {
-    if (pos !== 'n') return;
-    const match = de.match(/^(der|die|das)\s+(.+)$/);
-    if (!match) return;
-    const article = match[1];
-    const noun = match[2];
-    const distractors = allArticles.filter(a => a !== article);
-    const hint = getGermanNounSuffixHint(noun, article);
-    const prompt = GERMAN_ARTICLE_PROMPT_DISAMBIG[noun] || `___ ${noun}`;
-    const idx = articleItems.length;
-    articleItems.push([prompt, article, distractors, hint]);
-    if (setKey === 'people' || setKey === 'home') {
-      artGroup1.push(idx);
-    } else if (setKey === 'food' || setKey === 'city') {
-      artGroup2.push(idx);
-    } else {
-      artGroup3.push(idx);
-    }
-  };
-
-  // Preserve original qIdx ordering: initial 717 vocab entries [0..375], Akk [376..445], appended nouns [446+].
-  const A1_INITIAL_VOCAB_COUNT = 717;
-  STUDY_DE_A1_VOCAB_CORE.slice(0, A1_INITIAL_VOCAB_COUNT).forEach(pushNounArticleItem);
-
-  STUDY_DE_A1_ARTICLES_AKK.forEach(([prompt, correct, distractors, ruleNote]) => {
-    const idx = articleItems.length;
-    articleItems.push([prompt, correct, distractors, ruleNote]);
-    artGroup4.push(idx);
-  });
-
-  STUDY_DE_A1_VOCAB_CORE.slice(A1_INITIAL_VOCAB_COUNT).forEach(pushNounArticleItem);
-
-  const articleParts = [
-    { label: '🏠 People & Home', indices: artGroup1 },
-    { label: '🍎 Food & City', indices: artGroup2 },
-    { label: '💼 Work & Time', indices: artGroup3 },
-    { label: '⚖️ Nom vs Akk', indices: artGroup4 }
-  ];
-
-  return {
-    learn: 'de',
-    cefr: 'a1',
-    preferredPackOrder: ['en', 'pt', 'es', 'fr'],
-    packs: STUDY_DE_A1_PACKS,
-    vocabCore: STUDY_DE_A1_VOCAB_CORE,
-    vocabParts,
-    phrasesCore: STUDY_DE_A1_PHRASES_CORE,
-    phraseParts,
-    monolingualTracks: [
-      {
-        key: 'grammar',
-        shortLabel: '📐 Grammar',
-        items: STUDY_DE_A1_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
-        parts: grammarParts
-      },
-      {
-        key: 'verbs',
-        shortLabel: '⚡ Verbs & Conjugation',
-        items: STUDY_DE_A1_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
-        parts: verbParts
-      },
-      {
-        key: 'articles',
-        shortLabel: '🏷️ Articles & Gender',
-        items: articleItems,
-        parts: articleParts
-      }
-    ]
-  };
-}
-
-function buildGermanA2StudyCourse() {
-  if (
-    typeof STUDY_DE_A2_VOCAB_CORE === 'undefined' ||
-    typeof STUDY_DE_A2_ARTICLES_CASES === 'undefined' ||
-    typeof STUDY_DE_A2_VERBS === 'undefined' ||
-    typeof STUDY_DE_A2_GRAMMAR === 'undefined' ||
-    typeof STUDY_DE_A2_PHRASES_CORE === 'undefined' ||
-    typeof STUDY_DE_A2_PACKS === 'undefined'
-  ) {
-    return null;
-  }
-
-  const vocabSetDefs = [
-    { keys: ['daily'], label: '🏠 Daily Life & Living' },
-    { keys: ['social'], label: '💬 People & Feelings' },
-    { keys: ['work'], label: '💼 Education & Work' },
-    { keys: ['health'], label: '🩺 Health & Body' },
-    { keys: ['travel'], label: '✈️ Travel & Mobility' },
-    { keys: ['media'], label: '📱 Media, Culture & Leisure' },
-    { keys: ['verbs_adj'], label: '✨ Verbs, Adjectives & Connectors' }
-  ];
-  const vocabParts = buildPartsFromSetKeys(STUDY_DE_A2_VOCAB_CORE, vocabSetDefs, 2);
-
-  const verbSetDefs = [
-    { keys: ['reflexive'], label: '🔄 Reflexive Verbs' },
-    { keys: ['prateritum'], label: '📜 Präteritum & Modals' },
-    { keys: ['perfekt'], label: '⏪ Perfekt & Partizip II' },
-    { keys: ['konj2_prep'], label: '💭 Konjunktiv II & Verb+Präp' }
-  ];
-  const verbParts = buildPartsFromSetKeys(STUDY_DE_A2_VERBS, verbSetDefs, 4);
-
-  const grammarSetDefs = [
-    { keys: ['nebensatz'], label: '🔀 Nebensätze (Verb am Ende)' },
-    { keys: ['cases_pron'], label: '🎯 Dativ, Reflexiv & Relativ' },
-    { keys: ['adj_comp'], label: '📊 Adjektive & Vergleiche' },
-    { keys: ['preps'], label: '📍 Wechselpräpositionen & Zeit' },
-    { keys: ['passiv_zu'], label: '🏗️ Infinitiv mit zu, werden & Passiv' }
-  ];
-  const grammarParts = buildPartsFromSetKeys(STUDY_DE_A2_GRAMMAR, grammarSetDefs, 4);
-
-  const phraseSetDefs = [
-    { keys: ['social'], label: '💬 Opinions & Invitations' },
-    { keys: ['work'], label: '💼 Work, Study & Admin' },
-    { keys: ['services'], label: '🛠️ Shopping, Housing & Complaints' },
-    { keys: ['travel'], label: '🚆 Travel, Health & Emergencies' }
-  ];
-  const phraseParts = buildPartsFromSetKeys(STUDY_DE_A2_PHRASES_CORE, phraseSetDefs, 2);
-
-  const articleItems = [];
-  const artGroup1 = [];
-  const artGroup2 = [];
-  const artGroup3 = [];
-  const artGroup4 = [];
-  const allArticles = ['der', 'die', 'das'];
-
-  STUDY_DE_A2_VOCAB_CORE.forEach(([de, pos, setKey]) => {
-    if (pos !== 'n') return;
-    const match = de.match(/^(der|die|das)\s+(.+)$/);
-    if (!match) return;
-    const article = match[1];
-    const noun = match[2];
-    const distractors = allArticles.filter(a => a !== article);
-    const hint = getGermanNounSuffixHint(noun, article);
-    const prompt = GERMAN_ARTICLE_PROMPT_DISAMBIG[noun] || `___ ${noun}`;
-    const idx = articleItems.length;
-    articleItems.push([prompt, article, distractors, hint]);
-    if (setKey === 'daily' || setKey === 'social') {
-      artGroup1.push(idx);
-    } else if (setKey === 'work' || setKey === 'health') {
-      artGroup2.push(idx);
-    } else {
-      artGroup3.push(idx);
-    }
-  });
-
-  STUDY_DE_A2_ARTICLES_CASES.forEach(([prompt, correct, distractors, ruleNote]) => {
-    const idx = articleItems.length;
-    articleItems.push([prompt, correct, distractors, ruleNote]);
-    artGroup4.push(idx);
-  });
-
-  const articleParts = [
-    { label: '🏠 Daily & Social', indices: artGroup1 },
-    { label: '💼 Work & Health', indices: artGroup2 },
-    { label: '✈️ Travel & Media', indices: artGroup3 },
-    { label: '⚖️ Dativ & Adj.-Endungen', indices: artGroup4 }
-  ];
-
-  return {
-    learn: 'de',
-    cefr: 'a2',
-    preferredPackOrder: ['en', 'pt', 'es', 'fr'],
-    packs: STUDY_DE_A2_PACKS,
-    vocabCore: STUDY_DE_A2_VOCAB_CORE,
-    vocabParts,
-    phrasesCore: STUDY_DE_A2_PHRASES_CORE,
-    phraseParts,
-    monolingualTracks: [
-      {
-        key: 'grammar',
-        shortLabel: '📐 Grammar',
-        items: STUDY_DE_A2_GRAMMAR.map(([p, c, d, note]) => [p, c, d, note]),
-        parts: grammarParts
-      },
-      {
-        key: 'verbs',
-        shortLabel: '⚡ Verbs & Conjugation',
-        items: STUDY_DE_A2_VERBS.map(([p, c, d, note]) => [p, c, d, note]),
-        parts: verbParts
-      },
-      {
-        key: 'articles',
-        shortLabel: '🏷️ Articles & Gender',
-        items: articleItems,
-        parts: articleParts
-      }
-    ]
-  };
-}
-
-const STUDY_COURSES = [
-  buildGermanA1StudyCourse(),
-  buildGermanA2StudyCourse()
-].filter(Boolean);
-
 function buildStudyQuizConfigs() {
-  return STUDY_COURSES.flatMap(buildConfigsForStudyCourse);
+  return getStudyCoursesMetaList().flatMap(buildStudyStubConfigsFromCourseMeta);
 }
 
 const BASE_QUIZ_CONFIGS = [
@@ -901,6 +651,8 @@ function buildSplitQuizConfigs(baseConfigs) {
         ...(base.studyLearn ? { studyLearn: base.studyLearn } : {}),
         ...(base.studyWith ? { studyWith: base.studyWith } : {}),
         ...(base.studyCefr ? { studyCefr: base.studyCefr } : {}),
+        ...(base.studyTrackKey ? { studyTrackKey: base.studyTrackKey } : {}),
+        ...(base.isLazyStudy ? { isLazyStudy: true, studyDataLoaded: Boolean(base.studyDataLoaded) } : {}),
         ...(base.distractorMode ? { distractorMode: base.distractorMode } : {}),
         ...(base.shortLabel ? { shortLabel: base.shortLabel } : {}),
         type: 'quiz',
@@ -915,3 +667,302 @@ function buildSplitQuizConfigs(baseConfigs) {
 }
 
 const BUILTIN_QUIZ_CONFIGS = buildSplitQuizConfigs(BASE_QUIZ_CONFIGS);
+
+const STUDY_CONFIGS_BY_ID = new Map();
+BUILTIN_QUIZ_CONFIGS.forEach((cfg) => {
+  if (cfg && cfg.isLazyStudy) {
+    STUDY_CONFIGS_BY_ID.set(cfg.id, cfg);
+  }
+});
+
+const studyScriptPromises = new Map();
+const studyCourseLoadPromises = new Map();
+
+function loadStudyScriptOnce(src) {
+  if (studyScriptPromises.has(src)) {
+    return studyScriptPromises.get(src);
+  }
+  const promise = new Promise((resolve, reject) => {
+    if (typeof document === 'undefined' || !document.head) {
+      reject(new Error('Document head unavailable'));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      studyScriptPromises.delete(src);
+      reject(new Error(`Failed to load ${src}`));
+    };
+    document.head.appendChild(script);
+  });
+  studyScriptPromises.set(src, promise);
+  return promise;
+}
+
+function getLoadedStudyCourseRawData(learn, cefr) {
+  if (learn === 'de' && cefr === 'a1') {
+    if (
+      typeof STUDY_DE_A1_VOCAB_CORE === 'undefined' ||
+      typeof STUDY_DE_A1_ARTICLES_AKK === 'undefined' ||
+      typeof STUDY_DE_A1_VERBS === 'undefined' ||
+      typeof STUDY_DE_A1_GRAMMAR === 'undefined' ||
+      typeof STUDY_DE_A1_PHRASES_CORE === 'undefined' ||
+      typeof STUDY_DE_A1_PACKS === 'undefined'
+    ) {
+      return null;
+    }
+    return {
+      vocabCore: STUDY_DE_A1_VOCAB_CORE,
+      artExtra: STUDY_DE_A1_ARTICLES_AKK,
+      verbs: STUDY_DE_A1_VERBS,
+      grammar: STUDY_DE_A1_GRAMMAR,
+      phrasesCore: STUDY_DE_A1_PHRASES_CORE,
+      packs: STUDY_DE_A1_PACKS,
+      initialVocabCount: 717
+    };
+  }
+  if (learn === 'de' && cefr === 'a2') {
+    if (
+      typeof STUDY_DE_A2_VOCAB_CORE === 'undefined' ||
+      typeof STUDY_DE_A2_ARTICLES_CASES === 'undefined' ||
+      typeof STUDY_DE_A2_VERBS === 'undefined' ||
+      typeof STUDY_DE_A2_GRAMMAR === 'undefined' ||
+      typeof STUDY_DE_A2_PHRASES_CORE === 'undefined' ||
+      typeof STUDY_DE_A2_PACKS === 'undefined'
+    ) {
+      return null;
+    }
+    return {
+      vocabCore: STUDY_DE_A2_VOCAB_CORE,
+      artExtra: STUDY_DE_A2_ARTICLES_CASES,
+      verbs: STUDY_DE_A2_VERBS,
+      grammar: STUDY_DE_A2_GRAMMAR,
+      phrasesCore: STUDY_DE_A2_PHRASES_CORE,
+      packs: STUDY_DE_A2_PACKS,
+      initialVocabCount: null
+    };
+  }
+  return null;
+}
+
+function buildGermanArticleTrackData(vocabCore, artExtra, articlePartDefs, initialVocabCount) {
+  const items = [];
+  const groups = articlePartDefs.map(() => []);
+  const allArticles = ['der', 'die', 'das'];
+  const keyToGroupIdx = new Map();
+  let extraGroupIdx = articlePartDefs.length - 1;
+  articlePartDefs.forEach((def, idx) => {
+    (def.keys || []).forEach((k) => {
+      if (k === 'extra') extraGroupIdx = idx;
+      else keyToGroupIdx.set(k, idx);
+    });
+  });
+
+  const pushNounArticleItem = ([de, pos, setKey]) => {
+    if (pos !== 'n') return;
+    const match = de.match(/^(der|die|das)\s+(.+)$/);
+    if (!match) return;
+    const article = match[1];
+    const noun = match[2];
+    const distractors = allArticles.filter(a => a !== article);
+    const hint = getGermanNounSuffixHint(noun, article);
+    const prompt = GERMAN_ARTICLE_PROMPT_DISAMBIG[noun] || `___ ${noun}`;
+    const idx = items.length;
+    items.push([prompt, article, distractors, hint]);
+    const gIdx = keyToGroupIdx.has(setKey) ? keyToGroupIdx.get(setKey) : Math.max(0, extraGroupIdx - 1);
+    if (groups[gIdx]) groups[gIdx].push(idx);
+  };
+
+  if (typeof initialVocabCount === 'number' && initialVocabCount > 0) {
+    vocabCore.slice(0, initialVocabCount).forEach(pushNounArticleItem);
+    artExtra.forEach(([prompt, correct, distractors, ruleNote]) => {
+      const idx = items.length;
+      items.push([prompt, correct, distractors, ruleNote]);
+      if (groups[extraGroupIdx]) groups[extraGroupIdx].push(idx);
+    });
+    vocabCore.slice(initialVocabCount).forEach(pushNounArticleItem);
+  } else {
+    vocabCore.forEach(pushNounArticleItem);
+    artExtra.forEach(([prompt, correct, distractors, ruleNote]) => {
+      const idx = items.length;
+      items.push([prompt, correct, distractors, ruleNote]);
+      if (groups[extraGroupIdx]) groups[extraGroupIdx].push(idx);
+    });
+  }
+
+  const parts = articlePartDefs.map((def, idx) => ({
+    label: def.label,
+    indices: groups[idx]
+  }));
+  return { items, parts };
+}
+
+function hydrateStudyTrack(baseId, items, parts) {
+  const baseCfg = STUDY_CONFIGS_BY_ID.get(baseId);
+  if (!baseCfg) return;
+  baseCfg.items = items;
+  baseCfg.customParts = parts;
+  baseCfg.studyDataLoaded = true;
+  parts.forEach((part, idx) => {
+    const partCfg = STUDY_CONFIGS_BY_ID.get(`${baseId}_p${idx + 1}`);
+    if (partCfg) {
+      partCfg.items = part.indices.map(i => items[i]);
+      partCfg.studyDataLoaded = true;
+    }
+  });
+}
+
+function hydrateStudyCourseData(learn, cefr, withLang = '') {
+  const raw = getLoadedStudyCourseRawData(learn, cefr);
+  const courseMeta = getStudyCoursesMetaList().find(c => c.learn === learn && c.cefr === cefr);
+  if (!raw || !courseMeta) return false;
+
+  const partDefs = courseMeta.partDefs || {};
+  const grammarBaseId = `cfg_study_${learn}_${learn}_${cefr}_grammar`;
+  const grammarCfg = STUDY_CONFIGS_BY_ID.get(grammarBaseId);
+  if (grammarCfg && !grammarCfg.studyDataLoaded) {
+    const grammarItems = raw.grammar.map(([p, c, d, note]) => [p, c, d, note]);
+    const grammarParts = buildPartsFromSetKeys(raw.grammar, partDefs.grammar || [], 4);
+    hydrateStudyTrack(grammarBaseId, grammarItems, grammarParts);
+  }
+
+  const verbsBaseId = `cfg_study_${learn}_${learn}_${cefr}_verbs`;
+  const verbsCfg = STUDY_CONFIGS_BY_ID.get(verbsBaseId);
+  if (verbsCfg && !verbsCfg.studyDataLoaded) {
+    const verbItems = raw.verbs.map(([p, c, d, note]) => [p, c, d, note]);
+    const verbParts = buildPartsFromSetKeys(raw.verbs, partDefs.verbs || [], 4);
+    hydrateStudyTrack(verbsBaseId, verbItems, verbParts);
+  }
+
+  const articlesBaseId = `cfg_study_${learn}_${learn}_${cefr}_articles`;
+  const articlesCfg = STUDY_CONFIGS_BY_ID.get(articlesBaseId);
+  if (articlesCfg && !articlesCfg.studyDataLoaded) {
+    const artData = buildGermanArticleTrackData(
+      raw.vocabCore,
+      raw.artExtra,
+      partDefs.articles || [],
+      raw.initialVocabCount
+    );
+    hydrateStudyTrack(articlesBaseId, artData.items, artData.parts);
+  }
+
+  const packCodes = withLang && withLang !== learn ? [withLang] : Object.keys(raw.packs || {});
+  packCodes.forEach((code) => {
+    const pack = raw.packs && raw.packs[code];
+    if (
+      !pack ||
+      !Array.isArray(pack.vocab) ||
+      !Array.isArray(pack.phrases) ||
+      pack.vocab.length !== raw.vocabCore.length ||
+      pack.phrases.length !== raw.phrasesCore.length
+    ) {
+      return;
+    }
+
+    const vocabFwdId = `cfg_study_${learn}_${code}_${cefr}_vocab_${learn}_${code}`;
+    const vocabFwdCfg = STUDY_CONFIGS_BY_ID.get(vocabFwdId);
+    if (vocabFwdCfg && !vocabFwdCfg.studyDataLoaded) {
+      const vocabParts = buildPartsFromSetKeys(raw.vocabCore, partDefs.vocab || [], 2);
+      const vocabFwdItems = raw.vocabCore.map(([word, pos, setKey, hint], i) => [
+        word,
+        pack.vocab[i],
+        pos,
+        setKey,
+        hint || ''
+      ]);
+      hydrateStudyTrack(vocabFwdId, vocabFwdItems, vocabParts);
+    }
+
+    const vocabRevId = `cfg_study_${learn}_${code}_${cefr}_vocab_${code}_${learn}`;
+    const vocabRevCfg = STUDY_CONFIGS_BY_ID.get(vocabRevId);
+    if (vocabRevCfg && !vocabRevCfg.studyDataLoaded) {
+      const vocabParts = buildPartsFromSetKeys(raw.vocabCore, partDefs.vocab || [], 2);
+      const vocabRevItems = raw.vocabCore.map(([word, pos, setKey, hint], i) => [
+        pack.vocab[i],
+        word,
+        pos,
+        setKey,
+        hint || ''
+      ]);
+      hydrateStudyTrack(vocabRevId, vocabRevItems, vocabParts);
+    }
+
+    const phrasesFwdId = `cfg_study_${learn}_${code}_${cefr}_phrases_${learn}_${code}`;
+    const phrasesFwdCfg = STUDY_CONFIGS_BY_ID.get(phrasesFwdId);
+    if (phrasesFwdCfg && !phrasesFwdCfg.studyDataLoaded) {
+      const phraseParts = buildPartsFromSetKeys(raw.phrasesCore, partDefs.phrases || [], 2);
+      const phrasesFwdItems = raw.phrasesCore.map(([correct, , setKey], i) => {
+        const [phrase, ruleNote] = pack.phrases[i];
+        return [correct, phrase, getPhraseEndingPunct(correct), setKey, ruleNote];
+      });
+      hydrateStudyTrack(phrasesFwdId, phrasesFwdItems, phraseParts);
+    }
+
+    const phrasesRevId = `cfg_study_${learn}_${code}_${cefr}_phrases`;
+    const phrasesRevCfg = STUDY_CONFIGS_BY_ID.get(phrasesRevId);
+    if (phrasesRevCfg && !phrasesRevCfg.studyDataLoaded) {
+      const phraseParts = buildPartsFromSetKeys(raw.phrasesCore, partDefs.phrases || [], 2);
+      const phrasesRevItems = raw.phrasesCore.map(([correct, distractors], i) => {
+        const [prompt, ruleNote] = pack.phrases[i];
+        return [prompt, correct, distractors, ruleNote];
+      });
+      hydrateStudyTrack(phrasesRevId, phrasesRevItems, phraseParts);
+    }
+  });
+
+  return true;
+}
+
+function hydrateAnyPreloadedStudyCourses() {
+  getStudyCoursesMetaList().forEach((course) => {
+    hydrateStudyCourseData(course.learn, course.cefr);
+  });
+}
+
+hydrateAnyPreloadedStudyCourses();
+
+function isStudyConfigLoaded(cfgOrId) {
+  const cfg = typeof cfgOrId === 'string' ? STUDY_CONFIGS_BY_ID.get(cfgOrId) : cfgOrId;
+  return !cfg || !cfg.isLazyStudy || Boolean(cfg.studyDataLoaded);
+}
+
+async function ensureStudyConfigLoaded(cfgOrId) {
+  let cfg = typeof cfgOrId === 'string' ? STUDY_CONFIGS_BY_ID.get(cfgOrId) : cfgOrId;
+  if (!cfg && typeof cfgOrId === 'string' && typeof window !== 'undefined' && typeof window.resolveStudyConfigIdAlias === 'function') {
+    cfg = STUDY_CONFIGS_BY_ID.get(window.resolveStudyConfigIdAlias(cfgOrId));
+  }
+  if (!cfg || !cfg.isLazyStudy || cfg.studyDataLoaded) {
+    return true;
+  }
+
+  const learn = cfg.studyLearn;
+  const cefr = cfg.studyCefr;
+  const withLang = cfg.studyWith && cfg.studyWith !== learn ? cfg.studyWith : '';
+  if (!learn || !cefr) return false;
+
+  const loadKey = `${learn}_${cefr}_${withLang || 'core'}`;
+  if (studyCourseLoadPromises.has(loadKey)) {
+    return studyCourseLoadPromises.get(loadKey);
+  }
+
+  const promise = (async () => {
+    try {
+      await loadStudyScriptOnce(`data/study-${learn}-${cefr}-core.js`);
+      if (withLang) {
+        await loadStudyScriptOnce(`data/study-${learn}-${cefr}-${withLang}.js`);
+      }
+      hydrateStudyCourseData(learn, cefr, withLang);
+      return Boolean(cfg.studyDataLoaded);
+    } catch (err) {
+      console.error('Failed to load study pack:', loadKey, err);
+      return false;
+    } finally {
+      studyCourseLoadPromises.delete(loadKey);
+    }
+  })();
+
+  studyCourseLoadPromises.set(loadKey, promise);
+  return promise;
+}

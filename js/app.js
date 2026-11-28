@@ -145,6 +145,7 @@ function saveSwitcherExpandedState() {
 const switcherExpandedState = loadSwitcherExpandedState();
 let isSoundEnabled = localStorage.getItem(STORAGE_KEYS.soundEnabled) !== '0';
 let currentStreak = 0;
+let isLoadingStudyPack = false;
 let audioCtx = null;
 
 // DOM Elements
@@ -927,6 +928,9 @@ function isQuizConfig(cfg) {
 const RENAMED_CONFIG_ID_RE = /^cfg_study_de_en_a1_(grammar|verbs|articles)(_p\d+)?$/;
 
 function resolveConfigIdAlias(cfgId) {
+  if (typeof window !== 'undefined' && typeof window.resolveStudyConfigIdAlias === 'function') {
+    return window.resolveStudyConfigIdAlias(cfgId);
+  }
   if (typeof cfgId !== 'string' || !cfgId) return cfgId;
   return cfgId.replace(RENAMED_CONFIG_ID_RE, 'cfg_study_de_de_a1_$1$2');
 }
@@ -938,6 +942,20 @@ function getConfigById(cfgId) {
   }
   const canonicalId = resolveConfigIdAlias(cfgId);
   return configsByIdMap.get(canonicalId) || configsByIdMap.get(cfgId) || null;
+}
+
+function preloadStudyConfigInBackground(cfgOrId) {
+  const targetCfg = typeof cfgOrId === 'string' ? getConfigById(cfgOrId) : cfgOrId;
+  if (!targetCfg || !targetCfg.isLazyStudy || targetCfg.studyDataLoaded) return;
+  if (typeof ensureStudyConfigLoaded !== 'function') return;
+  const targetId = targetCfg.id;
+  ensureStudyConfigLoaded(targetCfg)
+    .then((loaded) => {
+      if (loaded && activeConfigId === targetId && !isPlaying && !isReplaying) {
+        renderReview();
+      }
+    })
+    .catch(() => {});
 }
 
 function getConfigId(cfg) {
@@ -972,6 +990,7 @@ function formatConfigLabel(cfg) {
 function isConfigPlayable(cfg) {
   if (!cfg) return false;
   if (isQuizConfig(cfg)) {
+    if (cfg.isLazyStudy && !cfg.studyDataLoaded) return true;
     return Array.isArray(cfg.items) && cfg.items.length >= 2;
   }
   return getValidSamplers(cfg).length > 0;
@@ -1553,6 +1572,7 @@ async function switchCategory(targetCat) {
   renderConfigsUI();
   renderLeaderboard();
   renderReview();
+  preloadStudyConfigInBackground(activeConfigId);
 }
 
 function switchStudyFilter(filterType, targetValue) {
@@ -1601,10 +1621,12 @@ function switchStudyFilter(filterType, targetValue) {
       renderLeaderboard();
       renderReview();
       refreshSingleConfigLeaderboard(activeConfigId);
+      preloadStudyConfigInBackground(activeConfigId);
       return;
     }
   }
   renderConfigsUI();
+  preloadStudyConfigInBackground(activeConfigId);
 }
 
 function applyLangFilterChange() {
@@ -1788,6 +1810,7 @@ async function switchConfig(targetConfigId) {
   renderLeaderboard();
   renderReview();
   refreshSingleConfigLeaderboard(target.id);
+  preloadStudyConfigInBackground(target.id);
 }
 
 function isPlausibleLeaderboardSession(score, sessionData) {
@@ -1970,6 +1993,7 @@ async function syncFromFirebase() {
     renderConfigsUI();
     renderLeaderboard();
     renderReview();
+    preloadStudyConfigInBackground(activeConfigId);
     checkUrlReplayOnLoad();
   } catch (err) {
     console.error('Failed to sync with Firebase:', err);
@@ -2524,6 +2548,9 @@ async function fetchRemoteReplayQuestions(cfgId, targetUserId) {
 
 async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId) {
   if (!entry) return null;
+  if (typeof ensureStudyConfigLoaded === "function") {
+    await ensureStudyConfigLoaded(targetConfigId);
+  }
   let questions = null;
   if (Array.isArray(entry.questions) && entry.questions.length > 0) {
     questions = entry.questions.map(q => normalizeQuestionRecord(q, targetConfigId));
@@ -2545,6 +2572,9 @@ async function resolveEntryReplaySession(entry, targetConfigId = activeConfigId)
 }
 
 async function resolveMyBestReplaySession() {
+  if (typeof ensureStudyConfigLoaded === "function") {
+    await ensureStudyConfigLoaded(activeConfigId);
+  }
   const boardObj = leaderboardsMap[activeConfigId] || {};
   const myEntry = boardObj[userId];
   const bestLocal = getBestLocalSession(userId, activeConfigId);
@@ -3570,6 +3600,10 @@ function ensureQuestionStatsBucket(targetUserId, targetConfigId) {
   const statsMap = getQuestionStatsMap();
   const compKey = `${targetUserId}__${targetConfigId}`;
   if (!statsMap[compKey] || typeof statsMap[compKey] !== 'object') {
+    const targetCfg = getConfigById(targetConfigId);
+    if (targetCfg && targetCfg.isLazyStudy && !targetCfg.studyDataLoaded) {
+      return { statsMap, compKey, bucket: {} };
+    }
     const bucket = {};
     const historyMap = getGameHistoryMap();
     const sessions = Array.isArray(historyMap[compKey]) ? [...historyMap[compKey]].reverse() : [];
@@ -3844,6 +3878,13 @@ function renderReview() {
 
   renderHistoryChart(sessions || []);
 
+  const activeCfgForReview = getActiveConfig();
+  if (activeCfgForReview && activeCfgForReview.isLazyStudy && !activeCfgForReview.studyDataLoaded) {
+    reviewList.innerHTML = '<li class="empty-row">Loading study review…</li>';
+    preloadStudyConfigInBackground(activeCfgForReview);
+    return;
+  }
+
   let ordered = [];
   if (reviewSortMode === 'practice') {
     ordered = trackedQuestions;
@@ -4097,29 +4138,51 @@ function sampleQuizDistractorIndex(cfgOrItems, qIdx) {
   const n = items.length;
   if (n <= 1) return 0;
   const targetAns = items[qIdx][1];
+  const targetLen = String(targetAns ?? '').length;
+  const pickBestFromPool = (pool) => {
+    if (!pool || pool.length === 0) return -1;
+    if (pool.length === 1 && (pool[0] === qIdx || items[pool[0]][1] === targetAns)) return -1;
+    const sampleCount = targetLen >= 12 ? 3 : 1;
+    let bestIdx = -1;
+    let bestRatio = Infinity;
+    for (let s = 0; s < sampleCount; s++) {
+      let candidate = -1;
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const idx = pool[randomInt(0, pool.length - 1)];
+        if (idx !== qIdx && items[idx][1] !== targetAns) {
+          candidate = idx;
+          break;
+        }
+      }
+      if (candidate < 0) continue;
+      if (sampleCount === 1) return candidate;
+      const candLen = Math.max(1, String(items[candidate][1] ?? '').length);
+      const ratio = Math.max(targetLen, candLen) / Math.min(Math.max(1, targetLen), candLen);
+      if (ratio < bestRatio) {
+        bestRatio = ratio;
+        bestIdx = candidate;
+      }
+    }
+    return bestIdx;
+  };
   if (cfg && cfg.distractorMode === 'pos_pool') {
     const pos = items[qIdx][2];
     const setKey = items[qIdx][3];
     const buckets = pos ? getQuizPosBuckets(items) : null;
     if (buckets && setKey && Math.random() < 0.7) {
-      const setPosPool = buckets.bySetPos.get(`${setKey}|${pos}`);
-      if (setPosPool && setPosPool.length > 1) {
-        for (let attempt = 0; attempt < 25; attempt++) {
-          const idx = setPosPool[randomInt(0, setPosPool.length - 1)];
-          if (idx !== qIdx && items[idx][1] !== targetAns) {
-            return idx;
-          }
-        }
-      }
+      const picked = pickBestFromPool(buckets.bySetPos.get(`${setKey}|${pos}`));
+      if (picked >= 0) return picked;
     }
-    const pool = buckets ? buckets.byPos.get(pos) : null;
-    if (pool && pool.length > 1) {
-      for (let attempt = 0; attempt < 25; attempt++) {
-        const idx = pool[randomInt(0, pool.length - 1)];
-        if (idx !== qIdx && items[idx][1] !== targetAns) {
-          return idx;
-        }
+    const pickedByPos = pickBestFromPool(buckets ? buckets.byPos.get(pos) : null);
+    if (pickedByPos >= 0) return pickedByPos;
+    if (pos === '!' || pos === '.') {
+      const altPunct = pos === '!' ? '.' : '!';
+      if (buckets && setKey && Math.random() < 0.7) {
+        const pickedAltSet = pickBestFromPool(buckets.bySetPos.get(`${setKey}|${altPunct}`));
+        if (pickedAltSet >= 0) return pickedAltSet;
       }
+      const pickedAlt = pickBestFromPool(buckets ? buckets.byPos.get(altPunct) : null);
+      if (pickedAlt >= 0) return pickedAlt;
     }
   }
   for (let attempt = 0; attempt < 25; attempt++) {
@@ -4880,8 +4943,9 @@ function enterAndroidImmersiveFullscreen() {
   return Promise.resolve();
 }
 
-function startGame(practice = false, raceTargetSession = null) {
+async function startGame(practice = false, raceTargetSession = null) {
   enterAndroidImmersiveFullscreen();
+  if (isPlaying || isLoadingStudyPack) return;
   stopCelebration();
   if (raceRafId) {
     cancelAnimationFrame(raceRafId);
@@ -4902,6 +4966,39 @@ function startGame(practice = false, raceTargetSession = null) {
   }
 
   const activeCfg = getActiveConfig();
+  if (activeCfg && activeCfg.isLazyStudy && !activeCfg.studyDataLoaded && typeof ensureStudyConfigLoaded === "function") {
+    isLoadingStudyPack = true;
+    const prevPlayText = playBtn ? playBtn.textContent : "";
+    const prevPracticeText = practiceBtn ? practiceBtn.textContent : "";
+    if (playBtn) {
+      playBtn.disabled = true;
+      if (!practice && !raceTargetSession) playBtn.textContent = "Loading…";
+    }
+    if (practiceBtn) {
+      practiceBtn.disabled = true;
+      if (practice) practiceBtn.textContent = "Loading…";
+    }
+    let loaded = false;
+    try {
+      loaded = await ensureStudyConfigLoaded(activeCfg);
+    } finally {
+      isLoadingStudyPack = false;
+      if (playBtn) {
+        playBtn.disabled = false;
+        playBtn.textContent = prevPlayText || "Play 1-Minute Game";
+      }
+      if (practiceBtn) {
+        practiceBtn.disabled = false;
+        practiceBtn.textContent = prevPracticeText || "Practice Weak & Slow";
+      }
+    }
+    if (!loaded || isPlaying) {
+      if (!loaded) {
+        alert("Could not load this study pack. Please check your connection and try again.");
+      }
+      return;
+    }
+  }
   if (!isConfigPlayable(activeCfg)) return;
   const isQuiz = isQuizConfig(activeCfg);
 
@@ -5228,7 +5325,7 @@ function encodeReplayParam(session) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function decodeReplayParam(encoded) {
+async function decodeReplayParam(encoded) {
   try {
     const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
@@ -5241,6 +5338,9 @@ function decodeReplayParam(encoded) {
     if (!payload || !Array.isArray(payload.q) || payload.q.length === 0) return null;
 
     const cfgId = resolveConfigIdAlias(String(payload.c || activeConfigId));
+    if (typeof ensureStudyConfigLoaded === "function") {
+      await ensureStudyConfigLoaded(cfgId);
+    }
     const questions = decodeCompactQuestionsList(payload.q, cfgId);
     let opponent = null;
     if (payload.o && Array.isArray(payload.o.q) && payload.o.q.length > 0) {
@@ -5339,7 +5439,7 @@ async function copyUserPageLink(targetUserId, targetUsername, btnEl) {
   await copyUrlWithFeedback(url, btnEl);
 }
 
-function checkUrlReplayOnLoad() {
+async function checkUrlReplayOnLoad() {
   if (hasHandledInitialUrlReplay) return;
   const params = new URLSearchParams(window.location.search);
   const replayParam = params.get('replay');
@@ -5376,7 +5476,7 @@ function checkUrlReplayOnLoad() {
   }
 
   hasHandledInitialUrlReplay = true;
-  const decoded = decodeReplayParam(replayParam);
+  const decoded = await decodeReplayParam(replayParam);
   if (decoded) {
     if (decoded.configId && configs.some(c => c.id === decoded.configId)) {
       activeConfigId = decoded.configId;
@@ -5776,8 +5876,12 @@ function tickReplay(now) {
   }
 }
 
-function startReplay(session) {
+async function startReplay(session) {
   if (!session || !Array.isArray(session.questions) || session.questions.length === 0) return;
+  const replayTargetCfgId = resolveConfigIdAlias(session.configId || activeConfigId);
+  if (typeof ensureStudyConfigLoaded === "function") {
+    await ensureStudyConfigLoaded(replayTargetCfgId);
+  }
   if (isPlaying) {
     clearInterval(timerInterval);
     timerInterval = null;
@@ -6649,6 +6753,7 @@ function initConfigs() {
   renderConfigsUI();
   renderLeaderboard();
   renderReview();
+  preloadStudyConfigInBackground(activeConfigId);
 }
 
 // Initialize
