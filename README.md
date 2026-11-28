@@ -109,6 +109,23 @@ Playing every live full and mini game once across all five categories (**1,534 g
 - **🏁 All (≤100) mode @ 1s/answer (100% accuracy):** **7 hr 9 min 44 sec** (25,784 full Qs) + **25 hr 25 min 37 sec** (91,537 mini Qs) = **32 hr 35 min 21 sec** *(1 day, 8 hr, 35 min, 21 sec)*.
 - **Both modes combined:** **58 hr 9 min 21 sec** *(2 days, 10 hr, 9 min, 21 sec)* of active gameplay, excluding navigation between rounds or extra attempts from wrong answers.
 
+### By Spoken Languages (0–5)
+
+Because `💬 Lang` and `🎓 Study` span 5 languages (`EN`, `PT`, `ES`, `FR`, `DE`), active play time (both modes combined, `⏱️ 1-Min` + `🏁 All (≤100)` @ 1s/ans) varies by how many of those languages a player speaks on top of the **84** baseline games (`🔢 Math` + `🌍 Geo` + `🧩 Other`: `2 hr 37 min 28 sec`, or `24` games / `41 min 22 sec` if excluding English-labeled Geo/Chemistry games):
+
+| Spoken Langs | Without 🎓 Study *(Games · Combined)* | With 🎓 Study — Known Langs *(Games · Combined)* | With 🎓 Study — Learning the Other `5−k` *(Games · Combined)* |
+| :---: | :---: | :---: | :---: |
+| **0** | 84 · **2 hr 37 min 28 sec** | 84 · **2 hr 37 min 28 sec** | 84 · **2 hr 37 min 28 sec** |
+| **1** | 114 · **3 hr 47 min 28 sec** | 146 · **~4 hr 54 min** | 450 · **~16 hr 10 min** *(4 courses)* |
+| **2** | 154 · **5 hr 24 min 8 sec** | 322 · **~11 hr 36 min** | 406 · **~14 hr 41 min** *(3 courses)* |
+| **3** | 204 · **7 hr 27 min 28 sec** | 612 · **~22 hr 42 min** | 372 · **~13 hr 39 min** *(2 courses)* |
+| **4** | 264 · **9 hr 57 min 28 sec** | 1,016 · **~38 hr 13 min** | 348 · **~13 hr 3 min** *(1 course)* |
+| **5** | 334 · **12 hr 54 min 8 sec** | 1,534 · **58 hr 9 min 21 sec** | 334 · **12 hr 54 min 8 sec** *(0 new)* |
+
+- **Without `🎓 Study`:** Each spoken language adds `30` monolingual `💬 Lang` games (`2,400` Qs) and each ordered pair adds `5` translation games (`500` Qs) — $5k^2 + 25k$ games total (`1-Min`: `1h 24m` → `5h 34m`; `All`: `1h 13m` → `7h 20m`).
+- **With `🎓 Study` (Known Langs):** Playing only configs where both `Learn` and `With` are spoken adds `32` monolingual + `52` paired A1+A2 games per ordered pair ($52k^2 - 20k$ games; `1-Min`: `1h 24m` → `25h 34m`), varying by at most ±3 min across language subsets for $k = 1\dots4$.
+- **With `🎓 Study` (Learning the Other `5−k`):** Using 1 spoken language as `With` to study the remaining unlearned languages adds `84` games (`~6,000` Qs) per target language, peaking at $k = 1$ (`450` games, `7h 30m` in `1-Min` + `~8h 40m` in `All`).
+
 ## Running Locally
 
 ```bash
